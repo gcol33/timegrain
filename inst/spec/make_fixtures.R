@@ -2,12 +2,12 @@
 # Regenerates spec/fixtures/. This is a deliberate act with its own commit: a digest that moves
 # means the representation moved, and the question is which implementation is wrong.
 
-# Run from the package root: Rscript spec/fixtures/make_fixtures.R
+# Run from the package root: Rscript inst/spec/make_fixtures.R
 if (!file.exists("DESCRIPTION")) {
   stop("run this from the package root", call. = FALSE)
 }
-suppressMessages(devtools::load_all("."))
-out_dir <- "spec/fixtures"
+suppressMessages(pkgload::load_all(".", quiet = TRUE))
+out_dir <- "inst/spec/fixtures"
 
 make_series <- function() {
   t <- seq(as.POSIXct("2021-09-01 00:00:00", tz = "UTC"), by = "hour", length.out = 24 * 400)
@@ -30,25 +30,34 @@ write.csv(
   file.path(out_dir, "series.csv"), row.names = FALSE, quote = FALSE
 )
 
+# The three-channel schemes a caller asks for by name in the literature this package serves: the
+# window's own extremes, its typical day, and its coldest and warmest day.
+schemes <- list(
+  c("min", "mean", "max"),
+  c("mean_daily_min", "mean", "mean_daily_max"),
+  c("cold_day", "mean", "warm_day")
+)
+
 fine <- c("hour", "halfday")
 rows <- list()
+digest_row <- function(w, stats) {
+  x <- window_matrix(series, id, time, value, window = w, stats = stats)
+  data.frame(window = w, stat = paste(stats, collapse = "+"), n_unit = dim(x)[1],
+             n_bin = dim(x)[2], digest = .digest_array(x), stringsAsFactors = FALSE)
+}
+
 for (w in c("hour", "halfday", "day", "week", "month", "season", "year")) {
   available <- if (w %in% fine) c("mean", "min", "max") else
-    c("mean", "min", "max", "cold_day", "warm_day")
+    c("mean", "min", "max", "cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
   for (s in available) {
-    x <- window_matrix(series, id, time, value, window = w, stats = s)
-    rows[[length(rows) + 1L]] <- data.frame(
-      window = w, stat = s, n_unit = dim(x)[1], n_bin = dim(x)[2],
-      digest = .digest_array(x), stringsAsFactors = FALSE
-    )
+    rows[[length(rows) + 1L]] <- digest_row(w, s)
   }
-  reported <- if (w %in% fine) NULL else c("cold_day", "mean", "warm_day")
-  if (!is.null(reported)) {
-    x <- window_matrix(series, id, time, value, window = w, stats = reported)
-    rows[[length(rows) + 1L]] <- data.frame(
-      window = w, stat = paste(reported, collapse = "+"), n_unit = dim(x)[1],
-      n_bin = dim(x)[2], digest = .digest_array(x), stringsAsFactors = FALSE
-    )
+  for (scheme in schemes) {
+    if (w %in% fine && any(scheme %in% c("cold_day", "warm_day",
+                                         "mean_daily_min", "mean_daily_max"))) {
+      next
+    }
+    rows[[length(rows) + 1L]] <- digest_row(w, scheme)
   }
 }
 

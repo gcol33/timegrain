@@ -1,7 +1,7 @@
 Package: timegrain
 Title: Temporal Grain Selection for Ecological Prediction from Sensor Time
     Series
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R:
     person("Gilles", "Colling", email = "gilles.colling051@gmail.com",
            role = c("aut", "cre", "cph"),
@@ -22,9 +22,21 @@ Roxygen: list(markdown = TRUE)
 URL: https://gillescolling.com/timegrain/, https://github.com/gcol33/timegrain
 BugReports: https://github.com/gcol33/timegrain/issues
 Depends: R (>= 4.1)
+Imports:
+    grDevices,
+    graphics,
+    stats,
+    tools,
+    utils
 Suggests:
     testthat (>= 3.0.0),
     torch,
-    glmnet
+    glmnet,
+    lme4,
+    lmerTest,
+    emmeans,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.0

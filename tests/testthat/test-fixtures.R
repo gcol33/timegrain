@@ -1,6 +1,8 @@
 fixture_dir <- function() {
-  for (p in c("../../spec/fixtures", "spec/fixtures")) {
-    if (file.exists(file.path(p, "digests.csv"))) {
+  installed <- system.file("spec", "fixtures", package = "timegrain")
+  candidates <- c(installed, "../../inst/spec/fixtures", "inst/spec/fixtures")
+  for (p in candidates) {
+    if (nzchar(p) && file.exists(file.path(p, "digests.csv"))) {
       return(p)
     }
   }

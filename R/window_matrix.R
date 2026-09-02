@@ -11,25 +11,31 @@
 #' @param value Column of readings, numeric. A bare column name or a string.
 #' @param window One of `"hour"`, `"halfday"`, `"day"`, `"week"`, `"month"`, `"season"`,
 #'   `"year"`. The four coarse windows follow the calendar, so a bin is a real week or month
-#'   rather than a fixed block of hours.
+#'   rather than a fixed block of hours. Naming several windows returns one representation per
+#'   window, a [timegrain_set()]. A function is called on the reading instants and must return
+#'   the `POSIXct` start of each reading's bin, which is how a calendar the package does not
+#'   carry, such as astronomical seasons, is binned.
 #' @param stats Statistics to compute per bin, one channel each, in the order given. See Details.
 #' @param year_start `"MM-DD"` boundary of the hydrological year, used by `"season"` and
 #'   `"year"`. Defaults to `"09-01"`.
 #'
 #' @details
-#' Five statistics are available, and the distinction between an extreme reading and an extreme
-#' day is deliberate rather than pedantic:
+#' Seven statistics are available, and the distinction between an extreme reading, an extreme day
+#' and a typical day is deliberate rather than pedantic:
 #'
 #' \itemize{
 #'   \item `mean`: arithmetic mean of the readings in the bin.
 #'   \item `min`, `max`: coldest and warmest single reading in the bin.
 #'   \item `cold_day`, `warm_day`: coldest and warmest day, each day first reduced to its own
 #'     mean. Defined for `"day"` and coarser.
+#'   \item `mean_daily_min`, `mean_daily_max`: the bin's average daily minimum and average daily
+#'     maximum, each day first reduced to its own extreme. Defined for `"day"` and coarser.
 #' }
 #'
-#' An extreme day is a state the unit was in; an extreme reading can be one hour. On alpine soil
-#' temperature the day-level pair carries more predictive signal than the bin mean, and by more
-#' the coarser the bin.
+#' An extreme day is a state the unit was in; an extreme reading can be one hour; an average daily
+#' extreme is the exposure a typical day of the bin brought. On alpine soil temperature the
+#' day-level pair carries more predictive signal than the bin mean, and by more the coarser the
+#' bin.
 #'
 #' Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 #' representation, because computing it over all units would leak held-out units into the input.
@@ -40,9 +46,10 @@
 #'     \item `window`: the window name.
 #'     \item `stats`: the statistic names in channel order.
 #'     \item `year_start`: the boundary used.
-#'     \item `bin_start`: the bin start instants, `POSIXct`.
+#'     \item `bin_start`, `bin_end`: the first and last reading instant assigned to each bin.
 #'     \item `bin_n`: a `[unit, bin]` matrix of how many readings fell in each bin.
 #'   }
+#'   Naming more than one window returns a [timegrain_set()] of those arrays.
 #'
 #' @examples
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 40)
@@ -53,6 +60,9 @@
 #'                    stats = c("cold_day", "mean", "warm_day"))
 #' dim(x)
 #' dimnames(x)[[3]]
+#'
+#' ladder <- window_matrix(d, plot, t, temp, window = c("day", "week"))
+#' names(ladder)
 #'
 #' @export
 window_matrix <- function(data,
@@ -66,7 +76,15 @@ window_matrix <- function(data,
   time_col <- .resolve_column(substitute(time), data, parent.frame())
   value_col <- .resolve_column(substitute(value), data, parent.frame())
 
-  window <- match.arg(window, .windows())
+  window <- .check_window(window)
+  if (length(window) > 1L) {
+    out <- lapply(window, function(w) {
+      window_matrix(data, id = id_col, time = time_col, value = value_col,
+                    window = w, stats = stats, year_start = year_start)
+    })
+    return(timegrain_set(stats::setNames(out, window)))
+  }
+
   stats <- .check_stats(stats, window)
   ys <- .parse_year_start(year_start)
 
@@ -89,7 +107,8 @@ window_matrix <- function(data,
   n_b <- length(bins)
   n_cell <- n_u * n_b
 
-  cell <- (match(bin_start, bins) - 1L) * n_u + match(unit, units)
+  bin_of <- match(unclass(bin_start), unclass(bins))
+  cell <- (bin_of - 1L) * n_u + match(unit, units)
   count <- tabulate(cell, nbins = n_cell)
   .check_grid(count, units, bins, n_u)
 
@@ -97,8 +116,8 @@ window_matrix <- function(data,
                dim = c(n_u, n_b, length(stats)),
                dimnames = list(units, format(bins, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), stats))
 
-  day_cell <- if (any(stats %in% .day_level_stats())) {
-    .day_cells(reading, unit, when, bin_start, units, bins, ys, tz)
+  day <- if (any(stats %in% .day_level_stats())) {
+    .day_level(reading, unit, when, units, bins, ys, tz, n_cell)
   } else {
     NULL
   }
@@ -109,17 +128,21 @@ window_matrix <- function(data,
       mean = matrix(.group_sum(reading, cell, n_cell) / count, nrow = n_u, ncol = n_b),
       min = matrix(.group_edge(reading, cell, n_cell, FALSE), nrow = n_u, ncol = n_b),
       max = matrix(.group_edge(reading, cell, n_cell, TRUE), nrow = n_u, ncol = n_b),
-      cold_day = matrix(.group_edge(day_cell$value, day_cell$cell, n_cell, FALSE),
-                        nrow = n_u, ncol = n_b),
-      warm_day = matrix(.group_edge(day_cell$value, day_cell$cell, n_cell, TRUE),
-                        nrow = n_u, ncol = n_b)
+      cold_day = matrix(.group_edge(day$mean, day$cell, n_cell, FALSE), nrow = n_u, ncol = n_b),
+      warm_day = matrix(.group_edge(day$mean, day$cell, n_cell, TRUE), nrow = n_u, ncol = n_b),
+      mean_daily_min = matrix(.group_sum(day$min, day$cell, n_cell) / day$n_day,
+                              nrow = n_u, ncol = n_b),
+      mean_daily_max = matrix(.group_sum(day$max, day$cell, n_cell) / day$n_day,
+                              nrow = n_u, ncol = n_b)
     )
   }
 
-  attr(out, "window") <- window
+  attr(out, "window") <- if (is.function(window)) "custom" else window
   attr(out, "stats") <- stats
   attr(out, "year_start") <- year_start
   attr(out, "bin_start") <- bins
+  attr(out, "bin_end") <- .POSIXct(
+    .group_edge(as.numeric(when), bin_of, n_b, TRUE), tz = tz)
   attr(out, "bin_n") <- matrix(count, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
   class(out) <- c("timegrain_matrix", class(out))
   out
@@ -131,8 +154,10 @@ print.timegrain_matrix <- function(x, ...) {
   cat("<timegrain matrix>", .plural(d[1L], "unit"), "x", .plural(d[2L], "bin"),
       "x", .plural(d[3L], "channel"), "\n")
   cat("window:", attr(x, "window"), "  stats:", paste(attr(x, "stats"), collapse = ", "), "\n")
-  cat("from  :", format(min(attr(x, "bin_start"))), "to",
-      format(max(attr(x, "bin_start"))), "\n")
+  span <- attr(x, "bin_start")
+  if (!all(is.na(span))) {
+    cat("from  :", format(min(span)), "to", format(max(span)), "\n")
+  }
   invisible(x)
 }
 
@@ -145,7 +170,30 @@ print.timegrain_matrix <- function(x, ...) {
 }
 
 .day_level_stats <- function() {
-  c("cold_day", "warm_day")
+  c("cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
+}
+
+.known_stats <- function() {
+  c("mean", "min", "max", .day_level_stats())
+}
+
+.check_window <- function(window) {
+  if (is.function(window)) {
+    return(window)
+  }
+  if (!is.character(window) || !length(window)) {
+    stop("`window` must be a window name, a vector of them, or a function.", call. = FALSE)
+  }
+  bad <- setdiff(window, .windows())
+  if (length(bad)) {
+    stop("unknown window: ", paste(bad, collapse = ", "),
+         ". Available: ", paste(.windows(), collapse = ", "), ".", call. = FALSE)
+  }
+  if (anyDuplicated(window)) {
+    stop("`window` names a window twice: ",
+         paste(unique(window[duplicated(window)]), collapse = ", "), ".", call. = FALSE)
+  }
+  window
 }
 
 .resolve_column <- function(expr, data, envir) {
@@ -162,7 +210,7 @@ print.timegrain_matrix <- function(x, ...) {
 }
 
 .check_stats <- function(stats, window) {
-  known <- c("mean", "min", "max", .day_level_stats())
+  known <- .known_stats()
   bad <- setdiff(stats, known)
   if (length(bad)) {
     stop("unknown statistic: ", paste(bad, collapse = ", "),
@@ -172,7 +220,8 @@ print.timegrain_matrix <- function(x, ...) {
     stop("`stats` names a statistic twice: ",
          paste(unique(stats[duplicated(stats)]), collapse = ", "), ".", call. = FALSE)
   }
-  if (window %in% c("hour", "halfday") && any(stats %in% .day_level_stats())) {
+  if (is.character(window) && window %in% c("hour", "halfday") &&
+        any(stats %in% .day_level_stats())) {
     stop("`", window, "` bins are shorter than a day, so ",
          paste(intersect(stats, .day_level_stats()), collapse = " and "),
          " is not defined there. Use a window of `day` or coarser.", call. = FALSE)
@@ -198,11 +247,20 @@ print.timegrain_matrix <- function(x, ...) {
     stop("missing values in ", paste(sprintf("`%s`", missing), collapse = " and "),
          ". Fill or drop them before building a representation.", call. = FALSE)
   }
-  key <- paste(unit, format(when, "%Y-%m-%dT%H:%M:%S"), sep = "\r")
-  if (anyDuplicated(key)) {
-    dup <- unique(key[duplicated(key)])
-    stop(length(dup), " duplicated (unit, time) pair", if (length(dup) > 1L) "s" else "",
-         ", first: ", sub("\r", " at ", dup[1L], fixed = TRUE), ".", call. = FALSE)
+  # Sort by (unit, time) and look at neighbours. Pasting the two into a key would be the obvious
+  # way and builds one string per reading, which on a record of tens of millions of readings costs
+  # more memory than the readings themselves.
+  n <- length(unit)
+  if (n < 2L) {
+    return(invisible(TRUE))
+  }
+  code <- match(unit, sort(unique(unit)))
+  o <- order(code, when, method = "radix")
+  same <- code[o][-1L] == code[o][-n] & unclass(when)[o][-1L] == unclass(when)[o][-n]
+  if (any(same)) {
+    first <- o[which(same)[1L] + 1L]
+    stop(sum(same), " duplicated (unit, time) pair", if (sum(same) > 1L) "s" else "",
+         ", first: ", unit[first], " at ", format(when[first]), ".", call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -227,7 +285,7 @@ print.timegrain_matrix <- function(x, ...) {
 }
 
 .group_edge <- function(values, cell, n_cell, upper) {
-  o <- order(cell, values)
+  o <- order(cell, values, method = "radix")
   g <- cell[o]
   keep <- !duplicated(g, fromLast = upper)
   out <- rep(NA_real_, n_cell)
@@ -235,24 +293,52 @@ print.timegrain_matrix <- function(x, ...) {
   out
 }
 
-.day_cells <- function(reading, unit, when, bin_start, units, bins, ys, tz) {
+# The day-level stage: reduce every (unit, calendar day) to its own mean, minimum and maximum, and
+# say which bin cell each of those days belongs to. The four day-level statistics are then a second
+# reduction over the days of a bin, which is what keeps an extreme day distinct from an extreme
+# reading.
+.day_level <- function(reading, unit, when, units, bins, ys, tz, n_cell) {
   day_start <- .bin_start(when, "day", ys, tz)
   n_u <- length(units)
   days <- sort(unique(day_start))
-  dcell <- (match(day_start, days) - 1L) * n_u + match(unit, units)
+  dcell <- (match(unclass(day_start), unclass(days)) - 1L) * n_u + match(unit, units)
   n_dcell <- n_u * length(days)
 
   count <- tabulate(dcell, nbins = n_dcell)
   present <- which(count > 0L)
-  value <- .group_sum(reading, dcell, n_dcell)[present] / count[present]
 
   day_unit <- ((present - 1L) %% n_u) + 1L
   day_of <- ((present - 1L) %/% n_u) + 1L
   bin_of <- findInterval(as.numeric(days[day_of]), as.numeric(bins))
-  list(value = value, cell = (bin_of - 1L) * n_u + day_unit)
+  cell <- (bin_of - 1L) * n_u + day_unit
+
+  list(cell = cell,
+       mean = .group_sum(reading, dcell, n_dcell)[present] / count[present],
+       min = .group_edge(reading, dcell, n_dcell, FALSE)[present],
+       max = .group_edge(reading, dcell, n_dcell, TRUE)[present],
+       n_day = tabulate(cell, nbins = n_cell))
 }
 
+# A record of many units shares its reading instants across them, and binning is a function of the
+# instant alone, so the calendar is read once per distinct instant rather than once per reading.
+# On three years of hourly readings from 894 units that is 26,304 calendar lookups instead of
+# 23,515,776, and the difference is minutes.
 .bin_start <- function(when, window, ys, tz) {
+  u <- unique(when)
+  if (length(u) == length(when)) {
+    return(.bin_of(when, window, ys, tz))
+  }
+  .bin_of(u, window, ys, tz)[match(unclass(when), unclass(u))]
+}
+
+.bin_of <- function(when, window, ys, tz) {
+  if (is.function(window)) {
+    out <- window(when)
+    if (!inherits(out, "POSIXct") || length(out) != length(when)) {
+      stop("a `window` function must return one POSIXct bin start per reading.", call. = FALSE)
+    }
+    return(out)
+  }
   if (window == "hour") {
     return(when)
   }

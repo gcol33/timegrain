@@ -25,7 +25,10 @@ window_matrix(
 
 \item{window}{One of \code{"hour"}, \code{"halfday"}, \code{"day"}, \code{"week"}, \code{"month"}, \code{"season"},
 \code{"year"}. The four coarse windows follow the calendar, so a bin is a real week or month
-rather than a fixed block of hours.}
+rather than a fixed block of hours. Naming several windows returns one representation per
+window, a \code{\link[=timegrain_set]{timegrain_set()}}. A function is called on the reading instants and must return
+the \code{POSIXct} start of each reading's bin, which is how a calendar the package does not
+carry, such as astronomical seasons, is binned.}
 
 \item{stats}{Statistics to compute per bin, one channel each, in the order given. See Details.}
 
@@ -39,9 +42,10 @@ identifiers, the ISO-8601 start of each bin, and the statistic names. Attributes
 \item \code{window}: the window name.
 \item \code{stats}: the statistic names in channel order.
 \item \code{year_start}: the boundary used.
-\item \code{bin_start}: the bin start instants, \code{POSIXct}.
+\item \code{bin_start}, \code{bin_end}: the first and last reading instant assigned to each bin.
 \item \code{bin_n}: a \verb{[unit, bin]} matrix of how many readings fell in each bin.
 }
+Naming more than one window returns a \code{\link[=timegrain_set]{timegrain_set()}} of those arrays.
 }
 \description{
 Bins each unit's readings by the calendar and summarises every bin by one or more statistics,
@@ -50,19 +54,22 @@ make explicit: \code{window} sets how coarse the record becomes, \code{stats} se
 reduction, and the two are not interchangeable.
 }
 \details{
-Five statistics are available, and the distinction between an extreme reading and an extreme
-day is deliberate rather than pedantic:
+Seven statistics are available, and the distinction between an extreme reading, an extreme day
+and a typical day is deliberate rather than pedantic:
 
 \itemize{
 \item \code{mean}: arithmetic mean of the readings in the bin.
 \item \code{min}, \code{max}: coldest and warmest single reading in the bin.
 \item \code{cold_day}, \code{warm_day}: coldest and warmest day, each day first reduced to its own
 mean. Defined for \code{"day"} and coarser.
+\item \code{mean_daily_min}, \code{mean_daily_max}: the bin's average daily minimum and average daily
+maximum, each day first reduced to its own extreme. Defined for \code{"day"} and coarser.
 }
 
-An extreme day is a state the unit was in; an extreme reading can be one hour. On alpine soil
-temperature the day-level pair carries more predictive signal than the bin mean, and by more
-the coarser the bin.
+An extreme day is a state the unit was in; an extreme reading can be one hour; an average daily
+extreme is the exposure a typical day of the bin brought. On alpine soil temperature the
+day-level pair carries more predictive signal than the bin mean, and by more the coarser the
+bin.
 
 Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 representation, because computing it over all units would leak held-out units into the input.
@@ -76,5 +83,8 @@ x <- window_matrix(d, plot, t, temp, window = "week",
                    stats = c("cold_day", "mean", "warm_day"))
 dim(x)
 dimnames(x)[[3]]
+
+ladder <- window_matrix(d, plot, t, temp, window = c("day", "week"))
+names(ladder)
 
 }

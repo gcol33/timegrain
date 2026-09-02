@@ -1,0 +1,71 @@
+url: https://gillescolling.com/timegrain/
+
+template:
+  bootstrap: 5
+
+figures:
+  dev: svglite
+  fig.ext: svg
+  bg: "#F5F6F8"
+
+reference:
+  - title: The representation
+    desc: >
+      Readings in long form to the array a model is fitted on, at one grain or at every grain of a
+      ladder.
+    contents:
+      - window_matrix
+      - timegrain_set
+      - calendar_channels
+      - bind_channels
+      - feature_matrix
+
+  - title: The split and the cells
+    desc: >
+      One fold map read by everything that scores, and the cells a score is defined on, computed
+      with no model involved.
+    contents:
+      - fold_map
+      - scorable_cells
+
+  - title: Fitting
+    contents:
+      - window_ladder
+      - fit_learner
+      - plot.timegrain_ladder
+
+  - title: Learners
+    desc: >
+      The arms that ship, and the interface a learner of your own goes through.
+    contents:
+      - glmnet_learner
+      - stepwise_learner
+      - torch_learners
+      - ensemble_learner
+      - learner
+      - register_learner
+
+  - title: Scoring and comparison
+    contents:
+      - tss
+      - roc_auc
+      - kappa_score
+      - paired_contrast
+      - window_contrasts
+      - tss_inflation
+      - implied_skill
+      - bin_occlusion
+
+  - title: Extending
+    desc: >
+      The response head and the metric are registrations, never a fork of the fitting code.
+    contents:
+      - register_response
+      - register_metric
+
+articles:
+  - title: Articles
+    navbar: ~
+    contents:
+      - timegrain
+      - reproducing-schrankogel

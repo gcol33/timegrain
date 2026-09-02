@@ -1,4 +1,4 @@
-# The cross-language digest of a representation, defined in spec/representation.md.
+# The cross-language digest of a representation, defined in inst/spec/representation.md.
 #
 # Values are traversed in the array's own order (unit fastest, then bin, then channel), each
 # formatted to twelve decimal places, one per line, LF-terminated. The LF is written explicitly

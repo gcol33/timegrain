@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import importlib.util
+
+import numpy as np
+import pytest
+
+from timegrain import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
+                       paired_contrast, roc_auc, scorable_cells, tss, tss_inflation,
+                       window_ladder, window_matrix)
+from timegrain._stats import norm_ppf, wilcoxon_p
+
+
+def brute_tss(y, p):
+    return max((np.sum((p >= c) & (y == 1)) / np.sum(y == 1)
+                + np.sum((p < c) & (y == 0)) / np.sum(y == 0) - 1) for c in np.unique(p))
+
+
+def sim(n_unit=48, days=120, noise=8.0, seed=1):
+    rng = np.random.default_rng(seed)
+    t = np.datetime64("2021-09-01T00:00:00", "s") + np.arange(24 * days) * np.timedelta64(1, "h")
+    units = [f"p{i:03d}" for i in range(n_unit)]
+    warmth = rng.normal(size=n_unit)
+    value = np.concatenate([w * 1.5 + rng.normal(0, noise, len(t)) for w in warmth])
+    readings = {"id": [u for u in units for _ in range(len(t))],
+                "time": list(t) * n_unit, "value": list(value)}
+    sign = np.resize([1, -1], 6)
+    y = rng.binomial(1, 1 / (1 + np.exp(-3 * np.outer(warmth, sign))))
+    return readings, Response(y.astype(float), tuple(units),
+                              tuple(f"sp{j}" for j in range(6))), warmth
+
+
+def test_tss_is_the_maximum_over_every_cut():
+    rng = np.random.default_rng(3)
+    for _ in range(20):
+        n = int(rng.integers(8, 60))
+        y = rng.binomial(1, 0.35, n)
+        if len(np.unique(y)) < 2:
+            continue
+        p = np.round(rng.random(n), 2)
+        assert tss(y, p) == pytest.approx(brute_tss(y, p))
+
+
+def test_the_score_does_not_depend_on_the_order_the_units_arrived_in():
+    rng = np.random.default_rng(4)
+    y = rng.binomial(1, 0.3, 50)
+    p = np.round(rng.random(50), 2)
+    o = rng.permutation(50)
+    assert tss(y, p) == pytest.approx(tss(y[o], p[o]))
+    assert roc_auc(y, p) == pytest.approx(roc_auc(y[o], p[o]))
+
+
+def test_a_one_class_cell_has_no_skill_to_measure():
+    assert np.isnan(tss([0, 0, 0], [0.1, 0.2, 0.3]))
+    assert np.isnan(roc_auc([1, 1, 1], [0.1, 0.2, 0.3]))
+    assert np.isnan(kappa_score([0, 0, 0], [0.1, 0.2, 0.3]))
+
+
+def test_agreement_counts_the_decisions_two_models_make_differently():
+    y = [1, 1, 0, 0]
+    apart = model_agreement(y, [0.9, 0.8, 0.2, 0.1], [0.1, 0.2, 0.8, 0.9], "prevalence")
+    assert apart["n_disagree"] == 4
+    assert apart["a_right"] == 4
+    assert apart["b_right"] == 0
+
+
+def test_a_cell_needs_both_classes_on_both_sides_of_the_split():
+    units = tuple(f"p{i:02d}" for i in range(10))
+    folds = np.repeat(np.arange(1, 6), 2)
+    y = np.zeros((10, 4))
+    y[:, 0] = 1
+    y[0, 2] = 1
+    y[[0, 2, 4, 6], 3] = 1
+    cells = scorable_cells(Response(y, units, ("all", "none", "one", "split")), folds)
+    assert not cells.is_scorable("all", 1)
+    assert not cells.is_scorable("none", 1)
+    assert not cells.is_scorable("one", 1)
+    assert cells.is_scorable("split", 1)
+    assert not cells.is_scorable("split", 5)
+
+
+def test_every_unit_lands_in_exactly_one_fold():
+    _, y, _ = sim(n_unit=97)
+    f = fold_map(y, v=10)
+    assert len(f) == 97
+    assert sorted(set(f)) == list(range(1, 11))
+    counts = np.bincount(f)[1:]
+    assert counts.max() - counts.min() <= 2
+
+
+def test_a_signal_buried_in_hourly_noise_is_found_once_the_record_is_averaged():
+    if importlib.util.find_spec("sklearn") is None:
+        pytest.skip("scikit-learn is not installed")
+    readings, y, _ = sim(n_unit=48, days=120, noise=20.0, seed=5)
+    x = window_matrix(readings, "id", "time", "value", window=["day", "month"])
+    lad = window_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=3), verbose=False)
+    rows = {r["window"]: r["score"] for r in lad.summary()}
+    assert rows["month"] > rows["day"]
+    gain = paired_contrast(lad, "month|elasticnet", "day|elasticnet")
+    assert gain["diff"] > 0
+
+
+def test_a_learner_of_ones_own_needs_nothing_but_a_fit_and_a_predict():
+    readings, y, _ = sim(n_unit=20, days=30)
+    x = window_matrix(readings, "id", "time", "value", window="week")
+    mine = Learner(name="mine",
+                   fit=lambda x, y, **kw: y.mean(axis=0),
+                   predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
+    p = fit_learner(mine, x, y).predict(x)
+    assert p.shape == (20, 6)
+
+
+def test_every_arm_is_scored_on_the_same_cells():
+    readings, y, _ = sim(n_unit=36, days=60)
+    x = window_matrix(readings, "id", "time", "value", window=["week", "month"])
+    rank = Learner(name="rank",
+                   fit=lambda x, y, **kw: y.mean(axis=0),
+                   predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
+    lad = window_ladder(x, y, {"a": rank, "b": rank}, folds=fold_map(y, v=3, seed=2),
+                        verbose=False)
+    marks = {arm: lad.scorable[(lad.window == w) & (lad.learner == ln)].tolist()
+             for arm, (w, ln) in {f"{w}|{ln}": (w, ln)
+                                  for w in ("week", "month") for ln in ("a", "b")}.items()}
+    assert len({tuple(v) for v in marks.values()}) == 1
+
+
+def test_a_threshold_chosen_on_the_scored_units_inflates_the_level():
+    rng = np.random.default_rng(41)
+    units = tuple(f"p{i:03d}" for i in range(250))
+    y = Response(rng.binomial(1, 0.15, (250, 6)).astype(float), units,
+                 tuple(f"sp{j}" for j in range(6)))
+    out = tss_inflation(y, fold_map(y, v=10, seed=3), skill=(0.6, 0.9), replicates=40, seed=8)
+    assert all(r["inflation"] > 0 for r in out)
+    assert out[0]["inflation"] > out[1]["inflation"]
+
+
+def test_the_normal_quantile_and_the_signed_rank_p_value_are_the_ones_r_reports():
+    # qnorm(0.975) and qnorm(0.005) to twelve places
+    assert norm_ppf(0.975) == pytest.approx(1.959963984540, abs=1e-11)
+    assert norm_ppf(0.005) == pytest.approx(-2.575829303549, abs=1e-11)
+    # wilcox.test(1:10)$p.value and wilcox.test(c(-3,-1,2,4,5,6))$p.value
+    assert wilcoxon_p(np.arange(1, 11)) == pytest.approx(0.001953125, abs=1e-12)
+    assert wilcoxon_p(np.array([-3.0, -1, 2, 4, 5, 6])) == pytest.approx(0.21875, abs=1e-12)
+
+
+def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
+    from timegrain import implied_skill
+    rng = np.random.default_rng(61)
+    units = tuple(f"p{i:03d}" for i in range(200))
+    y = Response(rng.binomial(1, 0.2, (200, 6)).astype(float), units,
+                 tuple(f"sp{j}" for j in range(6)))
+    f = fold_map(y, v=5, seed=4)
+    forward = tss_inflation(y, f, skill=(0.6,), replicates=60, seed=5)
+    back = implied_skill(y, f, observed=forward[0]["reported"],
+                         grid=np.arange(0.3, 0.95, 0.1), replicates=60, seed=5)
+    assert back[0]["skill"] == pytest.approx(0.6, abs=0.05)
+    assert back[0]["within_grid"]

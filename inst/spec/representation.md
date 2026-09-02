@@ -56,13 +56,33 @@ channel order in the output is the order given by the caller.
 | `max` | largest single reading in the bin | every window |
 | `cold_day` | smallest daily mean among the days in the bin | `day` and coarser |
 | `warm_day` | largest daily mean among the days in the bin | `day` and coarser |
+| `mean_daily_min` | mean over the bin's days of each day's smallest reading | `day` and coarser |
+| `mean_daily_max` | mean over the bin's days of each day's largest reading | `day` and coarser |
 
-`cold_day` and `warm_day` reduce each calendar day to its own mean first and then take the extreme
-over days. They are not `min` and `max`, which act on single readings, and the difference is the
-point: an extreme day is a state the site was in, an extreme reading can be one hour.
+The four day-level statistics reduce each calendar day first and then reduce again over the days of
+the bin. `cold_day` and `warm_day` take the extreme of the daily means; `mean_daily_min` and
+`mean_daily_max` take the mean of the daily extremes. They are not `min` and `max`, which act on
+single readings, and the difference is the point: an extreme day is a state the site was in, an
+extreme reading can be one hour, and an average daily extreme is the exposure a typical day of the
+bin brought.
 
-At the `day` window `cold_day`, `warm_day` and `mean` coincide by construction. Requesting them
-there is allowed and returns three identical channels.
+Two orderings follow from the definitions and are asserted:
+`min <= mean_daily_min <= mean <= mean_daily_max <= max` and
+`min <= cold_day <= mean <= warm_day <= max`. The two day-level pairs are not ordered against each
+other, and a bin whose days differ widely in level is where they part: a bin of one day at 0 and
+one at 10 has `cold_day` 0 and `mean_daily_min` 5.
+
+At the `day` window `cold_day`, `warm_day` and `mean` coincide by construction, as do
+`mean_daily_min` with `min` and `mean_daily_max` with `max`. Requesting them there is allowed and
+returns the identical channels.
+
+## Custom bins
+
+A caller may supply the binning instead of naming a window, as a function of the reading instants
+returning the start of each reading's bin. Everything downstream is unchanged: the bins are still
+required to tile the record, and the output still carries the bin starts as its second dimension's
+names. This is how a calendar the package does not carry is used, such as seasons cut at the
+equinoxes and solstices rather than on the first of a month.
 
 ## Output
 
@@ -80,16 +100,30 @@ Attributes carried on the array:
 | `stats` | the statistic names, in channel order |
 | `year_start` | the `"MM-DD"` boundary used |
 | `bin_start` | the bin start instants |
+| `bin_end` | the last reading instant assigned to each bin |
 | `bin_n` | a `[id, bin]` matrix of how many readings fell in each cell |
 
 No standardisation, centring or scaling happens here. Scaling is a property of a fit and belongs
 to the fold it is computed on, never to the representation, because computing it over all ids
 would leak the held-out units into the training input.
 
+## What crosses the language boundary, and what does not
+
+The representation is normative and is checked byte-exactly. Three things beside it are artifacts
+that both sides read rather than each side computing: the response matrix, the fold map, and the
+mask of scorable cells that follows from those two. A fold map built from a seed in R and a fold
+map built from the same seed in Python are different maps, because the two languages draw on
+different random streams; the fix is not to align the streams but to build the map once and read
+it in the other language.
+
+A model fitted in one language and a model fitted in the other cannot be byte-identical and are
+not required to be.
+
 ## Fixtures
 
 `spec/fixtures/series.csv` is a synthetic three-unit, 400-day hourly series. `digests.csv` holds,
-for every window-by-statistic combination and for the reported three-channel form, the digest of
+for every window-by-statistic combination and for each of the three-channel schemes
+(`min+mean+max`, `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the digest of
 the resulting array. Both test suites read the series, rebuild every combination and assert the
 digests.
 

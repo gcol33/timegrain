@@ -139,3 +139,137 @@ test_that("units and bins come back sorted, whatever order they arrived in", {
   expect_equal(dimnames(x)[[1]], c("a", "b"))
   expect_false(is.unsorted(attr(x, "bin_start")))
 })
+
+test_that("the average daily extremes are an average over days, not over readings", {
+  # Day 1 swings between -10 and +10, day 2 sits at 0. The week's coldest reading is -10; its
+  # average daily minimum is the mean of -10 and 0.
+  t <- seq(as.POSIXct("2021-09-06", tz = "UTC"), by = "hour", length.out = 48)
+  temp <- c(rep(c(-10, 10), each = 12), rep(0, 24))
+  d <- data.frame(plot = "a", t = t, temp = temp)
+  x <- window_matrix(d, plot, t, temp, window = "week",
+                     stats = c("min", "mean_daily_min", "mean", "mean_daily_max", "max"))
+  expect_equal(as.numeric(x[1, 1, "min"]), -10)
+  expect_equal(as.numeric(x[1, 1, "mean_daily_min"]), -5)
+  expect_equal(as.numeric(x[1, 1, "mean"]), 0)
+  expect_equal(as.numeric(x[1, 1, "mean_daily_max"]), 5)
+  expect_equal(as.numeric(x[1, 1, "max"]), 10)
+})
+
+test_that("the average daily extremes match an independent reduction", {
+  d <- hourly_series()
+  day <- format(d$t, "%Y-%m-%d", tz = "UTC")
+  month <- format(d$t, "%Y-%m", tz = "UTC")
+  daily_min <- tapply(d$temp, list(d$plot, day), min)
+  key <- substr(colnames(daily_min), 1L, 7L)
+  ref <- t(apply(daily_min, 1L, function(v) tapply(v, key, mean)))
+  x <- window_matrix(d, plot, t, temp, window = "month", stats = "mean_daily_min")
+  expect_equal(as.numeric(x[, , "mean_daily_min"]), as.numeric(ref[order(rownames(ref)), ]))
+})
+
+test_that("at the daily window an average daily extreme is that day's extreme", {
+  d <- hourly_series(units = "a", hours = 24 * 30)
+  x <- window_matrix(d, plot, t, temp,
+                     window = "day", stats = c("min", "mean_daily_min", "mean_daily_max", "max"))
+  expect_equal(as.numeric(x[, , "mean_daily_min"]), as.numeric(x[, , "min"]))
+  expect_equal(as.numeric(x[, , "mean_daily_max"]), as.numeric(x[, , "max"]))
+})
+
+test_that("the three-channel schemes come back ordered", {
+  d <- hourly_series(units = c("a", "b"), hours = 24 * 60)
+  for (scheme in list(c("min", "mean", "max"),
+                      c("mean_daily_min", "mean", "mean_daily_max"),
+                      c("cold_day", "mean", "warm_day"))) {
+    x <- window_matrix(d, plot, t, temp, window = "week", stats = scheme)
+    expect_true(all(x[, , 1] <= x[, , 2]), info = scheme[1])
+    expect_true(all(x[, , 2] <= x[, , 3]), info = scheme[3])
+  }
+})
+
+test_that("the window's own extremes bound the day-level ones", {
+  d <- hourly_series(units = "a", hours = 24 * 90)
+  x <- window_matrix(d, plot, t, temp, window = "month",
+                     stats = c("min", "mean_daily_min", "cold_day",
+                               "warm_day", "mean_daily_max", "max"))
+  expect_true(all(x[, , "min"] <= x[, , "mean_daily_min"]))
+  expect_true(all(x[, , "min"] <= x[, , "cold_day"]))
+  expect_true(all(x[, , "warm_day"] <= x[, , "max"]))
+  expect_true(all(x[, , "mean_daily_max"] <= x[, , "max"]))
+})
+
+test_that("the mean of the daily minima is not the coldest day", {
+  # A bin of one day at 0 and one at 10 has a coldest day of 0 and an average daily minimum of 5,
+  # so the two day-level pairs are not ordered against each other.
+  t <- seq(as.POSIXct("2021-09-06", tz = "UTC"), by = "hour", length.out = 48)
+  d <- data.frame(plot = "a", t = t, temp = rep(c(0, 10), each = 24))
+  x <- window_matrix(d, plot, t, temp, window = "week",
+                     stats = c("cold_day", "mean_daily_min", "mean_daily_max", "warm_day"))
+  expect_equal(as.numeric(x[1, 1, "cold_day"]), 0)
+  expect_equal(as.numeric(x[1, 1, "mean_daily_min"]), 5)
+  expect_equal(as.numeric(x[1, 1, "mean_daily_max"]), 5)
+  expect_equal(as.numeric(x[1, 1, "warm_day"]), 10)
+})
+
+test_that("naming several windows returns one representation per window", {
+  d <- hourly_series(units = c("a", "b"), hours = 24 * 60)
+  s <- window_matrix(d, plot, t, temp, window = c("day", "week", "month"))
+  expect_s3_class(s, "timegrain_set")
+  expect_named(s, c("day", "week", "month"))
+  expect_equal(as.numeric(s$week),
+               as.numeric(window_matrix(d, plot, t, temp, window = "week")))
+  expect_s3_class(s["week"], "timegrain_set")
+  expect_error(window_matrix(d, plot, t, temp, window = c("day", "day")), "twice")
+  expect_error(window_matrix(d, plot, t, temp, window = c("day", "fortnight")), "unknown window")
+})
+
+test_that("a calendar the package does not carry can be passed as a function", {
+  d <- hourly_series(units = "a", hours = 24 * 120)
+  # Astronomical seasons: the boundaries fall on the equinoxes and solstices, not on the first of
+  # a month, so they are not any three calendar months.
+  astronomical <- function(when) {
+    edges <- as.POSIXct(c("2021-06-23", "2021-09-23", "2021-12-21", "2022-03-20", "2022-06-23"),
+                        tz = "UTC")
+    edges[findInterval(as.numeric(when), as.numeric(edges))]
+  }
+  x <- window_matrix(d, plot, t, temp, window = astronomical)
+  expect_equal(attr(x, "window"), "custom")
+  expect_equal(format(attr(x, "bin_start"), "%Y-%m-%d", tz = "UTC"),
+               c("2021-06-23", "2021-09-23", "2021-12-21"))
+  expect_equal(sum(attr(x, "bin_n")), 24 * 120)
+  expect_error(window_matrix(d, plot, t, temp, window = function(when) rep(1, length(when))),
+               "POSIXct bin start")
+})
+
+test_that("the bin end is the last reading the bin holds", {
+  d <- hourly_series(units = "a", hours = 24 * 40)
+  x <- window_matrix(d, plot, t, temp, window = "week")
+  s <- attr(x, "bin_start")
+  e <- attr(x, "bin_end")
+  expect_true(all(e >= s))
+  expect_equal(max(e), max(d$t))
+  expect_equal(as.numeric(difftime(e[2], s[2], units = "hours")), 24 * 7 - 1)
+})
+
+test_that("the calendar channels are the position of a bin in the year", {
+  d <- hourly_series(units = c("a", "b"), hours = 24 * 400)
+  x <- window_matrix(d, plot, t, temp, window = "month")
+  cc <- calendar_channels(x)
+  expect_equal(dimnames(cc)[[3]], c("year_sin", "year_cos"))
+  expect_equal(cc[1, , ], cc[2, , ])                       # the calendar is not a unit's property
+  expect_equal(as.numeric(cc[1, , 1]^2 + cc[1, , 2]^2), rep(1, dim(x)[2]))
+  # a month and the same month a year later sit at the same place in the year
+  months <- format(attr(x, "bin_start"), "%m", tz = "UTC")
+  repeated <- which(months == months[1])
+  expect_equal(cc[1, repeated[1], 1], cc[1, repeated[2], 1], tolerance = 0.02)
+})
+
+test_that("channels are joined in the order they are given", {
+  d <- hourly_series(units = c("a", "b"), hours = 24 * 60)
+  x <- window_matrix(d, plot, t, temp, window = "week", stats = c("cold_day", "mean"))
+  b <- bind_channels(x, calendar_channels(x))
+  expect_equal(dimnames(b)[[3]], c("cold_day", "mean", "year_sin", "year_cos"))
+  expect_equal(as.numeric(b[, , "mean"]), as.numeric(x[, , "mean"]))
+  expect_equal(attr(b, "bin_start"), attr(x, "bin_start"))
+  expect_error(bind_channels(x, x), "same name")
+  other <- window_matrix(d, plot, t, temp, window = "month")
+  expect_error(bind_channels(x, other), "different units or bins")
+})

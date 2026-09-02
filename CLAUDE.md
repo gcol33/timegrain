@@ -40,20 +40,25 @@ representation layer, not in the name.
 ## Layout
 
 The R package sits at the repository root so every CRAN and pkgdown convention works unmodified.
-`python/` and `spec/` are in `.Rbuildignore`.
+`python/` is in `.Rbuildignore`. The contract ships with the package under
+`inst/spec/`, so the test that asserts its digests runs on an installed copy rather
+than only in the source tree.
 
 ```
 timegrain/
   R/                  R package source
   tests/testthat/
-  man/ vignettes/ inst/
+  man/ vignettes/
   DESCRIPTION NAMESPACE
-  spec/               language-neutral contract both implementations obey
-    representation.md
-    fixtures/         small input + expected digests, read by both test suites
+  inst/
+    spec/             the contract both implementations obey
+      representation.md
+      fixtures/       small input + expected digests, read by both test suites
+    reproduce/        the driver that runs the published grid from the Zenodo deposit
   python/             the Python twin
     pyproject.toml
     timegrain/
+    tests/
 ```
 
 Same name on CRAN and PyPI (both verified free 2026-09-02).
@@ -64,7 +69,7 @@ Same name on CRAN and PyPI (both verified free 2026-09-02).
 same input. This is not a nicety: the whole claim of the package is that the grain is what matters,
 so two implementations that bin differently would make the tool the confound.
 
-`spec/representation.md` is the normative description. `spec/fixtures/` holds a small input series
+`inst/spec/representation.md` is the normative description. `inst/spec/fixtures/` holds a small input series
 and the digests of every window-by-statistic combination. Both test suites read those fixtures and
 assert against the same digests. A change to binning that is not reflected in the fixtures is a bug
 in whichever language changed.
@@ -94,9 +99,10 @@ up silently changes the result, so the names keep them apart:
 | `mean` | mean of the readings in the window |
 | `min`, `max` | coldest and warmest single reading in the window |
 | `cold_day`, `warm_day` | coldest and warmest day, each day first reduced to its own mean |
+| `mean_daily_min`, `mean_daily_max` | the bin's average daily minimum and maximum, each day first reduced to its own extreme |
 
-`cold_day` and `warm_day` are defined only for windows of a day or coarser. The reported input in
-the paper is `c("cold_day", "mean", "warm_day")` at the weekly window.
+The four day-level statistics are defined only for windows of a day or coarser. The reported input
+in the paper is `c("cold_day", "mean", "warm_day")` at the weekly window.
 
 ### Windows
 
@@ -105,12 +111,17 @@ calendar rather than a fixed count of hours, so a bin is a real month or a real 
 drifting block of 730 or 168 hours. `year_start` sets the hydrological-year boundary (default
 `"09-01"`, the convention in the source dataset).
 
+A calendar the package does not carry is passed as a function of the reading instants returning
+each reading's bin start. That is how the deposit's astronomical seasons, cut at the equinoxes and
+solstices rather than on the first of a month, bin like any named window.
+
 ## Design rules
 
 - **The response head and the metric are registered, not hard-coded.** Presence-absence with a
   joint multi-label head and TSS is the shipped default and the vignette, but adding an abundance
   or phenology response is one registration, never a fork of the fitting code. Same for learners:
-  `mlp()`, `cnn()`, `rescnn()` and any user-supplied fit/predict pair go through one interface.
+  `mlp_learner()`, `cnn_learner()`, `rescnn_learner()` and any user-supplied fit/predict pair go
+  through one interface.
 - **The representation layer depends on base R only.** Calendar binning, the statistics and the
   array assembly fit well inside 200 lines; no package is added for them.
 - **No primary-plus-fallback paths.** A learner that needs `torch` declares it and errors without
@@ -129,11 +140,28 @@ to do with neural networks.
 
 ## Status
 
-Scaffolded 2026-09-02. Nothing is released.
+Version 0.1.0, 2026-09-02. Not on CRAN or PyPI yet.
 
-Build order: `window_matrix()` and the fixtures, then the fold map and scorable-cell mask, then the
-ladder and its plot, then the learner registry, then the torch learners. Python follows each piece
-once its fixtures exist.
+The build order is done on both sides: the representation and the fixtures, the fold map and the
+scorable-cell mask, the ladder and its plot, the learner registry, the torch learners, and above
+them the paired contrast, the mixed-model window contrast, the occlusion profile and the inflation
+of a self-selected threshold. The Python side carries the same except the mixed model, and
+reproduces every one of the 58 fixture digests from an implementation written against the spec
+rather than transcribed from the R source.
+
+`inst/reproduce/schrankogel.R` runs the published grid from the deposit and asserts its input at
+every step. Verified against the deposit on 2026-09-02, matching the paper exactly:
+
+| quantity | reported | reproduced |
+|---|---|---|
+| plots, species, rarest species | 894, 101, 26 | same |
+| scorable cells | 1003 of 1010 | same |
+| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| numbers per plot, weekly three-channel | 471 | same |
+| numbers per plot, daily three-channel | 3288 | same |
+| inflation at truth 0.60, 0.70, 0.90 | +0.110, +0.095, +0.051 | same |
+
+The network grid needs a graphics processor, as it had in the study, and has not been rerun here.
 
 ## Related
 

@@ -13,8 +13,9 @@
 ^\.lintr$
 ^codecov\.yml$
 ^python$
-^spec$
+^inst/spec/make_fixtures\.R$
 ^CONTRIBUTING\.md$
 ^CODE_OF_CONDUCT\.md$
 .*\.tar\.gz$
 .*\.Rcheck$
+^docs_preview$

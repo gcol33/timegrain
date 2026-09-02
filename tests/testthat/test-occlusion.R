@@ -1,0 +1,72 @@
+# A record in which the units differ from each other in one stretch of the calendar and nowhere
+# else, so the profile has a known answer to be checked against.
+planted_series <- function(planted_month = "2021-11", n_unit = 60L, seed = 61L) {
+  set.seed(seed)
+  t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24L * 210L)
+  in_month <- format(t, "%Y-%m", tz = "UTC") == planted_month
+  units <- sprintf("p%03d", seq_len(n_unit))
+  warmth <- stats::rnorm(n_unit)
+  shape <- 5 * sin(seq_along(t) / (24 * 40))
+  value <- as.numeric(vapply(warmth, function(w) {
+    shape + w * in_month * 6 + stats::rnorm(length(t), sd = 0.3)
+  }, numeric(length(t))))
+  list(units = units, warmth = warmth, planted = planted_month,
+       readings = data.frame(plot = rep(units, each = length(t)), t = rep(t, times = n_unit),
+                             temp = value, stringsAsFactors = FALSE))
+}
+
+test_that("occlusion needs the fits the ladder was told to keep", {
+  sim <- sim_series(n_unit = 30L, days = 60L)
+  y <- sim_response(sim, n_var = 2L)
+  x <- window_matrix(sim$readings, plot, t, temp, window = "month")
+  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3L),
+                                        verbose = FALSE))
+  expect_error(bin_occlusion(lad, x, y, "month|glmnet"), "kept no fits")
+})
+
+test_that("the bin a signal was planted in is the bin the profile weights", {
+  skip_if_not_installed("glmnet")
+  sim <- planted_series()
+  y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
+                            stats::plogis(3 * c(sim$warmth, -sim$warmth))),
+              ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
+  x <- window_matrix(sim$readings, plot, t, temp, window = "month")
+  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 4L, seed = 6L),
+                                        keep_fits = TRUE, verbose = FALSE))
+  oc <- bin_occlusion(lad, x, y, "month|glmnet", permutations = 5L, seed = 4L)
+
+  weight <- stats::aggregate(list(weight = oc$weight), oc["part"], mean)
+  heaviest <- weight$part[which.max(weight$weight)]
+  expect_equal(substr(heaviest, 1L, 7L), sim$planted)
+  expect_gt(max(weight$weight), 2 * stats::median(weight$weight))
+})
+
+test_that("every substitute runs and reports the same parts", {
+  skip_if_not_installed("glmnet")
+  sim <- planted_series(n_unit = 40L, seed = 62L)
+  y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
+                            stats::plogis(3 * c(sim$warmth, -sim$warmth))),
+              ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
+  x <- window_matrix(sim$readings, plot, t, temp, window = "month",
+                     stats = c("cold_day", "mean", "warm_day"))
+  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3L, seed = 6L),
+                                        keep_fits = TRUE, verbose = FALSE))
+  parts <- lapply(c("permute", "fold_mean", "unit_mean"), function(s)
+    bin_occlusion(lad, x, y, "month|glmnet", substitute = s, permutations = 3L))
+  expect_true(all(vapply(parts, function(p) identical(p$part, parts[[1L]]$part), logical(1L))))
+  expect_true(all(vapply(parts, function(p) all(is.finite(p$weight)), logical(1L))))
+})
+
+test_that("holding a channel back asks what the statistic carries", {
+  skip_if_not_installed("glmnet")
+  sim <- planted_series(n_unit = 40L, seed = 63L)
+  y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
+                            stats::plogis(3 * c(sim$warmth, -sim$warmth))),
+              ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
+  x <- window_matrix(sim$readings, plot, t, temp, window = "month",
+                     stats = c("cold_day", "mean", "warm_day"))
+  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3L, seed = 6L),
+                                        keep_fits = TRUE, verbose = FALSE))
+  oc <- bin_occlusion(lad, x, y, "month|glmnet", over = "channel", permutations = 3L)
+  expect_setequal(unique(oc$part), c("cold_day", "mean", "warm_day"))
+})

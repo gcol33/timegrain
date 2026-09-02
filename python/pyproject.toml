@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "timegrain"
-version = "0.0.0"
+version = "0.1.0"
 description = "Temporal grain selection for ecological prediction from sensor time series"
 readme = "README.md"
 license = { text = "MIT" }
@@ -14,6 +14,7 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 torch = ["torch>=2.0"]
+sklearn = ["scikit-learn>=1.8"]
 test = ["pytest>=8.0"]
 
 [project.urls]
