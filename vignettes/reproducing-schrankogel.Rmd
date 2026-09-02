@@ -244,16 +244,17 @@ seven windows by ten folds, refitted under four seeds.
 
 The paper's own numbers, arm by arm. The verified ones, in the order the script produces them:
 
-| quantity | reported |
-|---|---|
-| plots, species, rarest species | 894, 101, 26 |
-| scorable cells | 1003 of 1010 |
-| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 |
-| elastic net on the 188 aggregates | 0.687 |
-| stepwise AIC on the 188 aggregates | 0.662 |
-| convolutional network, weekly, coldest and warmest day | 0.712 |
-| the same network on the full hourly record | 0.658 |
-| inflation of a level whose truth is 0.60 | +0.110 |
+| quantity | reported | reproduced |
+|---|---|---|
+| plots, species, rarest species | 894, 101, 26 | 894, 101, 26 |
+| scorable cells | 1003 of 1010 | 1003 of 1010 |
+| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| numbers per plot, weekly three-channel | 471 | 471 |
+| inflation of a level whose truth is 0.60 | +0.110 | +0.110 |
+| elastic net on the 188 aggregates | 0.687 | 0.686 |
+| stepwise AIC on the 188 aggregates | 0.662 | not rerun |
+| convolutional network, weekly, coldest and warmest day | 0.712 | not rerun |
+| the same network on the full hourly record | 0.658 | not rerun |
 
 A model fitted twice on different hardware does not give the same weights, so the network cells are
 reproduced to the seed noise the paper measures, a standard deviation of 0.0017 across seeds at the

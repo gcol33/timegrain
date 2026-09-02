@@ -160,8 +160,12 @@ every step. Verified against the deposit on 2026-09-02, matching the paper exact
 | numbers per plot, weekly three-channel | 471 | same |
 | numbers per plot, daily three-channel | 3288 | same |
 | inflation at truth 0.60, 0.70, 0.90 | +0.110, +0.095, +0.051 | same |
+| elastic net on the 188 aggregates | 0.687 | 0.686 |
 
-The network grid needs a graphics processor, as it had in the study, and has not been rerun here.
+The elastic net sits 0.001 low because the two runs seed the inner cross-validation's random fold
+draw differently; nothing else in the table carries randomness. The stepwise arm and the network
+grid have not been rerun here: forward selection over 188 columns is many hours single-threaded,
+and the encoders want the graphics processor they had in the study.
 
 ## Related
 

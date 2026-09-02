@@ -63,6 +63,24 @@ Nothing here caps the data. A stage runs over all 894 plots and all 101 species 
 
 ## What has been checked against the paper
 
-Verified on 2026-09-02 with the study's own fold map: 894 plots, 101 species, the rarest at 26
-occurrences, 1003 of 1010 scorable cells (99.3 percent) with all 101 species keeping at least one
-scorable fold, and bin counts of 26304, 2192, 1096, 157, 36, 13 and 3.
+Run on 2026-09-02 with the study's own fold map.
+
+| quantity | paper | this run |
+|---|---|---|
+| plots, species, rarest species | 894, 101, 26 | 894, 101, 26 |
+| scorable cells | 1003 of 1010 (99.3%) | 1003 of 1010 (99.3%) |
+| species with a scorable fold | 101 of 101 | 101 of 101 |
+| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| numbers per plot, weekly three-channel | 471 | 471 |
+| numbers per plot, daily three-channel | 3288 | 3288 |
+| inflation at truth 0.60, 0.70, 0.90 | +0.110, +0.095, +0.051 | +0.110, +0.095, +0.051 |
+| elastic net on the 188 aggregates | 0.687 | 0.686 |
+
+The elastic net sits 0.001 below the published figure. Its penalty is chosen by an inner
+cross-validation whose folds are drawn at random, and the two runs seed that stream differently:
+the study seeded one stream across its parallel workers, this one seeds once per fitted fold. The
+counts and the representation carry no such randomness and reproduce exactly.
+
+The stepwise arm and the network grid have not been rerun here. Forward selection over 188 columns
+is many hours single-threaded, and the encoders want the graphics processor they had in the
+study.
