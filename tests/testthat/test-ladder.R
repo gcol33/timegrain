@@ -113,3 +113,17 @@ test_that("the plot returns what it drew", {
   expect_named(drawn, c("learner", "window", "score", "se"))
   unlink(path)
 })
+
+test_that("a ladder on which nothing was scorable reports no level rather than failing", {
+  skip_if_not_installed("glmnet")
+  sim <- sim_series(n_unit = 24L, days = 40L)
+  y <- sim_response(sim)
+  x <- window_matrix(sim$readings, plot, t, temp, window = c("week", "month"))
+  lad <- suppressWarnings(
+    window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3L), verbose = FALSE))
+  lad$score <- NA_real_
+  out <- summary(lad)
+  expect_equal(nrow(out), 0L)
+  expect_named(out, c("learner", "window", "score", "n_variable", "best"))
+  expect_output(print(lad), "timegrain ladder")
+})

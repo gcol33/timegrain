@@ -20,3 +20,6 @@
 .*\.Rcheck$
 ^docs_preview$
 ^dev_notes$
+^benchmark-results$
+^benchmark-.*\.log$
+^tmp-probe$

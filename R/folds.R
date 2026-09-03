@@ -50,7 +50,10 @@ fold_map <- function(y, v = 10L, seed = 1L, strata = 5L, by = NULL) {
   fold <- integer(n)
   for (s in unique(stratum)) {
     idx <- which(stratum == s)
-    fold[sample(idx)] <- rep_len(sample.int(v), length(idx))
+    # Permute by position, never by value: sample() on a length-one vector samples 1:x instead of
+    # returning x, so a stratum holding a single unit would scatter one fold over every position
+    # below that unit's index and leave the map degenerate with nothing raised.
+    fold[idx[sample.int(length(idx))]] <- rep_len(sample.int(v), length(idx))
   }
   structure(stats::setNames(fold, rownames(y)), v = as.integer(v), seed = seed,
             strata = as.integer(strata), class = "timegrain_folds")

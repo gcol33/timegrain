@@ -17,6 +17,7 @@ simulate_records(
   offset_sd = 1,
   anomaly_sd = 1,
   anomaly_days = 2,
+  offset_effect = 0,
   sensor_sd = 0.3,
   year_start = "09-01",
   seed = 1L,
@@ -48,6 +49,12 @@ simulate_records(
 
 \item{anomaly_days}{Correlation time of that anomaly, in days.}
 
+\item{offset_effect}{Weight the unit-level offset enters the driver with. At the default \code{0}
+the driver reads the unit's \emph{anomaly} alone, so a window coarse enough to average the anomaly
+away loses the signal. At \code{1} the offset carries the response as well, and since every window
+however coarse reports the offset, every grain is then equally good: that is the
+grain-invariant control, not a temporal mechanism.}
+
 \item{sensor_sd}{Standard deviation of the measurement noise added to the latent record. The
 response is generated from the latent record; the readings returned carry this noise.}
 
@@ -75,8 +82,10 @@ for asking whether \code{\link[=select_grain]{select_grain()}} finds it.
 }
 \section{What the true grain is}{
 
-The response is driven by \verb{g_ij = sum_t w_j(t) * x_i(t)}, a weighted mean of unit \code{i}'s
-\emph{latent} record. The weights \code{w_j} are constant within the bins of one window and zero outside
+The response is driven by \verb{g_ij = sum_t w_j(t) * a_i(t)}, a weighted mean of unit \code{i}'s latent
+\emph{anomaly}: the record with the seasonal cycle every unit shares and the unit's own constant
+offset taken out, since neither of those is temporally located and a window of any width reports
+both. The weights \code{w_j} are constant within the bins of one window and zero outside
 a short stretch of them, so \code{g} is exactly a linear combination of that window's bin means. The
 true grain of a mechanism is the \strong{coarsest window of \code{\link[=window_matrix]{window_matrix()}} at which \code{g} is still an
 exact linear functional of the representation}: at that window and at every window whose bins

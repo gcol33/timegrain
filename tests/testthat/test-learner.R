@@ -129,3 +129,21 @@ test_that("a setting given at fit time overrides the one a linear learner carrie
   expect_equal(suppressWarnings(stats::predict(overridden, x)),
                suppressWarnings(stats::predict(built, x)))
 })
+
+test_that("predicting a single unit returns one row and not one column", {
+  skip_if_not_installed("glmnet")
+  sim <- sim_series(n_unit = 24L, days = 40L)
+  y <- sim_response(sim, n_var = 3L)
+  x <- window_matrix(sim$readings, plot, t, temp, window = "week")
+  one <- x[1L, , , drop = FALSE]
+  attributes(one) <- utils::modifyList(attributes(x)[c("window", "stats", "year_start",
+                                                       "bin_start", "bin_end", "bin_partial")],
+                                       list(dim = dim(one), dimnames = dimnames(one),
+                                            class = c("timegrain_matrix", "array")))
+  for (l in list(glmnet_learner(), stepwise_learner())) {
+    fit <- suppressWarnings(fit_learner(l, x, y))
+    p <- stats::predict(fit, one)
+    expect_equal(dim(p), c(1L, 3L))
+    expect_identical(rownames(p), dimnames(x)[[1L]][1L])
+  }
+})

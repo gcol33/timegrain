@@ -63,3 +63,25 @@ test_that("a fold count the sample cannot carry is refused", {
   expect_error(fold_map(y, v = 20L), "between 2 and")
   expect_error(fold_map(y, v = 1L), "between 2 and")
 })
+
+test_that("a stratum holding a single unit does not take the whole map with it", {
+  y <- matrix(rbinom(60, 1L, 0.3), nrow = 60,
+              dimnames = list(sprintf("u%02d", 1:60), "v1"))
+  by <- c(rep(1, 30), rep(2, 29), 3)
+  f <- fold_map(y, v = 3L, strata = 5L, by = by, seed = 1L)
+  expect_equal(sort(unique(unclass(f))), 1:3)
+  expect_lt(diff(range(table(unclass(f)))), 3L)
+})
+
+test_that("every fold holds units across many responses and fold counts", {
+  for (seed in 1:25) {
+    set.seed(seed)
+    y <- matrix(rbinom(133 * 4, 1L, 0.1), nrow = 133,
+                dimnames = list(sprintf("u%03d", 1:133), paste0("v", 1:4)))
+    for (v in c(2L, 3L, 5L)) {
+      f <- fold_map(y, v = v, seed = seed)
+      expect_equal(length(unique(unclass(f))), v)
+      expect_lt(diff(range(table(unclass(f)))), 0.2 * length(f))
+    }
+  }
+})

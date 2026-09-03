@@ -6,8 +6,10 @@
 #' for asking whether [select_grain()] finds it.
 #'
 #' @section What the true grain is:
-#' The response is driven by `g_ij = sum_t w_j(t) * x_i(t)`, a weighted mean of unit `i`'s
-#' *latent* record. The weights `w_j` are constant within the bins of one window and zero outside
+#' The response is driven by `g_ij = sum_t w_j(t) * a_i(t)`, a weighted mean of unit `i`'s latent
+#' *anomaly*: the record with the seasonal cycle every unit shares and the unit's own constant
+#' offset taken out, since neither of those is temporally located and a window of any width reports
+#' both. The weights `w_j` are constant within the bins of one window and zero outside
 #' a short stretch of them, so `g` is exactly a linear combination of that window's bin means. The
 #' true grain of a mechanism is the **coarsest window of [window_matrix()] at which `g` is still an
 #' exact linear functional of the representation**: at that window and at every window whose bins
@@ -54,6 +56,11 @@
 #' @param offset_sd Standard deviation of the unit-level thermal offset.
 #' @param anomaly_sd Marginal standard deviation of each unit's AR(1) anomaly.
 #' @param anomaly_days Correlation time of that anomaly, in days.
+#' @param offset_effect Weight the unit-level offset enters the driver with. At the default `0`
+#'   the driver reads the unit's *anomaly* alone, so a window coarse enough to average the anomaly
+#'   away loses the signal. At `1` the offset carries the response as well, and since every window
+#'   however coarse reports the offset, every grain is then equally good: that is the
+#'   grain-invariant control, not a temporal mechanism.
 #' @param sensor_sd Standard deviation of the measurement noise added to the latent record. The
 #'   response is generated from the latent record; the readings returned carry this noise.
 #' @param year_start `"MM-DD"` boundary of the hydrological year, passed to [window_matrix()] when
@@ -92,6 +99,7 @@ simulate_records <- function(n = 300L,
                              offset_sd = 1,
                              anomaly_sd = 1,
                              anomaly_days = 2,
+                             offset_effect = 0,
                              sensor_sd = 0.3,
                              year_start = "09-01",
                              seed = 1L,
@@ -118,8 +126,8 @@ simulate_records <- function(n = 300L,
   season_wave <- seasonal * cos(2 * pi * (as.numeric(when) - as.numeric(when[1L])) /
                                   (365.25 * 86400))
 
-  design <- .simulate_design(mechanism, variables, when, year_start, season_wave, phi,
-                             offset_sd, anomaly_sd, prevalence, auc, seed)
+  design <- .simulate_design(mechanism, variables, when, year_start, phi,
+                             offset_effect * offset_sd, anomaly_sd, prevalence, auc, seed)
 
   units <- sprintf("d%03du%05d", draw, seq_len(n))
   old <- .seed_state()
@@ -127,14 +135,14 @@ simulate_records <- function(n = 300L,
   set.seed(as.integer((seed + 100003 * draw) %% .Machine$integer.max))
 
   offset <- stats::rnorm(n, sd = offset_sd)
-  latent <- .ar1_field(n, length(when), phi, anomaly_sd)
-  latent <- latent + rep(season_wave, each = n) + offset
-  reading <- latent + stats::rnorm(length(latent), sd = sensor_sd)
+  anomaly <- .ar1_field(n, length(when), phi, anomaly_sd)
+  reading <- anomaly + rep(season_wave, each = n) + offset +
+    stats::rnorm(length(anomaly), sd = sensor_sd)
 
   z <- if (mechanism == "none") {
     matrix(stats::rnorm(n * variables), nrow = n)
   } else {
-    sweep(sweep(latent %*% design$weights, 2L, design$mu, "-"), 2L, design$sigma, "/")
+    sweep((anomaly + offset_effect * offset) %*% design$weights, 2L, design$sigma, "/")
   }
   z <- sweep(z, 2L, design$sign, "*")
   dimnames(z) <- list(units, sprintf("v%02d", seq_len(variables)))
@@ -155,7 +163,8 @@ simulate_records <- function(n = 300L,
     design = list(n = n, mechanism = mechanism, variables = variables, prevalence = prevalence,
                   auc = auc, from = from, days = days, step_hours = step_hours,
                   seasonal = seasonal, offset_sd = offset_sd, anomaly_sd = anomaly_sd,
-                  anomaly_days = anomaly_days, sensor_sd = sensor_sd, year_start = year_start,
+                  anomaly_days = anomaly_days, offset_effect = offset_effect,
+                  sensor_sd = sensor_sd, year_start = year_start,
                   seed = seed, draw = draw, bins = design$bins, anchor = design$anchor)
   )
   structure(out, class = "timegrain_simulation")
@@ -177,7 +186,7 @@ print.timegrain_simulation <- function(x, ...) {
 # standardised, and the link that turns it into a response at the asked-for prevalence and skill.
 # It depends on the seed and the reading grid, never on how many units are drawn, so a deployment
 # sample and a training sample of different sizes are drawn from one population.
-.simulate_design <- function(mechanism, variables, when, year_start, season_wave, phi,
+.simulate_design <- function(mechanism, variables, when, year_start, phi,
                              offset_sd, anomaly_sd, prevalence, auc, seed) {
   link <- .link_coefficients(prevalence, auc)
   old <- .seed_state()
@@ -188,27 +197,26 @@ print.timegrain_simulation <- function(x, ...) {
   if (mechanism == "none") {
     return(list(grain = NA_character_, bins = NA_integer_, anchor = rep(NA_integer_, variables),
                 weights = matrix(0, nrow = length(when), ncol = variables),
-                mu = rep(0, variables), sigma = rep(1, variables), sign = direction, link = link))
+                sigma = rep(1, variables), sign = direction, link = link))
   }
 
   grain <- .mechanism_grain(mechanism)
   edges <- .bin_edges(when, grain, year_start)
-  bin <- findInterval(as.numeric(when), as.numeric(edges))
-  count <- tabulate(bin, nbins = length(edges))
+  bin <- findInterval(as.numeric(when), as.numeric(edges$start))
+  count <- tabulate(bin, nbins = length(edges$start))
   shape <- .mechanism_shape(mechanism)
-  anchor <- .mechanism_anchors(mechanism, variables, length(edges), length(shape))
+  anchor <- .mechanism_anchors(mechanism, variables, edges$partial, length(shape))
 
   weights <- vapply(seq_len(variables), function(j) {
-    k <- numeric(length(edges))
+    k <- numeric(length(edges$start))
     k[anchor[j] + seq_along(shape) - 1L] <- shape
     k <- k / sum(k)
     k[bin] / count[bin]
   }, numeric(length(when)))
-  mu <- as.numeric(crossprod(weights, season_wave))
   sigma <- sqrt(offset_sd^2 + anomaly_sd^2 *
                   vapply(seq_len(variables), function(j) .ar1_quadform(weights[, j], phi),
                          numeric(1L)))
-  list(grain = grain, bins = length(edges), anchor = anchor, weights = weights, mu = mu,
+  list(grain = grain, bins = length(edges$start), anchor = anchor, weights = weights,
        sigma = sigma, sign = direction, link = link)
 }
 
@@ -225,18 +233,21 @@ print.timegrain_simulation <- function(x, ...) {
          lag = exp(-(seq_len(4L) - 1L)))
 }
 
-# The anchors spread the variables over the middle of the record, so no variable reads a partial
-# bin at either end and no two read the same stretch unless there are more variables than places.
-.mechanism_anchors <- function(mechanism, variables, bins, width) {
-  last <- bins - width
-  if (last < 2L) {
-    stop("the record holds ", bins, " ", .mechanism_grain(mechanism), " bins, too few for the ",
-         mechanism, " mechanism's ", width, ". Lengthen `days`.", call. = FALSE)
+# The anchors spread the variables over the record, over the positions at which the mechanism's
+# whole stretch of bins falls on bins the record covers for their full calendar span. A variable
+# never reads a partial bin, and two read the same stretch only when there are more variables than
+# positions.
+.mechanism_anchors <- function(mechanism, variables, partial, width) {
+  starts <- seq_len(length(partial) - width + 1L)
+  ok <- starts[vapply(starts, function(i) !any(partial[i + seq_len(width) - 1L]), logical(1L))]
+  if (!length(ok)) {
+    stop("the record holds no run of ", width, " whole ", .mechanism_grain(mechanism),
+         " bins, which the ", mechanism, " mechanism needs. Lengthen `days`.", call. = FALSE)
   }
-  if (variables >= last) {
-    return(rep_len(seq(2L, last), variables))
+  if (variables >= length(ok)) {
+    return(rep_len(ok, variables))
   }
-  as.integer(round(seq(2L, last, length.out = variables)))
+  ok[as.integer(round(seq(1L, length(ok), length.out = variables)))]
 }
 
 # The bin boundaries the weights are defined on come from window_matrix() itself, on a two-unit
@@ -248,7 +259,7 @@ print.timegrain_simulation <- function(x, ...) {
                       reading = 0, stringsAsFactors = FALSE)
   m <- window_matrix(probe, "unit", "time", "reading", window = grain, stats = "mean",
                      year_start = year_start)
-  attr(m, "bin_start")
+  list(start = attr(m, "bin_start"), partial = attr(m, "bin_partial"))
 }
 
 # Var(sum_t w_t e_t) for an AR(1) with unit marginal variance, in one pass rather than through a

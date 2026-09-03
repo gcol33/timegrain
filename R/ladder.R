@@ -163,6 +163,10 @@ print.timegrain_ladder <- function(x, ...) {
 #' @export
 summary.timegrain_ladder <- function(object, ...) {
   per_variable <- .per_variable(object)
+  if (!nrow(per_variable)) {
+    return(data.frame(learner = character(), window = character(), score = numeric(),
+                      n_variable = integer(), best = logical(), stringsAsFactors = FALSE))
+  }
   key <- per_variable[c("learner", "window")]
   out <- merge(stats::aggregate(list(score = per_variable$score), key, mean),
                stats::aggregate(list(n_variable = per_variable$score), key, length),
@@ -182,6 +186,9 @@ summary.timegrain_ladder <- function(object, ...) {
 # how many folds it happened to be scorable in.
 .per_variable <- function(ladder) {
   keep <- ladder[!is.na(ladder$score), , drop = FALSE]
+  if (!nrow(keep)) {
+    return(keep[c("window", "learner", "variable", "score")])
+  }
   stats::aggregate(list(score = keep$score), keep[c("window", "learner", "variable")],
                    mean)
 }

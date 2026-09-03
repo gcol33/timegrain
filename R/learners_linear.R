@@ -57,10 +57,10 @@ glmnet_learner <- function(alpha = 0.5, nfolds = 5L, squares = TRUE, s = "lambda
         stop("the representation predicted on has different channels or bins from the fitted one.",
              call. = FALSE)
       }
-      vapply(model$models, function(f) {
+      .as_predictions(vapply(model$models, function(f) {
         if (is.numeric(f)) rep(f, nrow(m))
         else as.numeric(stats::predict(f, m, s = model$s, type = "response"))
-      }, numeric(nrow(m)))
+      }, numeric(nrow(m))), nrow(m))
     }
   )
 }
@@ -101,7 +101,8 @@ stepwise_learner <- function(max_terms = 3L, degree = 2L) {
         stop("the representation predicted on has different channels or bins from the fitted one.",
              call. = FALSE)
       }
-      vapply(model$models, function(f) .predict_forward(f, m), numeric(nrow(m)))
+      .as_predictions(vapply(model$models, function(f) .predict_forward(f, m), numeric(nrow(m))),
+                      nrow(m))
     }
   )
 }
@@ -186,6 +187,13 @@ stepwise_learner <- function(max_terms = 3L, degree = 2L) {
   out <- cbind(m, m^2)
   colnames(out) <- c(colnames(m), paste0(colnames(m), "^2"))
   out
+}
+
+# vapply drops to a vector when there is one unit to predict, which would reach the caller as one
+# row per variable instead of one column. The shape is restored here so a single new site predicts
+# the same way a thousand do.
+.as_predictions <- function(p, units) {
+  matrix(p, nrow = units)
 }
 
 .imbalance_weights <- function(y, cap = Inf) {
