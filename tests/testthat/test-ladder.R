@@ -120,7 +120,7 @@ test_that("a ladder on which nothing was scorable reports no level rather than f
   y <- sim_response(sim)
   x <- window_matrix(sim$readings, plot, t, temp, window = c("week", "month"))
   lad <- suppressWarnings(
-    window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3L), verbose = FALSE))
+    window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3L), verbose = FALSE))
   lad$score <- NA_real_
   out <- summary(lad)
   expect_equal(nrow(out), 0L)

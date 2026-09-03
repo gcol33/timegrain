@@ -34,7 +34,7 @@
 #' y <- matrix(rbinom(60 * 6, 1, plogis(3 * as.numeric(outer(warmth, rep(c(1, -1), 3))))),
 #'             ncol = 6, dimnames = list(units, paste0("sp", 1:6)))
 #' x <- window_matrix(d, plot, t, temp, window = c("day", "week", "month"))
-#' lad <- window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 5), verbose = FALSE)
+#' lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 5), verbose = FALSE)
 #' if (requireNamespace("emmeans", quietly = TRUE)) window_contrasts(lad)
 #' }
 #'

@@ -155,3 +155,41 @@ def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
                          grid=np.arange(0.3, 0.95, 0.1), replicates=60, seed=5)
     assert back[0]["skill"] == pytest.approx(0.6, abs=0.05)
     assert back[0]["within_grid"]
+
+
+def test_a_ladder_given_no_fold_map_builds_one():
+    readings, y, _ = sim(n_unit=30, days=40, noise=1.0)
+    x = window_matrix(readings, "id", "time", "value", window="week")
+    lad = window_ladder(x, y, [constant_learner()], verbose=False)
+    # The same defaults `fold_map` would have been called with, so the two agree cell for cell.
+    assert np.array_equal(lad.folds.fold, fold_map(y).fold)
+    assert lad.folds.units == tuple(x.units)
+
+
+def test_every_held_out_cell_is_the_prediction_for_that_unit_and_that_variable():
+    readings, y, _ = sim(n_unit=30, days=40, noise=1.0)
+    x = window_matrix(readings, "id", "time", "value", window="week")
+    folds = fold_map(y, v=3, seed=4)
+    lad = window_ladder(x, y, [constant_learner()], folds=folds, verbose=False)
+    p = lad.predictions["week|constant"]
+
+    # The assembly is keyed by unit and by variable rather than by position, so every cell is
+    # checkable against a refit on the same training units, matched by name on both axes.
+    row = {u: i for i, u in enumerate(x.units)}
+    column = {v: j for j, v in enumerate(y.variables)}
+    for k in np.unique(folds.fold):
+        train = np.flatnonzero(folds.fold != k)
+        test = np.flatnonzero(folds.fold == k)
+        fit = fit_learner(constant_learner(), x.take_units(train), y.take_units(train))
+        held = x.take_units(test)
+        expected = fit.predict(held)
+        for a, unit in enumerate(held.units):
+            for b, variable in enumerate(fit.variables):
+                assert p[row[unit], column[variable]] == pytest.approx(expected[a, b])
+
+
+def constant_learner():
+    """A learner with nothing in it: every unit is predicted the mean of the fitting units."""
+    return Learner(name="constant",
+                   fit=lambda x, y, **_: dict(level=y.mean(axis=0)),
+                   predict=lambda model, x: np.tile(model["level"], (x.values.shape[0], 1)))

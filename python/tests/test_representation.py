@@ -3,12 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timegrain import (WINDOWS, bind_channels, calendar_channels, window_matrix)
+from timegrain import (WINDOWS, TimegrainSet, WindowMatrix, bind_channels,
+                       calendar_channels, timegrain_set, window_matrix)
 
 
 def hourly(units=("a", "b"), hours=24 * 400, start="2021-09-01"):
-    t = np.arange(np.datetime64(start, "s"), dtype="datetime64[s]") if False else \
-        np.datetime64(start, "s") + np.arange(hours) * np.timedelta64(1, "h")
+    t = np.datetime64(start, "s") + np.arange(hours) * np.timedelta64(1, "h")
     rng = np.random.default_rng(1)
     return {"id": [u for u in units for _ in range(hours)],
             "time": list(t) * len(units),
@@ -210,3 +210,35 @@ def test_channels_are_joined_in_the_order_they_are_given():
     assert np.array_equal(b.channel("mean"), x.channel("mean"))
     with pytest.raises(ValueError, match="same name"):
         bind_channels(x, x)
+
+
+def test_naming_one_window_returns_one_representation_however_it_is_named():
+    d = hourly(hours=24 * 40)
+    one = window_matrix(d, "id", "time", "value", window="week")
+    as_list = window_matrix(d, "id", "time", "value", window=["week"])
+    # A set of one is a shape the caller would only have to unwrap, and the R side does not make
+    # one either.
+    assert isinstance(as_list, WindowMatrix)
+    assert np.array_equal(as_list.values, one.values)
+
+
+def test_a_set_reads_as_a_mapping_and_can_be_cut_to_some_of_its_windows():
+    d = hourly(hours=24 * 60)
+    s = window_matrix(d, "id", "time", "value", window=["day", "week", "month"])
+    assert isinstance(s, TimegrainSet)
+    assert len(s) == 3 and list(s) == ["day", "week", "month"]
+    part = s[["week", "month"]]
+    assert list(part) == ["week", "month"]
+    assert part.units == s.units
+    assert np.array_equal(part["week"].values, s["week"].values)
+
+
+def test_a_set_must_cover_the_same_units_at_every_window():
+    d = hourly(hours=24 * 40)
+    whole = window_matrix(d, "id", "time", "value", window="week")
+    with pytest.raises(ValueError, match="same units"):
+        timegrain_set({"week": whole, "cut": whole.take_units([0])})
+    with pytest.raises(ValueError, match="not a window_matrix"):
+        timegrain_set({"week": whole.values})
+    with pytest.raises(ValueError, match="non-empty"):
+        timegrain_set({})

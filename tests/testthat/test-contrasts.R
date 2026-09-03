@@ -6,7 +6,7 @@ contrast_fixture <- function() {
   sim <- sim_series(n_unit = 60L, days = 90L, sd = 6, seed = 51L)
   y <- sim_response(sim, n_var = 6L, seed = 52L)
   x <- window_matrix(sim$readings, plot, t, temp, window = c("day", "week", "month"))
-  suppressWarnings(window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 4L, seed = 9L),
+  suppressWarnings(window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 4L, seed = 9L),
                                  verbose = FALSE))
 }
 

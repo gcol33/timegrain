@@ -13,7 +13,7 @@ utils::globalVariables("self")
 
   register_response("presence_absence", .presence_absence)
 
-  register_learner("glmnet", glmnet_learner)
+  register_learner("elasticnet", elasticnet_learner)
   register_learner("stepwise", stepwise_learner)
   register_learner("mlp", mlp_learner)
   register_learner("cnn", cnn_learner)

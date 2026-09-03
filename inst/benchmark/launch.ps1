@@ -9,12 +9,12 @@ every worker has exited. Replicates already on disk are skipped, so a killed run
 re-running the same command and costs at most the replicates that were in flight.
 
 .EXAMPLE
-schtasks /Create /TN "timegrain_bench" /RL HIGHEST /F /SC ONCE /ST 23:59 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\GillesC\Documents\dev\timegrain\inst\benchmark\launch.ps1 -Block glmnet -Workers 14"
+schtasks /Create /TN "timegrain_bench" /RL HIGHEST /F /SC ONCE /ST 23:59 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\GillesC\Documents\dev\timegrain\inst\benchmark\launch.ps1 -Block elasticnet -Workers 14"
 schtasks /Run /TN "timegrain_bench"
 #>
 [CmdletBinding()]
 param(
-  [ValidateSet('glmnet', 'cnn', 'all')] [string] $Block = 'all',
+  [ValidateSet('elasticnet', 'cnn', 'all')] [string] $Block = 'all',
   [ValidateSet('full', 'smoke')]        [string] $Scale = 'full',
   [string] $Cell = '',
   [string] $Reps = '',

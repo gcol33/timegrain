@@ -110,7 +110,7 @@ one denominator and every paired difference runs on matched cells.
 
 ```{r ladder}
 set <- window_matrix(readings, plot, t, temp, window = c("day", "week", "month"))
-lad <- window_ladder(set, y, glmnet_learner(), folds = folds, verbose = FALSE)
+lad <- window_ladder(set, y, elasticnet_learner(), folds = folds, verbose = FALSE)
 summary(lad)
 ```
 
@@ -126,7 +126,7 @@ which are the independent replicates. Six species is few enough that the interva
 where the means are ordered.
 
 ```{r contrast}
-paired_contrast(lad, "month|glmnet", "day|glmnet")
+paired_contrast(lad, "month|elasticnet", "day|elasticnet")
 ```
 
 Where the whole curve is the question rather than one pair of it, `window_contrasts()` fits a mixed
@@ -152,7 +152,7 @@ above. It does not cancel in a level, so a level is an upper bound on the skill 
 
 ## Other learners
 
-The learners that ship are the two aggregate-feature arms, `glmnet_learner()` and
+The learners that ship are the two aggregate-feature arms, `elasticnet_learner()` and
 `stepwise_learner()`, and three sequence encoders that need `torch`: `mlp_learner()`,
 `cnn_learner()` and `rescnn_learner()`. All three encoders are joint multi-label models, so every
 species is predicted together from a shared embedding, which is what makes the rarer ones learnable
@@ -171,7 +171,7 @@ the set is scored as one model rather than as a vote between decisions. Members 
 architecture, in width, or in the grain they read are what it is for.
 
 ```{r ensemble}
-both <- ensemble_learner(list(ridge = glmnet_learner(alpha = 0), lasso = glmnet_learner(alpha = 1)))
+both <- ensemble_learner(list(ridge = elasticnet_learner(alpha = 0), lasso = elasticnet_learner(alpha = 1)))
 summary(window_ladder(set["week"], y, both, folds = folds, verbose = FALSE))
 ```
 
@@ -190,7 +190,7 @@ nearest_neighbour <- learner(
   }
 )
 
-summary(window_ladder(set, y, list(glmnet = glmnet_learner(), nn = nearest_neighbour),
+summary(window_ladder(set, y, list(elasticnet = elasticnet_learner(), nn = nearest_neighbour),
                       folds = folds, verbose = FALSE))
 ```
 
@@ -200,9 +200,9 @@ With the fits kept, `bin_occlusion()` holds each bin of the record back in turn,
 held-out plots, and records the fall in score as that bin's weight. Nothing is refitted.
 
 ```{r occlusion}
-kept <- window_ladder(set["month"], y, glmnet_learner(), folds = folds,
+kept <- window_ladder(set["month"], y, elasticnet_learner(), folds = folds,
                       keep_fits = TRUE, verbose = FALSE)
-weight <- bin_occlusion(kept, set, y, "month|glmnet", permutations = 5)
+weight <- bin_occlusion(kept, set, y, "month|elasticnet", permutations = 5)
 head(aggregate(weight ~ part, weight, mean), 4)
 ```
 

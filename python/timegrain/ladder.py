@@ -7,10 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from ._stats import norm_ppf, wilcoxon_p
-from .learners import fit_learner, get_learner
-from .metrics import METRICS, tss
-from .representation import WindowMatrix
-from .response import Folds, Response, align_folds, scorable_cells
+from .learners import fit_learner
+from .metrics import tss
+from .registry import METRICS, RESPONSES, get_learner
+from .representation import timegrain_set
+from .response import (Folds, Response, align_folds, as_response, fold_map,
+                       scorable_cells)
 
 
 @dataclass
@@ -25,7 +27,7 @@ class Ladder:
     scorable: np.ndarray
     predictions: dict
     cells: object
-    folds: np.ndarray
+    folds: Folds
     metric: str
     fits: dict
 
@@ -62,20 +64,26 @@ class Ladder:
         return "\n".join(lines)
 
 
-def window_ladder(x, y: Response, learners, folds, metric: str = "tss", keep_fits: bool = False,
-                  verbose: bool = True) -> Ladder:
+def window_ladder(x, y, learners, folds=None, response: str = "presence_absence", metric=None,
+                  keep_fits: bool = False, verbose: bool = True) -> Ladder:
     """Cross-validate every learner at every window, on one fold map and one mask of cells.
 
     Every arm sees identical splits and is restricted to identical cells, so the arms' means share
     a denominator and any two of them can be compared with ``paired_contrast``.
+
+    ``folds`` left at ``None`` builds one with the defaults of ``fold_map``. Where both languages
+    must see the same splits, build it once and read it in the other with ``read_folds``.
     """
-    windows = {x.window: x} if isinstance(x, WindowMatrix) else dict(x)
-    units = next(iter(windows.values())).units
-    y = y.align(units).check_presence_absence()
+    windows = timegrain_set(x)
+    units = windows.units
+    spec = RESPONSES.get(response)
+    y = spec["prepare"](as_response(y)).align(units)
+    if folds is None:
+        folds = fold_map(y)
     f = align_folds(folds, units)
-    cells = scorable_cells(y, f)
-    score = METRICS[metric] if isinstance(metric, str) else metric
-    learners = _learner_dict(learners)
+    cells = spec["cells"](y, Folds(fold=f, units=units))
+    score = metric if callable(metric) else METRICS.get(metric or spec["metric"])
+    learners = learner_dict(learners)
     levels = np.unique(f)
 
     window, learner, variable, fold, value, ok = [], [], [], [], [], []
@@ -86,29 +94,103 @@ def window_ladder(x, y: Response, learners, folds, metric: str = "tss", keep_fit
             if verbose:
                 print(f"fitting {name} at the {w} window")
             p = np.full(y.values.shape, np.nan)
+            column = {v: j for j, v in enumerate(y.variables)}
+            row = {u: i for i, u in enumerate(units)}
             for k in levels:
                 train = np.flatnonzero(f != k)
-                test = np.flatnonzero(f == k)
-                fit = fit_learner(ln, m.take_units(train), y.take_units(train))
-                p[test] = fit.predict(m.take_units(test))
+                held = m.take_units(np.flatnonzero(f == k))
+                fit = fit_learner(ln, m.take_units(train), y.take_units(train),
+                                  response=response)
+                predicted = fit.predict(held)
+                # Keyed on both axes rather than positional: a learner returning its variables in
+                # another order would otherwise scramble which prediction belongs to which one,
+                # silently.
+                for a, u in enumerate(held.units):
+                    for b, v in enumerate(fit.variables):
+                        p[row[u], column[v]] = predicted[a, b]
                 if keep_fits:
                     fits[f"{arm}|{k}"] = fit
             predictions[arm] = p
-            for k in levels:
-                rows = f == k
-                for j, v in enumerate(y.variables):
-                    scorable = cells.is_scorable(v, int(k))
-                    window.append(w)
-                    learner.append(name)
-                    variable.append(v)
-                    fold.append(int(k))
-                    ok.append(scorable)
-                    value.append(score(y.values[rows, j], p[rows, j]) if scorable else np.nan)
+            scored = score_arm(w, name, y, p, f, levels, cells, score)
+            for key, into in (("window", window), ("learner", learner), ("variable", variable),
+                              ("fold", fold), ("score", value), ("scorable", ok)):
+                into.extend(scored[key])
 
-    return Ladder(window=np.asarray(window), learner=np.asarray(learner),
-                  variable=np.asarray(variable), fold=np.asarray(fold),
-                  score=np.asarray(value, dtype=float), scorable=np.asarray(ok),
-                  predictions=predictions, cells=cells, folds=f, metric=metric, fits=fits)
+    return ladder_from_rows(dict(window=window, learner=learner, variable=variable, fold=fold,
+                                 score=value, scorable=ok),
+                            predictions=predictions, cells=cells,
+                            folds=Folds(fold=f, units=units), metric=metric or spec["metric"],
+                            fits=fits)
+
+
+def score_arm(window, learner, y: Response, p: np.ndarray, f: np.ndarray, levels,
+              cells, score) -> dict:
+    """One arm's cells: which of them a score is defined on, and the score of each.
+
+    A ladder and a selection both read a level off this, so the two report the same quantity
+    computed the same way rather than each computing it.
+    """
+    rows = dict(window=[], learner=[], variable=[], fold=[], score=[], scorable=[])
+    for k in levels:
+        take = f == k
+        for j, v in enumerate(y.variables):
+            ok = cells.is_scorable(v, int(k))
+            rows["window"].append(window)
+            rows["learner"].append(learner)
+            rows["variable"].append(v)
+            rows["fold"].append(int(k))
+            rows["scorable"].append(ok)
+            rows["score"].append(score(y.values[take, j], p[take, j]) if ok else np.nan)
+    return rows
+
+
+def ladder_from_rows(rows: dict, predictions: dict, cells, folds: Folds, metric: str,
+                     fits: dict) -> Ladder:
+    return Ladder(window=np.asarray(rows["window"]), learner=np.asarray(rows["learner"]),
+                  variable=np.asarray(rows["variable"]), fold=np.asarray(rows["fold"]),
+                  score=np.asarray(rows["score"], dtype=float),
+                  scorable=np.asarray(rows["scorable"]), predictions=predictions, cells=cells,
+                  folds=folds, metric=metric, fits=fits)
+
+
+def concat_ladders(a: Ladder, b: Ladder) -> Ladder:
+    """Two arms' cells in one table, which is what a contrast between them reads."""
+    if a.metric != b.metric:
+        raise ValueError(f"one table is scored by {a.metric} and the other by {b.metric}")
+    return Ladder(
+        window=np.concatenate([a.window, b.window]),
+        learner=np.concatenate([a.learner, b.learner]),
+        variable=np.concatenate([a.variable, b.variable]),
+        fold=np.concatenate([a.fold, b.fold]),
+        score=np.concatenate([a.score, b.score]),
+        scorable=np.concatenate([a.scorable, b.scorable]),
+        predictions={**a.predictions, **b.predictions}, cells=a.cells, folds=a.folds,
+        metric=a.metric, fits={})
+
+
+def per_variable(ladder: Ladder) -> dict:
+    """The mean score of each arm's variables over the folds it was scorable in.
+
+    A variable is the independent replicate, so a cell mean is taken within a variable before
+    anything is averaged across variables. Averaging cells directly would weight a variable by how
+    many folds it happened to be scorable in.
+    """
+    keep = ~np.isnan(ladder.score)
+    out = {}
+    for w, ln, v, value in zip(ladder.window[keep], ladder.learner[keep], ladder.variable[keep],
+                               ladder.score[keep]):
+        out.setdefault((str(w), str(ln), str(v)), []).append(float(value))
+    return {k: float(np.mean(v)) for k, v in out.items()}
+
+
+def mean_se(values) -> tuple[float, float]:
+    """A level and the spread of the variables it was averaged over, in one place, so a ladder and
+    a selection report the same quantity computed the same way."""
+    v = np.asarray([x for x in np.asarray(values, dtype=float) if not np.isnan(x)])
+    if not len(v):
+        return float("nan"), float("nan")
+    se = float(v.std(ddof=1) / np.sqrt(len(v))) if len(v) > 1 else float("nan")
+    return float(v.mean()), se
 
 
 def paired_contrast(ladder: Ladder, a: str, b: str) -> dict:
@@ -132,13 +214,12 @@ def paired_contrast(ladder: Ladder, a: str, b: str) -> dict:
     diff = np.asarray([ladder.score[ix_a[k]] - ladder.score[ix_b[k]] for k in shared])
     variable = np.asarray([k.split("|")[0] for k in shared])
 
-    per_variable = np.asarray([diff[variable == v].mean() for v in np.unique(variable)])
-    n = len(per_variable)
-    d = float(per_variable.mean())
-    se = float(per_variable.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan")
+    by_variable = np.asarray([diff[variable == v].mean() for v in np.unique(variable)])
+    n = len(by_variable)
+    d, se = mean_se(by_variable)
     return dict(a=_label(ladder, a), b=_label(ladder, b), diff=d, lower=d - 1.96 * se,
                 upper=d + 1.96 * se, n_variable=n, n_cell=len(shared),
-                n_favour=int((per_variable > 0).sum()), p_value=_wilcoxon(per_variable))
+                n_favour=int((by_variable > 0).sum()), p_value=_wilcoxon(by_variable))
 
 
 def tss_inflation(y: Response, folds, skill=(0.6, 0.7, 0.9), replicates: int = 200,
@@ -197,7 +278,7 @@ def implied_skill(y: Response, folds, observed, grid=None, replicates: int = 200
                  within_grid=bool(reported[0] <= o <= reported[-1])) for o in observed]
 
 
-def _learner_dict(learners):
+def learner_dict(learners):
     if isinstance(learners, dict):
         return {k: get_learner(v) for k, v in learners.items()}
     if not isinstance(learners, (list, tuple)):

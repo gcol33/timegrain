@@ -10,7 +10,7 @@
 #' never pays, so beating that one is not a matched result.
 #'
 #' @param alpha Elastic-net mixing, `1` lasso and `0` ridge.
-#' @param nfolds Folds of the inner cross-validation that chooses the penalty.
+#' @param n_inner Folds of the inner cross-validation that chooses the penalty.
 #' @param squares Add the square of every column, giving the same quadratic capacity a
 #'   second-order polynomial term would.
 #' @param s Which penalty of the inner path to predict at.
@@ -22,17 +22,17 @@
 #' @return A [learner()].
 #'
 #' @examples
-#' glmnet_learner(alpha = 0.5)
+#' elasticnet_learner(alpha = 0.5)
 #'
 #' @export
-glmnet_learner <- function(alpha = 0.5, nfolds = 5L, squares = TRUE, s = "lambda.min",
-                           weight_positives = TRUE, seed = 1L) {
+elasticnet_learner <- function(alpha = 0.5, n_inner = 5L, squares = TRUE, s = "lambda.min",
+                               weight_positives = TRUE, seed = 1L) {
   learner(
-    name = "glmnet",
+    name = "elasticnet",
     needs = "glmnet",
-    params = list(alpha = alpha, nfolds = nfolds, squares = squares, s = s,
+    params = list(alpha = alpha, n_inner = n_inner, squares = squares, s = s,
                   weight_positives = weight_positives, seed = seed),
-    fit = function(x, y, alpha, nfolds, squares, s, weight_positives, seed, ...) {
+    fit = function(x, y, alpha, n_inner, squares, s, weight_positives, seed, ...) {
       m <- .design(x, squares)
       old <- .seed_state()
       on.exit(.restore_seed(old), add = TRUE)
@@ -45,7 +45,7 @@ glmnet_learner <- function(alpha = 0.5, nfolds = 5L, squares = TRUE, s = "lambda
         w <- if (weight_positives) .imbalance_weights(yj) else rep(1, length(yj))
         tryCatch(
           glmnet::cv.glmnet(m, yj, family = "binomial", alpha = alpha, weights = w,
-                            nfolds = nfolds, type.measure = "deviance"),
+                            nfolds = n_inner, type.measure = "deviance"),
           error = function(e) mean(yj)
         )
       })

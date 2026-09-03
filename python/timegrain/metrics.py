@@ -116,8 +116,3 @@ def model_agreement(y, p_a, p_b, rule: str = "youden") -> dict:
     return dict(kappa=cohen_kappa(da, db), n=len(y), n_disagree=int(diff.sum()),
                 share_disagree=float(diff.mean()),
                 a_right=int(np.sum(diff & (da == y))), b_right=int(np.sum(diff & (db == y))))
-
-
-METRICS = {"tss": tss, "roc_auc": roc_auc,
-           "kappa": lambda y, p: kappa_score(y, p, "prevalence"),
-           "kappa_youden": lambda y, p: kappa_score(y, p, "youden")}

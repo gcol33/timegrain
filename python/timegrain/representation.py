@@ -13,6 +13,7 @@ is the boundary: resolving the columns, resolving the zone, and putting the resu
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 
@@ -59,14 +60,69 @@ class WindowMatrix:
                 f"from  : {self.bins[0]} to {self.bins[-1]}")
 
 
+class TimegrainSet(Mapping):
+    """A ladder of representations, one per window.
+
+    Naming several windows in :func:`window_matrix` returns one of these: representations of the
+    same units, differing only in how coarsely the record was read. It is what
+    :func:`window_ladder` fits across, and it reads as a mapping of window name to representation.
+    """
+
+    def __init__(self, parts):
+        if isinstance(parts, WindowMatrix):
+            parts = {parts.window: parts}
+        parts = dict(parts)
+        if not parts:
+            raise ValueError("a timegrain set is a non-empty mapping of window_matrix() results")
+        bad = [k for k, v in parts.items() if not isinstance(v, WindowMatrix)]
+        if bad:
+            raise ValueError(f"{', '.join(bad)} "
+                             f"{'are' if len(bad) > 1 else 'is'} not a window_matrix() result")
+        units = next(iter(parts.values())).units
+        differ = [k for k, v in parts.items() if v.units != units]
+        if differ:
+            raise ValueError(f"every window in a set must cover the same units; "
+                             f"{', '.join(differ)} does not")
+        self._parts = parts
+
+    def __getitem__(self, key):
+        if isinstance(key, (list, tuple)):
+            return TimegrainSet({k: self._parts[k] for k in key})
+        return self._parts[key]
+
+    def __iter__(self):
+        return iter(self._parts)
+
+    def __len__(self) -> int:
+        return len(self._parts)
+
+    @property
+    def units(self) -> tuple[str, ...]:
+        return next(iter(self._parts.values())).units
+
+    def __repr__(self) -> str:  # pragma: no cover - display only
+        lines = [f"<timegrain set> {len(self._parts)} windows over {len(self.units)} units"]
+        for name, m in self._parts.items():
+            lines.append(f"  {name:<10} {m.values.shape[1]:5d} bins x {m.values.shape[2]} "
+                         f"channels ({', '.join(m.stats)})")
+        return "\n".join(lines)
+
+
+def timegrain_set(x) -> TimegrainSet:
+    """Every entry point that fits across windows takes a representation, a set, or a bare mapping,
+    and works on a set. One coercion, so no caller repeats the three cases."""
+    return x if isinstance(x, TimegrainSet) else TimegrainSet(x)
+
+
 def window_matrix(data=None, id=None, time=None, value=None, *, window="day", stats=("mean",),
                   year_start="09-01", partial="keep", tz=None):
     """Bin readings by the calendar and summarise every bin.
 
     ``data`` is a mapping of column name to sequence, or any object with ``__getitem__`` over the
-    three column names given by ``id``, ``time`` and ``value``. Naming several windows returns a
-    dict of one representation per window. ``window`` may also be a callable, which is handed the
-    reading instants and must return the start of each reading's bin.
+    three column names given by ``id``, ``time`` and ``value``. Naming two or more windows returns
+    a :class:`TimegrainSet`; naming one, whether as a string or as a sequence of one, returns the
+    representation itself. ``window`` may also be a callable, which is handed the reading instants
+    and must return the start of each reading's bin.
 
     ``tz`` names the calendar to bin by. Left at ``None`` the instants are taken as already
     expressed in that calendar, which is what a zone-free ``datetime64`` says and what the R side
@@ -85,9 +141,13 @@ def window_matrix(data=None, id=None, time=None, value=None, *, window="day", st
     partial = _check_partial(partial)
 
     if not callable(window) and not isinstance(window, str):
-        return {w: window_matrix(data, id, time, value, window=w, stats=stats,
-                                 year_start=year_start, partial=partial, tz=tz)
-                for w in _check_windows(window)}
+        named = _check_windows(window)
+        parts = {w: window_matrix(data, id, time, value, window=w, stats=stats,
+                                  year_start=year_start, partial=partial, tz=tz)
+                 for w in named}
+        # One window is one representation, as it is when it is named as a string: a set of one is
+        # a shape the caller then has to unwrap for no reason, and the R side does not make one.
+        return parts[named[0]] if len(named) == 1 else TimegrainSet(parts)
 
     stats = _check_stats(stats, window)
     ys = _parse_year_start(year_start)

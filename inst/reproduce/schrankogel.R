@@ -167,7 +167,7 @@ if ("baseline" %in% stages) {
   features <- feature_matrix(agg, label = "aggregates")
   say("fitting the aggregated-feature arms, selection redone inside every fold")
   arms <- list(
-    elastic_net = glmnet_learner(alpha = 0.5, nfolds = 5L, squares = TRUE, seed = CV_SEED),
+    elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5L, squares = TRUE, seed = CV_SEED),
     stepwise = stepwise_learner(max_terms = 3L, degree = 2L))[baseline_arms]
   baseline <- window_ladder(features, y, arms, folds = folds)
   write_out(baseline, "baseline.csv")

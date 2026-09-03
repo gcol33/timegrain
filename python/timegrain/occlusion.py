@@ -6,8 +6,8 @@ from dataclasses import replace
 
 import numpy as np
 
-from .learners import Learner, get_learner
-from .metrics import METRICS
+from .learners import Learner
+from .registry import METRICS, get_learner
 from .representation import WindowMatrix
 from .response import Response, align_folds
 
@@ -80,7 +80,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     m = x if isinstance(x, WindowMatrix) else dict(x)[window]
     y = y.align(m.units).check_presence_absence()
     f = align_folds(ladder.folds, m.units)
-    score = METRICS[metric] if isinstance(metric, str) else metric
+    score = metric if callable(metric) else METRICS.get(metric)
 
     n_parts = m.values.shape[1] if over == "bin" else m.values.shape[2]
     labels = m.bins if over == "bin" else m.stats
@@ -116,7 +116,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
 
 def _occlude(m: WindowMatrix, sub: WindowMatrix, train, i, over, substitute, rng) -> WindowMatrix:
     values = sub.values.copy()
-    n, b = values.shape[0], values.shape[1]
+    n = values.shape[0]
     if over == "channel":
         if substitute == "permute":
             values[:, :, i] = values[rng.permutation(n), :, i]

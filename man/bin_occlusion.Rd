@@ -71,8 +71,8 @@ d <- data.frame(
 y <- matrix(rbinom(80, 1, plogis(c(warmth, -warmth))), nrow = 40,
             dimnames = list(units, c("sp1", "sp2")))
 x <- window_matrix(d, plot, t, temp, window = "month")
-lad <- window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3),
+lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
                      keep_fits = TRUE, verbose = FALSE)
-head(bin_occlusion(lad, x, y, "month|glmnet", permutations = 3))
+head(bin_occlusion(lad, x, y, "month|elasticnet", permutations = 3))
 
 }

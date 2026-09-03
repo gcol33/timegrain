@@ -211,6 +211,37 @@ def scorable_cells(y: Response, folds) -> Cells:
                            (p_test >= 1) & (a_test >= 1))[order])
 
 
+PRESENCE_ABSENCE = dict(
+    prepare=lambda y: as_response(y).check_presence_absence(),
+    activation="sigmoid",
+    loss="binary_cross_entropy",
+    metric="tss",
+    cells=lambda y, folds: scorable_cells(y, folds),
+)
+
+
+def as_response(y) -> Response:
+    """The response reaches everything downstream as a ``Response``, whether it arrived as one, as
+    a mapping of variable name to values, or as a two-dimensional array with no names at all."""
+    if isinstance(y, Response):
+        return y
+    if isinstance(y, dict):
+        variables = tuple(k for k in y if k != "id")
+        values = np.column_stack([np.asarray(y[v], dtype=np.float64) for v in variables])
+        units = tuple(str(u) for u in y["id"]) if "id" in y else \
+            tuple(str(i + 1) for i in range(values.shape[0]))
+        return Response(values=values, units=units, variables=variables)
+    values = np.asarray(y, dtype=np.float64)
+    if values.ndim == 1:
+        values = values.reshape(-1, 1)
+    if values.ndim != 2:
+        raise ValueError(f"the response must be two-dimensional, got {values.ndim} dimensions")
+    return Response(values=values,
+                    units=tuple(str(i + 1) for i in range(values.shape[0])),
+                    variables=("y",) if values.shape[1] == 1 else
+                    tuple(f"v{j + 1}" for j in range(values.shape[1])))
+
+
 def _quantile_strata(value: np.ndarray, k: int) -> np.ndarray:
     edges = np.unique(np.quantile(value, np.linspace(0, 1, k + 1)))
     if len(edges) < 3:

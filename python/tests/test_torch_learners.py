@@ -68,3 +68,25 @@ def test_a_fully_connected_encoder_recovers_a_planted_signal():
     x, y, _ = fixture(n_unit=90, days=90, noise=0.3, seed=85)
     p = fit_learner(mlp_learner(epochs=40, seed=3), x, y).predict(x)
     assert roc_auc(y.values[:, 0], p[:, 0]) > 0.8
+
+
+def test_weight_averaging_runs_the_whole_averaging_window_and_returns_a_usable_fit():
+    x, y, _ = fixture(n_unit=30, days=60)
+    p = fit_learner(cnn_learner(epochs=6, swa=True, swa_start=0.5), x, y).predict(x)
+    assert p.shape == (30, 2)
+    assert np.isfinite(p).all() and ((p > 0) & (p < 1)).all()
+
+
+def test_averaging_the_tail_is_not_the_same_fit_as_keeping_one_epoch_of_it():
+    x, y, _ = fixture(n_unit=30, days=60)
+    averaged = fit_learner(cnn_learner(epochs=6, swa=True, swa_start=0.5, seed=7), x, y).predict(x)
+    single = fit_learner(cnn_learner(epochs=6, seed=7), x, y).predict(x)
+    assert not np.allclose(averaged, single)
+
+
+def test_a_setting_given_at_fit_time_overrides_the_one_the_learner_carries():
+    x, y, _ = fixture(n_unit=20, days=40)
+    wide = fit_learner(cnn_learner(epochs=2), x, y, channels=(8, 16)).predict(x)
+    narrow = fit_learner(cnn_learner(epochs=2, channels=(8, 16)), x, y).predict(x)
+    assert np.allclose(wide, narrow)
+    assert not np.allclose(wide, fit_learner(cnn_learner(epochs=2), x, y).predict(x))

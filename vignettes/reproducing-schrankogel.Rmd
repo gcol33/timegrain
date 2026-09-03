@@ -152,7 +152,7 @@ features <- feature_matrix(as.matrix(agg[rownames(y), setdiff(names(agg), "logge
 
 baseline <- window_ladder(
   features, y,
-  list(elastic_net = glmnet_learner(alpha = 0.5, nfolds = 5, squares = TRUE),
+  list(elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5, squares = TRUE),
        stepwise = stepwise_learner(max_terms = 3, degree = 2)),
   folds = folds)
 ```

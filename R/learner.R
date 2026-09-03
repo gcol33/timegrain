@@ -102,7 +102,7 @@ learners <- function() .learners_reg$names()
 #'                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
 #' x <- window_matrix(d, plot, t, temp, window = "month")
 #' y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
-#' fit <- fit_learner(glmnet_learner(), x, y)
+#' fit <- fit_learner(elasticnet_learner(), x, y)
 #' dim(stats::predict(fit, x))
 #'
 #' @export

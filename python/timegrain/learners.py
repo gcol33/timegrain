@@ -13,9 +13,8 @@ from typing import Callable
 
 import numpy as np
 
+from .registry import get_learner
 from .representation import WindowMatrix
-
-LEARNERS: dict[str, Callable[..., "Learner"]] = {}
 
 
 @dataclass
@@ -38,6 +37,7 @@ class Fit:
     learner: Learner
     model: object
     variables: tuple[str, ...]
+    response: str = "presence_absence"
 
     def predict(self, x: WindowMatrix) -> np.ndarray:
         p = np.asarray(self.learner.predict(self.model, x), dtype=np.float64)
@@ -47,29 +47,16 @@ class Fit:
         return p
 
 
-def register_learner(name: str, constructor, overwrite: bool = False):
-    """Make a learner available by name. The learners that ship are registered the same way."""
-    if name in LEARNERS and not overwrite:
-        raise ValueError(f'learner "{name}" is already registered')
-    LEARNERS[name] = constructor
-    return constructor
-
-
-def get_learner(learner) -> Learner:
-    if isinstance(learner, Learner):
-        return learner
-    if learner not in LEARNERS:
-        raise KeyError(f'unknown learner "{learner}"; registered: {sorted(LEARNERS)}')
-    return LEARNERS[learner]()
-
-
-def fit_learner(learner, x: WindowMatrix, y, **kwargs) -> Fit:
-    """Fit one learner at one grain."""
+def fit_learner(learner, x: WindowMatrix, y, response: str = "presence_absence",
+                **kwargs) -> Fit:
+    """Fit one learner at one grain, under one registered response head."""
+    from .registry import RESPONSES
+    from .response import as_response
     learner = get_learner(learner)
     learner.require()
-    y = y.align(x.units).check_presence_absence()
+    y = RESPONSES.get(response)["prepare"](as_response(y)).align(x.units)
     model = learner.fit(x, y.values, **{**learner.params, **kwargs})
-    return Fit(learner=learner, model=model, variables=y.variables)
+    return Fit(learner=learner, model=model, variables=y.variables, response=response)
 
 
 def flatten(x: WindowMatrix) -> np.ndarray:
@@ -185,9 +172,21 @@ def _rescnn_module(in_ch, in_len, n_out, channels, blocks_per_stage, kernel, dil
 
 # ---- the training recipe ---------------------------------------------------------------------
 
+# One learner factory for every encoder: the architecture is a module constructor and nothing
+# else, so the training recipe, the standardiser, the class weighting and the early stopping have
+# one definition and cannot drift between architectures. A setting given at fit time is merged into
+# whichever of the two it belongs to, so overriding one is the same call in either language.
 def _torch_learner(name, module_fn, arch, cfg) -> Learner:
-    return Learner(name=name, needs=("torch",), params={},
-                   fit=lambda x, y, **kw: _torch_fit(x, y, module_fn, arch, {**cfg, **kw}),
+    def fit(x, y, **given):
+        unknown = set(given) - set(arch) - set(cfg)
+        if unknown:
+            raise TypeError(f"the {name} learner has no setting called "
+                            f"{', '.join(sorted(unknown))}")
+        return _torch_fit(x, y, module_fn,
+                          {**arch, **{k: v for k, v in given.items() if k in arch}},
+                          {**cfg, **{k: v for k, v in given.items() if k in cfg}})
+
+    return Learner(name=name, needs=("torch",), params={**arch, **cfg}, fit=fit,
                    predict=_torch_predict)
 
 
@@ -220,7 +219,12 @@ def _torch_fit(x: WindowMatrix, y: np.ndarray, module_fn, arch, cfg):
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=pw)
 
     best_loss, best_state, bad = float("inf"), None, 0
-    for _ in range(cfg["epochs"]):
+    # The schedule anneals until the averaging begins and is then held flat, and the epochs it
+    # averages over neither validate nor stop early: averaging the tail is a way of walking the
+    # flat basin rather than of picking a single epoch out of it.
+    swa_from = max(1, int(cfg["swa_start"] * cfg["epochs"])) if cfg["swa"] else cfg["epochs"] + 1
+    average, n_average = None, 0
+    for epoch in range(1, cfg["epochs"] + 1):
         net.train()
         order = rng.permutation(fit_idx)
         for b in np.array_split(order, max(1, len(order) // cfg["batch_size"])):
@@ -228,7 +232,11 @@ def _torch_fit(x: WindowMatrix, y: np.ndarray, module_fn, arch, cfg):
             opt.zero_grad()
             loss_fn(net(xt[idx]), yt[idx]).backward()
             opt.step()
-        sched.step()
+        if epoch < swa_from:
+            sched.step()
+        else:
+            average, n_average = _accumulate(net, average, n_average)
+            continue
         if not len(val):
             continue
         net.eval()
@@ -242,11 +250,43 @@ def _torch_fit(x: WindowMatrix, y: np.ndarray, module_fn, arch, cfg):
             bad += 1
             if bad >= cfg["patience"]:
                 break
-    if best_state is not None:
+    if n_average:
+        net.load_state_dict(average)
+        net.to(device)
+        _refresh_batchnorm(net, xt, fit_idx, cfg["batch_size"], device)
+    elif best_state is not None:
         net.load_state_dict(best_state)
     net.eval().to(device)
     return dict(net=net, centre=centre, scale=scale, device=device, channels=x.stats,
                 bins=x.values.shape[1], batch_size=cfg["batch_size"])
+
+
+def _accumulate(net, average, n):
+    """A running mean of the weights. Only the floating-point entries are weights: a
+    batch-normalisation module also carries an integer count of the batches it has seen, and a
+    running mean of that is not a number."""
+    state = {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
+    if not n:
+        return state, 1
+    n += 1
+    for k, v in state.items():
+        if v.dtype.is_floating_point:
+            average[k] = average[k] + (v - average[k]) / n
+        else:
+            average[k] = v
+    return average, n
+
+
+def _refresh_batchnorm(net, xt, fit_idx, batch_size, device):
+    """Batch normalisation carries running statistics that belong to the weights that produced
+    them, so an average of weights needs its own pass over the fitting units before it predicts
+    anything."""
+    torch = _torch()
+    net.train()
+    with torch.no_grad():
+        for b in np.array_split(fit_idx, max(1, len(fit_idx) // batch_size)):
+            net(xt[torch.tensor(b, dtype=torch.long, device=device)])
+    return net
 
 
 def _torch_predict(model, x: WindowMatrix) -> np.ndarray:
@@ -265,79 +305,229 @@ def _torch_predict(model, x: WindowMatrix) -> np.ndarray:
     return np.concatenate(out, axis=0)
 
 
-def _settings(epochs, batch_size, lr, weight_decay, val_frac, patience, pos_weight_cap, seed,
-              device):
+def _settings(epochs, batch_size, lr, weight_decay, val_frac, patience, pos_weight_cap, swa,
+              swa_start, seed, device):
     return dict(epochs=epochs, batch_size=batch_size, lr=lr, weight_decay=weight_decay,
-                val_frac=val_frac, patience=patience, pos_weight_cap=pos_weight_cap, seed=seed,
-                device=device)
+                val_frac=val_frac, patience=patience, pos_weight_cap=pos_weight_cap,
+                swa=bool(swa), swa_start=swa_start, seed=seed, device=device)
 
 
 def mlp_learner(hidden=(512, 256), dropout=0.3, epochs=60, batch_size=64, lr=1e-3,
-                weight_decay=1e-4, val_frac=0.15, patience=10, pos_weight_cap=50.0, seed=1,
-                device=None) -> Learner:
+                weight_decay=1e-4, val_frac=0.15, patience=10, pos_weight_cap=50.0, swa=False,
+                swa_start=0.7, seed=1, device=None) -> Learner:
     """Flattens the channels and builds in no temporal geometry."""
     return _torch_learner("mlp", _mlp_module, dict(hidden=tuple(hidden), dropout=dropout),
                           _settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                                    pos_weight_cap, seed, device))
+                                    pos_weight_cap, swa, swa_start, seed, device))
 
 
 def cnn_learner(channels=(16, 32, 64, 128), kernel=7, dropout=0.3, epochs=60, batch_size=32,
                 lr=1e-3, weight_decay=1e-4, val_frac=0.15, patience=10, pos_weight_cap=50.0,
-                seed=1, device=None) -> Learner:
+                swa=False, swa_start=0.7, seed=1, device=None) -> Learner:
     """Convolution, batch normalisation, activation and pooling, then global average pooling."""
     return _torch_learner("cnn", _cnn_module,
                           dict(channels=tuple(channels), kernel=kernel, dropout=dropout),
                           _settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                                    pos_weight_cap, seed, device))
+                                    pos_weight_cap, swa, swa_start, seed, device))
 
 
 def rescnn_learner(channels=(32, 64, 128, 256), blocks_per_stage=2, kernel=7,
                    dilations=(1, 2, 4, 8), dropout=0.3, epochs=60, batch_size=32, lr=1e-3,
-                   weight_decay=1e-4, val_frac=0.15, patience=10, pos_weight_cap=50.0, seed=1,
-                   device=None) -> Learner:
+                   weight_decay=1e-4, val_frac=0.15, patience=10, pos_weight_cap=50.0, swa=False,
+                   swa_start=0.7, seed=1, device=None) -> Learner:
     """Dilated residual blocks with channel gates, pooling average and maximum together."""
     return _torch_learner("rescnn", _rescnn_module,
                           dict(channels=tuple(channels), blocks_per_stage=blocks_per_stage,
                                kernel=kernel, dilations=tuple(dilations), dropout=dropout),
                           _settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                                    pos_weight_cap, seed, device))
+                                    pos_weight_cap, swa, swa_start, seed, device))
 
 
-def elasticnet_learner(alpha=0.5, n_inner=5, squares=True, seed=1) -> Learner:
-    """One penalised logistic regression per variable, over every bin-by-channel column and their
-    squares, with the penalty chosen by an inner cross-validation on the fitting units."""
+def _design(x: WindowMatrix, squares: bool) -> np.ndarray:
+    m = flatten(x)
+    return np.hstack([m, m ** 2]) if squares else m
 
-    def design(x):
-        m = flatten(x)
-        return np.hstack([m, m ** 2]) if squares else m
 
-    def fit(x, y, **_):
-        from sklearn.linear_model import LogisticRegressionCV
-        m = design(x)
-        models = []
-        for j in range(y.shape[1]):
-            yj = y[:, j]
-            if len(np.unique(yj)) < 2:
-                models.append(float(yj.mean()))
+def elasticnet_learner(alpha=0.5, n_inner=5, squares=True, weight_positives=True,
+                       seed=1) -> Learner:
+    """One penalised logistic regression per variable, over every bin-by-channel column and, by
+    default, their squares, with the penalty chosen by an inner cross-validation on the fitting
+    units.
+
+    There is no discrete selection step: the penalty path uses every column and shrinks, and
+    nothing about the model is decided outside the fold it is fitted in.
+    """
+    return Learner(name="elasticnet", fit=_elasticnet_fit, predict=_elasticnet_predict,
+                   needs=("sklearn",),
+                   params=dict(alpha=alpha, n_inner=n_inner, squares=squares,
+                               weight_positives=weight_positives, seed=seed))
+
+
+def _elasticnet_fit(x, y, alpha, n_inner, squares, weight_positives, seed, **_):
+    from sklearn.linear_model import LogisticRegressionCV
+    m = _design(x, squares)
+    models = []
+    for j in range(y.shape[1]):
+        yj = y[:, j]
+        if len(np.unique(yj)) < 2:
+            models.append(float(yj.mean()))
+            continue
+        models.append(LogisticRegressionCV(
+            Cs=10, cv=n_inner, solver="saga", l1_ratios=[alpha],
+            class_weight="balanced" if weight_positives else None,
+            max_iter=5000, random_state=seed).fit(m, yj))
+    return dict(models=models, squares=squares, n_col=m.shape[1])
+
+
+def _elasticnet_predict(model, x):
+    m = _design(x, model["squares"])
+    if m.shape[1] != model["n_col"]:
+        raise ValueError("the representation predicted on has different channels or bins "
+                         "from the fitted one")
+    return np.column_stack([
+        np.full(m.shape[0], f) if isinstance(f, float) else f.predict_proba(m)[:, 1]
+        for f in model["models"]])
+
+
+def stepwise_learner(max_terms=3, degree=2) -> Learner:
+    """One logistic regression per variable, its predictors chosen by forward selection over every
+    bin-by-channel column, admitting a column while it lowers Akaike's criterion and stopping at a
+    fixed budget.
+
+    Each candidate enters as an orthogonal polynomial, so a term can be non-monotone in the reading
+    the way a niche optimum is. Selection happens inside whichever units the learner is handed, so
+    under :func:`window_ladder` it is redone in every fold. Reported beside a penalised fit it also
+    prices discrete selection: choosing a handful of columns out of hundreds is high variance, and
+    that variance is a cost of the selector rather than of the features.
+    """
+    return Learner(name="stepwise", fit=_stepwise_fit, predict=_stepwise_predict,
+                   params=dict(max_terms=max_terms, degree=degree))
+
+
+def _stepwise_fit(x, y, max_terms, degree, **_):
+    m = flatten(x)
+    return dict(models=[_forward_aic(m, y[:, j], max_terms, degree) for j in range(y.shape[1])],
+                n_col=m.shape[1], degree=degree)
+
+
+def _stepwise_predict(model, x):
+    m = flatten(x)
+    if m.shape[1] != model["n_col"]:
+        raise ValueError("the representation predicted on has different channels or bins "
+                         "from the fitted one")
+    return np.column_stack([_predict_forward(f, m) for f in model["models"]])
+
+
+# Forward selection by Akaike's criterion, one column admitted at a time. The polynomial basis is
+# stored with the fit rather than rebuilt, because an orthogonal basis refitted on new units is a
+# different basis.
+def _forward_aic(m: np.ndarray, y: np.ndarray, max_terms: int, degree: int) -> dict:
+    if len(np.unique(y)) < 2:
+        return dict(constant=float(y.mean()))
+    chosen: list[int] = []
+    bases: list[dict] = []
+    current = None
+    best_aic = _logistic(np.empty((len(y), 0)), y)["aic"]
+    while len(chosen) < max_terms:
+        offered = []
+        for j in range(m.shape[1]):
+            if j in chosen:
                 continue
-            models.append(LogisticRegressionCV(
-                Cs=10, cv=n_inner, solver="saga", l1_ratios=[alpha],
-                class_weight="balanced", max_iter=5000, random_state=seed).fit(m, yj))
-        return dict(models=models, n_col=m.shape[1])
+            basis = _poly_basis(m[:, j], degree)
+            design = np.hstack([b["values"] for b in bases] + [basis["values"]])
+            fit = _logistic(design, y)
+            if fit is not None and np.isfinite(fit["aic"]):
+                offered.append((fit["aic"], j, fit, basis))
+        if not offered:
+            break
+        _, j, fit, basis = min(offered, key=lambda o: (o[0], o[1]))
+        if fit["aic"] >= best_aic:
+            break
+        best_aic, current = fit["aic"], fit
+        chosen.append(j)
+        bases.append(basis)
+    if not chosen:
+        return dict(constant=float(y.mean()))
+    return dict(columns=chosen, bases=bases, fit=current)
 
-    def predict(model, x):
-        m = design(x)
-        if m.shape[1] != model["n_col"]:
-            raise ValueError("the representation predicted on has different channels or bins "
-                             "from the fitted one")
-        return np.column_stack([
-            np.full(m.shape[0], f) if isinstance(f, float) else f.predict_proba(m)[:, 1]
-            for f in model["models"]])
 
-    return Learner(name="elasticnet", fit=fit, predict=predict, needs=("sklearn",))
+def _predict_forward(f: dict, m: np.ndarray) -> np.ndarray:
+    if "constant" in f:
+        return np.full(m.shape[0], f["constant"])
+    design = np.hstack([_apply_basis(b, m[:, j]) for j, b in zip(f["columns"], f["bases"])])
+    eta = np.column_stack([np.ones(m.shape[0]), design]) @ f["fit"]["beta"]
+    return 1.0 / (1.0 + np.exp(-eta))
 
 
-register_learner("mlp", mlp_learner)
-register_learner("cnn", cnn_learner)
-register_learner("rescnn", rescnn_learner)
-register_learner("elasticnet", elasticnet_learner)
+def _logistic(design: np.ndarray, y: np.ndarray, max_iter: int = 25):
+    """One logistic regression by iteratively reweighted least squares, and its criterion.
+
+    A candidate whose fit separates the response, or does not settle, is refused rather than
+    returned: those are the two states the criterion cannot be read off, and admitting one would
+    let the selector prefer a column for having no answer. It is where R's forward pass discards a
+    candidate its own fitter warned about.
+    """
+    x = np.column_stack([np.ones(len(y)), design]) if design.shape[1] else np.ones((len(y), 1))
+    share = float(np.mean(y))
+    beta = np.zeros(x.shape[1])
+    beta[0] = np.log(share / (1.0 - share))
+    deviance = np.inf
+    for _ in range(max_iter):
+        mu = _mu(x, beta)
+        if mu is None:
+            return None
+        w = mu * (1.0 - mu)
+        z = x @ beta + (y - mu) / w
+        try:
+            beta = np.linalg.solve((x * w[:, None]).T @ x, (x * w[:, None]).T @ z)
+        except np.linalg.LinAlgError:
+            return None
+        if not np.all(np.isfinite(beta)):
+            return None
+        mu = _mu(x, beta)
+        if mu is None:
+            return None
+        new = -2.0 * float(np.sum(y * np.log(mu) + (1 - y) * np.log1p(-mu)))
+        if abs(new - deviance) / (abs(new) + 0.1) < 1e-8:
+            return dict(beta=beta, deviance=new, aic=new + 2 * x.shape[1])
+        deviance = new
+    return None
+
+
+def _mu(x: np.ndarray, beta: np.ndarray):
+    """The fitted probabilities, or nothing where one of them has reached zero or one."""
+    mu = 1.0 / (1.0 + np.exp(-(x @ beta)))
+    return None if np.any(mu < 1e-8) or np.any(mu > 1 - 1e-8) else mu
+
+
+# An orthogonal polynomial basis by the three-term recurrence, kept with the coefficients it was
+# fitted beside so that new units are mapped through the same basis rather than through one
+# re-derived from themselves. It is the basis R's poly() builds, by the same recurrence.
+def _poly_basis(v: np.ndarray, degree: int) -> dict:
+    degree = min(degree, max(1, len(np.unique(v)) - 1))
+    powers = [np.ones(len(v))]
+    norm2 = [float(len(v))]
+    alpha = []
+    for k in range(1, degree + 1):
+        alpha.append(float(np.sum(v * powers[k - 1] ** 2) / norm2[k - 1]))
+        if k == 1:
+            nxt = (v - alpha[0]) * powers[0]
+        else:
+            nxt = (v - alpha[k - 1]) * powers[k - 1] - (norm2[k - 1] / norm2[k - 2]) * powers[k - 2]
+        powers.append(nxt)
+        norm2.append(float(np.sum(nxt ** 2)))
+    basis = dict(degree=degree, alpha=alpha, norm2=norm2)
+    basis["values"] = _apply_basis(basis, v)
+    return basis
+
+
+def _apply_basis(basis: dict, v: np.ndarray) -> np.ndarray:
+    alpha, norm2, degree = basis["alpha"], basis["norm2"], basis["degree"]
+    powers = [np.ones(len(v))]
+    for k in range(1, degree + 1):
+        if k == 1:
+            powers.append((v - alpha[0]) * powers[0])
+        else:
+            powers.append((v - alpha[k - 1]) * powers[k - 1]
+                          - (norm2[k - 1] / norm2[k - 2]) * powers[k - 2])
+    return np.column_stack([powers[k] / np.sqrt(norm2[k]) for k in range(1, degree + 1)])

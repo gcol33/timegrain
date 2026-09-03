@@ -17,8 +17,9 @@
 #' @return A [learner()].
 #'
 #' @examples
-#' ensemble_learner(list(glmnet_learner(alpha = 0.5), glmnet_learner(alpha = 1)))
-#' ensemble_learner(list(ridge = glmnet_learner(alpha = 0), lasso = glmnet_learner(alpha = 1)))
+#' ensemble_learner(list(elasticnet_learner(alpha = 0.5), elasticnet_learner(alpha = 1)))
+#' ensemble_learner(list(ridge = elasticnet_learner(alpha = 0),
+#'                       lasso = elasticnet_learner(alpha = 1)))
 #'
 #' @export
 ensemble_learner <- function(members, weights = NULL, name = "ensemble") {

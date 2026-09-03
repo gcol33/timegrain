@@ -111,6 +111,11 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
     params = c(arch, fit_args),
     fit = function(x, y, ...) {
       given <- list(...)
+      unknown <- setdiff(names(given), c(names(arch), names(fit_args)))
+      if (length(unknown)) {
+        stop("the ", name, " learner has no setting called ",
+             paste(sort(unknown, method = "radix"), collapse = ", "), ".", call. = FALSE)
+      }
       .torch_fit(x, y, module_fn,
                  utils::modifyList(arch, given[intersect(names(given), names(arch))]),
                  utils::modifyList(fit_args, given[intersect(names(given), names(fit_args))]))

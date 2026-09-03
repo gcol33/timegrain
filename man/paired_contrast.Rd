@@ -42,7 +42,7 @@ d <- data.frame(
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
 x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-lad <- window_ladder(x, y, glmnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
-paired_contrast(lad, "week|glmnet", "month|glmnet")
+lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+paired_contrast(lad, "week|elasticnet", "month|elasticnet")
 
 }

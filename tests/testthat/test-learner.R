@@ -15,8 +15,8 @@ test_that("a learner of one's own needs nothing but a fit and a predict", {
 })
 
 test_that("a registered learner can be asked for by name", {
-  expect_true(all(c("glmnet", "stepwise", "mlp", "cnn", "rescnn") %in% learners()))
-  expect_s3_class(.as_learner("glmnet"), "timegrain_learner")
+  expect_true(all(c("elasticnet", "stepwise", "mlp", "cnn", "rescnn") %in% learners()))
+  expect_s3_class(.as_learner("elasticnet"), "timegrain_learner")
   expect_error(.as_learner("nope"), "unknown learner")
   register_learner("test_only", function() learner("test_only",
                                                   fit = function(x, y, ...) NULL,
@@ -79,7 +79,7 @@ test_that("the penalised learner fits, predicts and refuses a different represen
   sim <- sim_series(n_unit = 60L, days = 60L, seed = 31L)
   y <- sim_response(sim, n_var = 2L, seed = 32L)
   x <- window_matrix(sim$readings, plot, t, temp, window = "week")
-  fit <- fit_learner(glmnet_learner(), x, y)
+  fit <- fit_learner(elasticnet_learner(), x, y)
   p <- stats::predict(fit, x)
   expect_true(all(p >= 0 & p <= 1))
   expect_gt(tss(y[, 1], p[, 1]), 0.4)
@@ -104,8 +104,8 @@ test_that("an ensemble averages its members before the threshold is chosen", {
   y <- sim_response(sim, n_var = 2L, seed = 42L)
   x <- window_matrix(sim$readings, plot, t, temp, window = "week")
 
-  members <- list(a = glmnet_learner(alpha = 0.5, seed = 1L),
-                  b = glmnet_learner(alpha = 1, seed = 1L))
+  members <- list(a = elasticnet_learner(alpha = 0.5, seed = 1L),
+                  b = elasticnet_learner(alpha = 1, seed = 1L))
   both <- suppressWarnings(stats::predict(fit_learner(ensemble_learner(members), x, y), x))
   one <- suppressWarnings(stats::predict(fit_learner(members$a, x, y), x))
   two <- suppressWarnings(stats::predict(fit_learner(members$b, x, y), x))
@@ -114,7 +114,7 @@ test_that("an ensemble averages its members before the threshold is chosen", {
   tilted <- suppressWarnings(stats::predict(
     fit_learner(ensemble_learner(members, weights = c(3, 1)), x, y), x))
   expect_equal(tilted, 0.75 * one + 0.25 * two)
-  expect_error(ensemble_learner(list(glmnet_learner())), "at least two members")
+  expect_error(ensemble_learner(list(elasticnet_learner())), "at least two members")
   expect_error(ensemble_learner(members, weights = c(1, 0, 1)), "one non-negative number")
 })
 
@@ -123,8 +123,8 @@ test_that("a setting given at fit time overrides the one a linear learner carrie
   sim <- sim_series(n_unit = 40L, days = 40L, seed = 43L)
   y <- sim_response(sim, n_var = 1L, seed = 44L)
   x <- window_matrix(sim$readings, plot, t, temp, window = "week")
-  overridden <- suppressWarnings(fit_learner(glmnet_learner(), x, y, squares = FALSE))
-  built <- suppressWarnings(fit_learner(glmnet_learner(squares = FALSE), x, y))
+  overridden <- suppressWarnings(fit_learner(elasticnet_learner(), x, y, squares = FALSE))
+  built <- suppressWarnings(fit_learner(elasticnet_learner(squares = FALSE), x, y))
   expect_false(overridden$model$squares)
   expect_equal(suppressWarnings(stats::predict(overridden, x)),
                suppressWarnings(stats::predict(built, x)))
@@ -140,7 +140,7 @@ test_that("predicting a single unit returns one row and not one column", {
                                                        "bin_start", "bin_end", "bin_partial")],
                                        list(dim = dim(one), dimnames = dimnames(one),
                                             class = c("timegrain_matrix", "array")))
-  for (l in list(glmnet_learner(), stepwise_learner())) {
+  for (l in list(elasticnet_learner(), stepwise_learner())) {
     fit <- suppressWarnings(fit_learner(l, x, y))
     p <- stats::predict(fit, one)
     expect_equal(dim(p), c(1L, 3L))

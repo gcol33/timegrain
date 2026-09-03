@@ -45,6 +45,34 @@ on the Python side with them (#3).
   read as a `Europe/Vienna` clock, and a short series across the night `America/Sao_Paulo` moved
   its clock at midnight.
 
+## The two languages
+
+The names, the defaults and the extension points had drifted, so a script moved from one side to
+the other met them one at a time (#8). One name per concept now, and where the two still differ the
+difference is a row in `inst/spec/representation.md` rather than something to be discovered at a
+call site.
+
+* `glmnet_learner()` is `elasticnet_learner()`, and its `nfolds` is `n_inner`. The name says which
+  model is fitted rather than which package fits it, which is also what the Python side already
+  called it. It is registered as `"elasticnet"`.
+* Python carries the response and metric registries, so on both sides the response head and the
+  metric are registry entries and the fitting path holds no list of names. `learners()`,
+  `metrics()` and `responses()` list what a session has, in C collation.
+* `stepwise_learner()` and `select_grain()` are on the Python side. The selector's orthogonal
+  polynomial basis and its logistic fits agree with R's `poly()` and `glm()` to twelve decimals on
+  the same design; the selection procedure is the same nested one, reporting its estimate under
+  every registered metric.
+* Python's `window_matrix()` returns one representation when one window is named, whether as a
+  string or as a sequence of one, and a `timegrain_set()` for two or more. Its fold map carries the
+  units it was drawn for, so aligning one is by name there as it already was in R.
+* The torch encoders take `swa` and `swa_start` on both sides, and both refuse a setting the
+  learner does not have rather than ignoring it. A misspelled argument used to be dropped in
+  silence.
+* `select_grain()` searches its candidates in the order they were declared. It read them off a join
+  on the names before, which is the collation the rest of the package stopped depending on in this
+  version, so an exact tie on the inner score could fall to a different candidate on a different
+  machine.
+
 ## Build
 
 * `LinkingTo: cpp11`, and flat `.cpp` under `src/`, so R compiles the core with no `Makevars`.
@@ -100,7 +128,7 @@ predictive skill saturates.
 
 ## Learners
 
-* `glmnet_learner()` and `stepwise_learner()` on the flattened representation, both redoing their
+* `elasticnet_learner()` and `stepwise_learner()` on the flattened representation, both redoing their
   selection inside whichever units they are handed.
 * `mlp_learner()`, `cnn_learner()` and `rescnn_learner()`, joint multi-label encoders on `torch`,
   sharing one training recipe.

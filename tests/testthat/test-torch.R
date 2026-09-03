@@ -94,3 +94,10 @@ test_that("a setting given at fit time overrides the one the learner carries", {
                                 stats::predict(fit_learner(cnn_learner(epochs = 2L), f$x, f$y),
                                                f$x))))
 })
+
+test_that("a setting the learner does not have is refused rather than ignored", {
+  skip_if_no_torch()
+  f <- torch_fixture(n_unit = 20L, days = 40L)
+  expect_error(fit_learner(cnn_learner(epochs = 2L), f$x, f$y, chanels = c(8L, 16L)),
+               "no setting called chanels")
+})

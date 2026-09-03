@@ -38,7 +38,7 @@ reference:
     desc: >
       The arms that ship, and the interface a learner of your own goes through.
     contents:
-      - glmnet_learner
+      - elasticnet_learner
       - stepwise_learner
       - torch_learners
       - ensemble_learner

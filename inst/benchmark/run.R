@@ -5,7 +5,7 @@
 # in flight and nothing else, and restarting the same command skips whatever is already on disk.
 #
 # Usage:
-#   Rscript inst/benchmark/run.R --cell=glmnet-event-n300 --reps=1:200 --out=<dir> [--force]
+#   Rscript inst/benchmark/run.R --cell=elasticnet-event-n300 --reps=1:200 --out=<dir> [--force]
 #   Rscript inst/benchmark/run.R --scale=smoke --list
 
 suppressWarnings(suppressMessages({

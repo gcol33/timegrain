@@ -27,3 +27,4 @@
 ^CMakeLists\.txt$
 ^tools$
 ^\.pytest_cache$
+^\.ruff_cache$

@@ -151,7 +151,8 @@ test_that("the paired contrast matches the value the fixtures pin", {
   cells <- read_fixture(dir, "contrast_cells.csv")
   expected <- read_fixture(dir, "contrast.csv")
   arm <- function(name, column) {
-    score <- ifelse(cells[[column]] == "NA", NA_real_, suppressWarnings(as.numeric(cells[[column]])))
+    raw <- cells[[column]]
+    score <- ifelse(raw == "NA", NA_real_, suppressWarnings(as.numeric(raw)))
     data.frame(window = "week", learner = name, variable = cells$variable,
                fold = as.integer(cells$fold), score = score, scorable = !is.na(score),
                stringsAsFactors = FALSE)

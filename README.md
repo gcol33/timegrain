@@ -21,9 +21,9 @@ coldest and warmest **day** carried more than its mean, by more the coarser the 
 x   <- window_matrix(readings, plot, datetime, temperature,
                      window = c("day", "week", "month"),
                      stats = c("cold_day", "mean", "warm_day"))
-lad <- window_ladder(x, y, list(cnn_learner(), glmnet_learner()), folds = fold_map(y))
+lad <- window_ladder(x, y, list(cnn_learner(), elasticnet_learner()), folds = fold_map(y))
 plot(lad)
-paired_contrast(lad, "week|cnn", "week|glmnet")
+paired_contrast(lad, "week|cnn", "week|elasticnet")
 ```
 
 ## Calendar bins, not blocks of hours
@@ -65,7 +65,7 @@ that predicts.
   cells a score is defined on, computed from the response and the fold map with no model involved.
 - **`window_ladder()`, `plot()`, `paired_contrast()`**: fit every learner at every grain on one
   split and one mask, draw the curve, and compare two arms inside each cell both scored.
-- **Learners**: `glmnet_learner()`, `stepwise_learner()`, and the `torch` encoders
+- **Learners**: `elasticnet_learner()`, `stepwise_learner()`, and the `torch` encoders
   `mlp_learner()`, `cnn_learner()`, `rescnn_learner()`, all joint multi-label.
   `ensemble_learner()` averages members before the threshold is chosen. `learner()` takes a fit
   and a predict pair of your own, which then goes through the same folds, cells and scoring.

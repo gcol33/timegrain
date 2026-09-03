@@ -118,7 +118,7 @@ test_that("a learner finds the planted grain end to end", {
   sim <- simulate_records(n = 300L, mechanism = "event", variables = 4L, days = 120L,
                           auc = 0.9, sensor_sd = 0.05, seed = 13L)
   x <- window_matrix(sim$readings, unit, time, reading, window = c("day", "year"), stats = "mean")
-  lad <- window_ladder(x, sim$y, glmnet_learner(), folds = fold_map(sim$y, v = 3L),
+  lad <- window_ladder(x, sim$y, elasticnet_learner(), folds = fold_map(sim$y, v = 3L),
                        metric = "roc_auc", verbose = FALSE)
   g <- summary(lad)
   expect_gt(g$score[g$window == "day"], 0.6)

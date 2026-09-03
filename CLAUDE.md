@@ -90,7 +90,7 @@ Models cannot be byte-identical across torch and libtorch and are not required t
 ```r
 x   <- window_matrix(readings, id = plot, time = t, value = temp,
                      window = "week", stats = c("cold_day", "mean", "warm_day"))
-lad <- window_ladder(x, y, learners = list(mlp(), cnn(), glmnet_learner()))
+lad <- window_ladder(x, y, learners = list(mlp(), cnn(), elasticnet_learner()))
 plot(lad)
 fit <- fit_learner(cnn(), x, y)
 ```
@@ -168,7 +168,10 @@ of a self-selected threshold. The Python side carries the same except the mixed 
 reproduces every one of the 166 fixture digests, sixteen of which pin a zone.
 
 Since 0.2.0 both sides run on one C++ core (issue #10), and the implementations that used to be
-compared are kept as oracles the suites check the core against.
+compared are kept as oracles the suites check the core against. The last section of
+`inst/spec/representation.md` says what each language carries, so a difference between them is a
+recorded decision: one name per concept, the three registries and the nested selection on both
+sides, and the mixed-model contrast, the record simulator and the plots in R alone.
 
 `inst/reproduce/schrankogel.R` runs the published grid from the deposit and asserts its input at
 every step. Verified against the deposit on 2026-09-02, matching the paper exactly:

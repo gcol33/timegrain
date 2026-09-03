@@ -381,3 +381,54 @@ required of it is stated rather than left to a hand check: **at 200 replicates t
 implementations agree on the inflation to within 0.02 at each planted skill**, which is well
 inside the Monte Carlo error of either one alone and far below the +0.110 the claim rests on. A
 disagreement beyond that is a bug in one of them, not sampling.
+
+## What each language carries
+
+The representation and the three artifacts are the contract. Everything built over them is meant to
+match too, and where the two sides differ the difference is recorded here rather than found at a
+call site.
+
+### One name per concept
+
+| concept | the name, on both sides |
+|---|---|
+| the penalised learner | `elasticnet_learner()` |
+| the forward selector | `stepwise_learner()` |
+| a set of representations | `timegrain_set()`, which reads as a mapping of window name to representation |
+| folds of the inner cross-validation | `n_inner` |
+| the digest | `digest_array()`, exported |
+| the three registries | `register_learner()` and `learners()`, `register_metric()` and `metrics()`, `register_response()` and `responses()` |
+
+### The same call does the same thing
+
+- Naming one window returns the representation and naming two or more returns a set, whether the
+  one is named as a string or as a sequence of one.
+- `window_ladder()` and `select_grain()` left without a fold map build one with the defaults of
+  `fold_map()`. The two languages draw different maps from the same seed, so where both must see
+  one split, write it and read it back as the section above describes.
+- Held-out predictions are placed by unit and by variable, never by position.
+- A setting given at fit time overrides the one the learner carries, and a setting the learner does
+  not have is refused rather than ignored.
+- The response head and the metric are registry entries. `metric` takes a registered name or a
+  function of `(y, p)`, and left unset it is the one the response head carries.
+- The encoders take `swa` and `swa_start`: the schedule anneals until the averaging begins and is
+  then held flat, the averaged weights get their own pass to rebuild the batch-normalisation
+  statistics, and the default is off, so a default recipe is the same recipe on both sides.
+- `select_grain()` searches the candidates in the order the windows and the learners were declared
+  in, so which candidate an exact tie on the inner score falls to does not depend on how the names
+  sort.
+
+### Present in one language only
+
+| in R only | why |
+|---|---|
+| `window_contrasts()` | fits a mixed model over the whole ladder and reads Dunnett's comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
+| `simulate_records()` | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
+| `plot()` on a ladder and on a selection | the wheel depends on numpy alone, and every number a plot draws is on the object it is called on. |
+
+| in Python only | what it is |
+|---|---|
+| `flatten`, `align_folds`, `as_response`, `get_learner`, `cohen_kappa` | the helpers R keeps unexported, as `.flatten()`, `.as_folds()`, `.as_response()`, `.as_learner()` and `.kappa_table()`. A Python module namespace is flat, and anyone writing a learner or reading an artifact against this side reaches them. |
+
+Models are the one thing neither side promises. A fit in torch and a fit in libtorch cannot be
+byte-identical, and the encoders match module for module rather than number for number.

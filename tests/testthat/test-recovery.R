@@ -25,13 +25,13 @@ test_that("a signal buried in hourly noise is found once the record is averaged"
                             stats::plogis(3 * as.numeric(outer(sim$warmth, sign)))),
               ncol = 8L, dimnames = list(sim$units, paste0("sp", 1:8)))
   x <- window_matrix(sim$readings, plot, t, temp, window = c("day", "week", "month"))
-  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(),
+  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(),
                                         folds = fold_map(y, v = 5L, seed = 7L), verbose = FALSE))
   s <- summary(lad)
   expect_gt(s$score[s$window == "month"], s$score[s$window == "day"])
   expect_false(s$best[s$window == "day"])
 
-  gain <- paired_contrast(lad, "month|glmnet", "day|glmnet")
+  gain <- paired_contrast(lad, "month|elasticnet", "day|elasticnet")
   expect_gt(gain$diff, 0)
   expect_gt(gain$lower, 0)
 })
@@ -43,7 +43,7 @@ test_that("a response with no cause in the record scores at chance", {
   y <- matrix(stats::rbinom(length(sim$units) * 3L, 1L, 0.35), ncol = 3L,
               dimnames = list(sim$units, paste0("sp", 1:3)))
   x <- window_matrix(sim$readings, plot, t, temp, window = c("week", "month"))
-  lad <- suppressWarnings(window_ladder(x, y, glmnet_learner(),
+  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(),
                                         folds = fold_map(y, v = 5L, seed = 7L), verbose = FALSE))
   # TSS read at the cut that maximises it is biased upward on cells this small, so chance is not
   # zero here; the measured inflation is what "chance" means on this design.
@@ -76,8 +76,8 @@ test_that("keeping the extremes of a window recovers what averaging removed", {
     mean = window_matrix(d, plot, t, temp, window = "week", stats = "mean"),
     extreme_day = window_matrix(d, plot, t, temp, window = "week",
                                 stats = c("cold_day", "mean", "warm_day"))))
-  lad <- suppressWarnings(window_ladder(set, y, glmnet_learner(), folds = f, verbose = FALSE))
-  gain <- paired_contrast(lad, "extreme_day|glmnet", "mean|glmnet")
+  lad <- suppressWarnings(window_ladder(set, y, elasticnet_learner(), folds = f, verbose = FALSE))
+  gain <- paired_contrast(lad, "extreme_day|elasticnet", "mean|elasticnet")
   expect_gt(gain$diff, 0)
   expect_gt(gain$lower, 0)
 })

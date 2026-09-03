@@ -13,8 +13,8 @@ BENCH <- list(
   outer        = 5L,
   metric       = "roc_auc",
   windows      = c("halfday", "day", "week", "month", "season", "year"),
-  glmnet_squares = TRUE,
-  glmnet_nfolds  = 5L,
+  elasticnet_squares = TRUE,
+  elasticnet_n_inner  = 5L,
   cnn_epochs   = 40L,
   n_deploy     = 3000L,
   deploy_chunk = 750L,
@@ -33,7 +33,7 @@ BENCH <- list(
 # A candidate is a (window, summary) pair. The penalised block searches both summaries, the neural
 # block the window mean alone, which is what the sizing in the plan assumes.
 bench_candidates <- function(block) {
-  summaries <- if (block == "glmnet") list(mean = "mean", mmm = c("min", "mean", "max"))
+  summaries <- if (block == "elasticnet") list(mean = "mean", mmm = c("min", "mean", "max"))
                else list(mean = "mean")
   out <- expand.grid(stat = names(summaries), window = BENCH$windows,
                      KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
@@ -47,15 +47,15 @@ bench_candidates <- function(block) {
 bench_cells <- function() {
   smoke <- identical(BENCH$scale, "smoke")
   sizes <- if (smoke) c(120L, 200L) else c(300L, 900L)
-  glmnet_cells <- expand.grid(mechanism = BENCH$mechanisms, n_unit = sizes,
+  elasticnet_cells <- expand.grid(mechanism = BENCH$mechanisms, n_unit = sizes,
                               KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
-  glmnet_cells$block <- "glmnet"
-  glmnet_cells$inner <- if (smoke) 2L else 5L
-  glmnet_cells$replicates <- if (smoke) 3L else 200L
+  elasticnet_cells$block <- "elasticnet"
+  elasticnet_cells$inner <- if (smoke) 2L else 5L
+  elasticnet_cells$replicates <- if (smoke) 3L else 200L
   cnn_cells <- data.frame(mechanism = BENCH$mechanisms, n_unit = max(sizes), block = "cnn",
                           inner = if (smoke) 2L else 3L,
                           replicates = if (smoke) 2L else 100L, stringsAsFactors = FALSE)
-  out <- rbind(glmnet_cells, cnn_cells)
+  out <- rbind(elasticnet_cells, cnn_cells)
   out$cell_id <- sprintf("%s%s-%s-n%d", if (smoke) "smoke-" else "", out$block, out$mechanism,
                          out$n_unit)
   out[c("cell_id", "block", "mechanism", "n_unit", "inner", "replicates")]
@@ -82,8 +82,8 @@ bench_scale <- function(scale) {
 
 bench_learner <- function(block) {
   switch(block,
-         glmnet = timegrain::glmnet_learner(squares = BENCH$glmnet_squares,
-                                            nfolds = BENCH$glmnet_nfolds),
+         elasticnet = timegrain::elasticnet_learner(squares = BENCH$elasticnet_squares,
+                                            n_inner = BENCH$elasticnet_n_inner),
          cnn = timegrain::cnn_learner(epochs = BENCH$cnn_epochs,
                                       device = Sys.getenv("TIMEGRAIN_DEVICE", unset = "cpu")),
          stop("unknown block: ", block))

@@ -63,7 +63,7 @@
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-#' sel <- select_grain(x, y, glmnet_learner(), folds = fold_map(y, v = 3), inner = 3,
+#' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' sel
 #' sel$estimate
@@ -109,9 +109,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
     lad <- window_ladder(.subset_set(set, train), y_train, learners,
                          folds = inner_split(y_train, seed + i), response = response,
                          metric = metric, verbose = FALSE)
-    grid <- summary(lad)
-    grid <- merge(candidates, grid, by = c("window", "learner"), all.x = TRUE)
-    grid$fold <- k
+    grid <- .join_candidates(candidates, summary(lad), k)
     if (all(!is.finite(grid$score))) {
       stop("no candidate scored inside the training data of fold ", k,
            ". Widen the inner folds or drop the variables that cannot be scored.", call. = FALSE)
@@ -212,7 +210,7 @@ summary.timegrain_selection <- function(object, ...) {
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-#' sel <- select_grain(x, y, glmnet_learner(), folds = fold_map(y, v = 3), inner = 3,
+#' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' plot(sel)
 #'
@@ -291,6 +289,18 @@ plot.timegrain_selection <- function(x, col = NULL, ...) {
   out <- do.call(rbind, out)
   rownames(out) <- NULL
   out
+}
+
+# The candidate set keeps the order its windows and its learners were declared in, so which
+# candidate an exact tie on the inner score falls to does not depend on the session's collation the
+# way a join on the names would.
+.join_candidates <- function(candidates, grid, fold) {
+  i <- match(paste(candidates$window, candidates$learner, sep = "|"),
+             paste(grid$window, grid$learner, sep = "|"))
+  candidates$score <- grid$score[i]
+  candidates$n_variable <- grid$n_variable[i]
+  candidates$fold <- fold
+  candidates
 }
 
 # The inner map is drawn on the outer training units alone, either by fold_map() at a given count or
