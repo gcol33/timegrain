@@ -4,6 +4,10 @@
 
 **Calendar-aware reduction of sensor time series, at every temporal grain, with the same numbers in R and Python.**
 
+[![R-CMD-check](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml)
+[![pytest](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml)
+[![contract](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml)
+
 A logger records every hour for years. Before any model sees it, that record gets reduced: to
 monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited.
 `timegrain` makes the reduction an argument. Build the representation at any grain, fit at each
