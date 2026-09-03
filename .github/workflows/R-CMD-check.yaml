@@ -1,0 +1,54 @@
+name: R-CMD-check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions: read-all
+
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: ubuntu-latest,  r: 'release', torch: true}
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+          - {os: windows-latest, r: 'release'}
+          - {os: macos-latest,   r: 'release'}
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      # The libtorch runtime is a download rather than a CRAN install, so it is fetched on one
+      # platform and the encoder tests skip themselves on the others.
+      TORCH_INSTALL: ${{ matrix.config.torch && '1' || '0' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.config.r }}
+          http-user-agent: ${{ matrix.config.http-user-agent }}
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      # glmnet, lme4, lmerTest and emmeans arrive with the suggested dependencies above, so the
+      # vignettes are built here rather than skipped as they are locally.
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          build_args: 'c("--no-manual")'

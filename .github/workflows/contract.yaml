@@ -1,0 +1,67 @@
+name: contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions: read-all
+
+# The two implementations agree or they do not, and a diff that touches one side cannot show it.
+# Both suites read inst/spec/fixtures/ and assert the same digests, so this job runs them together
+# and fails whichever side moved a digest.
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    name: both suites, one set of fixtures
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
+          extra-packages: any::testthat, any::cpp11
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install both implementations from the same checkout
+        run: |
+          R CMD INSTALL .
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]"
+
+      # The R suite reads the copy under the installed package and the Python suite reads the one in
+      # the checkout, so the digests only pin the two implementations together while those are the
+      # same bytes.
+      - name: The spec the R package ships is the one the Python suite reads
+        run: |
+          Rscript -e '
+            inst <- system.file("spec", package = "timegrain")
+            repo <- "inst/spec"
+            files <- c("representation.md",
+                       file.path("fixtures", sort(list.files(file.path(repo, "fixtures")))))
+            stopifnot(length(files) > 1L,
+                      all(file.exists(file.path(inst, files))),
+                      identical(unname(tools::md5sum(file.path(repo, files))),
+                                unname(tools::md5sum(file.path(inst, files)))))
+            cat("the installed spec matches the repository copy,", length(files), "files\n")'
+
+      - name: The R side against the fixtures
+        run: |
+          Rscript -e '
+            library(testthat); library(timegrain)
+            test_dir("tests/testthat", package = "timegrain", filter = "fixtures",
+                     stop_on_failure = TRUE)'
+
+      - name: The Python side against the same fixtures
+        run: python -m pytest python/tests/test_fixtures.py -q
