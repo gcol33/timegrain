@@ -119,3 +119,59 @@ def test_the_settings_a_learner_carries_are_the_ones_it_reports():
     assert learner.params["alpha"] == 0.25
     assert learner.params["n_inner"] == 3
     assert learner.params["weight_positives"] is True
+
+
+def test_the_fit_is_the_maximum_likelihood_one_and_not_merely_a_settled_one():
+    """At the coefficients returned, the step a maximum-likelihood fitter would take next is
+    nothing.
+
+    The stopping rule is the relative change in the deviance, which is the one R's ``glm`` uses, so
+    the point reached is not exactly stationary. What has to hold is that it is inside any
+    precision a criterion is read at: the largest remaining step, measured across six designs, is
+    7e-8 in coefficient units against coefficients of order one. That is what makes the criterion
+    the selector reads comparable to another implementation's rather than to this fitter's own
+    tolerance.
+    """
+    for seed in range(6):
+        rng = np.random.default_rng(seed + 1)
+        n = 60
+        x1, x2 = rng.normal(size=n), rng.uniform(-2, 2, n)
+        y = rng.binomial(1, 1 / (1 + np.exp(-(-0.4 + 1.3 * x1 - 0.8 * x2)))).astype(float)
+        fit = _logistic(np.column_stack([x1, x2]), y)
+        assert fit is not None
+
+        x = np.column_stack([np.ones(n), x1, x2])
+        mu = 1.0 / (1.0 + np.exp(-(x @ fit["beta"])))
+        score = x.T @ (y - mu)
+        w = mu * (1.0 - mu)
+        step = np.linalg.solve((x * w[:, None]).T @ x, score)
+        assert np.max(np.abs(step)) < 1e-6
+
+        # The deviance reported is the one those coefficients give, so a criterion built on it
+        # counts the right number of parameters.
+        deviance = -2 * float(np.sum(y * np.log(mu) + (1 - y) * np.log1p(-mu)))
+        assert fit["deviance"] == pytest.approx(deviance)
+        assert fit["aic"] == pytest.approx(deviance + 2 * 3)
+
+        # And no coefficients a thousand times further out than that step do better, which is what
+        # a maximum means.
+        for _ in range(20):
+            nudged = fit["beta"] + rng.normal(0, 1e-3, len(fit["beta"]))
+            m = 1.0 / (1.0 + np.exp(-(x @ nudged)))
+            assert -2 * float(np.sum(y * np.log(m) + (1 - y) * np.log1p(-m))) >= deviance - 1e-9
+
+
+def test_the_basis_spans_the_polynomials_of_its_own_degree():
+    """Orthonormal columns alone would not make it a polynomial basis. Every raw power up to the
+    degree has to be a combination of the columns and the constant, which is what lets a term be
+    non-monotone in the reading the way a niche optimum is."""
+    rng = np.random.default_rng(6)
+    v = rng.normal(size=40)
+    z = np.column_stack([np.ones(len(v)), _poly_basis(v, 3)["values"]])
+    for power in (1, 2, 3):
+        raw = v ** power
+        fitted = z @ np.linalg.lstsq(z, raw, rcond=None)[0]
+        assert np.allclose(fitted, raw, atol=1e-9)
+    # And a fourth power is not, so the degree is the degree asked for.
+    fourth = v ** 4
+    assert not np.allclose(z @ np.linalg.lstsq(z, fourth, rcond=None)[0], fourth, atol=1e-6)
