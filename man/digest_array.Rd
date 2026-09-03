@@ -14,7 +14,7 @@ The digest, a single string of 32 hexadecimal characters.
 }
 \description{
 The MD5 the contract in \code{inst/spec/representation.md} defines, and what the fixtures in
-\verb{inst/spec/fixtures/} are checked against. \code{timegrain.digest_array()} on the Python side is the
+\verb{inst/spec/fixtures/} are checked against. \code{climgrain.digest_array()} on the Python side is the
 same function: the same array gives the same string in either language, which is what makes a
 digest a statement about the representation rather than about the machine.
 }

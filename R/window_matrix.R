@@ -12,7 +12,7 @@
 #' @param window One of `"hour"`, `"halfday"`, `"day"`, `"week"`, `"month"`, `"season"`,
 #'   `"year"`. The four coarse windows follow the calendar, so a bin is a real week or month
 #'   rather than a fixed block of hours. Naming several windows returns one representation per
-#'   window, a [timegrain_set()]. A function is called on the reading instants and must return
+#'   window, a [climgrain_set()]. A function is called on the reading instants and must return
 #'   the `POSIXct` start of each reading's bin, which is how a calendar the package does not
 #'   carry, such as astronomical seasons, is binned.
 #' @param stats Statistics to compute per bin, one channel each, in the order given. See Details.
@@ -98,7 +98,7 @@
 #'     \item `bin_partial`: a logical vector marking the bins the record does not cover for their
 #'       whole calendar span.
 #'   }
-#'   Naming more than one window returns a [timegrain_set()] of those arrays.
+#'   Naming more than one window returns a [climgrain_set()] of those arrays.
 #'
 #' @examples
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 40)
@@ -133,7 +133,7 @@ window_matrix <- function(data,
       window_matrix(data, id = id_col, time = time_col, value = value_col,
                     window = w, stats = stats, year_start = year_start, partial = partial)
     })
-    return(timegrain_set(stats::setNames(out, window)))
+    return(climgrain_set(stats::setNames(out, window)))
   }
 
   stats <- .check_stats(stats, window)
@@ -164,7 +164,7 @@ window_matrix <- function(data,
   units <- sort(unique(unit), method = "radix")
   supplied <- if (is.function(window)) .custom_bins(window, when, tz, time_col) else NULL
 
-  fit <- tg_reduce_(match(unit, units), reading, instant, local, supplied, units,
+  fit <- cg_reduce_(match(unit, units), reading, instant, local, supplied, units,
                     if (is.function(window)) "custom" else window,
                     ys$month, ys$day, stats, .sampling_step(instant))
 
@@ -182,7 +182,7 @@ window_matrix <- function(data,
   attr(out, "bin_end") <- .POSIXct(fit$bin_end, tz = tz)
   attr(out, "bin_n") <- matrix(fit$bin_n, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
   attr(out, "bin_partial") <- fit$bin_partial
-  class(out) <- c("timegrain_matrix", class(out))
+  class(out) <- c("climgrain_matrix", class(out))
   if (partial == "drop") .drop_partial(out) else out
 }
 
@@ -207,14 +207,14 @@ window_matrix <- function(data,
   attr(out, "bin_end") <- attr(x, "bin_end")[keep]
   attr(out, "bin_n") <- attr(x, "bin_n")[, keep, drop = FALSE]
   attr(out, "bin_partial") <- attr(x, "bin_partial")[keep]
-  class(out) <- c("timegrain_matrix", "array")
+  class(out) <- c("climgrain_matrix", "array")
   out
 }
 
 #' @export
-print.timegrain_matrix <- function(x, ...) {
+print.climgrain_matrix <- function(x, ...) {
   d <- dim(x)
-  cat("<timegrain matrix>", .plural(d[1L], "unit"), "x", .plural(d[2L], "bin"),
+  cat("<climgrain matrix>", .plural(d[1L], "unit"), "x", .plural(d[2L], "bin"),
       "x", .plural(d[3L], "channel"), "\n")
   cat("window:", attr(x, "window"), "  stats:", paste(attr(x, "stats"), collapse = ", "), "\n")
   span <- attr(x, "bin_start")

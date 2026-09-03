@@ -23,7 +23,7 @@
 #'
 #' @export
 ensemble_learner <- function(members, weights = NULL, name = "ensemble") {
-  if (inherits(members, "timegrain_learner") || is.character(members)) {
+  if (inherits(members, "climgrain_learner") || is.character(members)) {
     members <- list(members)
   }
   members <- lapply(members, .as_learner)

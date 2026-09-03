@@ -21,7 +21,7 @@
 #' @param strata Number of strata, or `1` for no stratification.
 #' @param by A numeric vector of length `nrow(y)` to stratify on instead of richness.
 #'
-#' @return An integer vector of fold numbers named by unit, of class `timegrain_folds`. Any named
+#' @return An integer vector of fold numbers named by unit, of class `climgrain_folds`. Any named
 #'   integer vector of the same shape is accepted wherever this is.
 #'
 #' @examples
@@ -56,12 +56,12 @@ fold_map <- function(y, v = 10L, seed = 1L, strata = 5L, by = NULL) {
     fold[idx[sample.int(length(idx))]] <- rep_len(sample.int(v), length(idx))
   }
   structure(stats::setNames(fold, rownames(y)), v = as.integer(v), seed = seed,
-            strata = as.integer(strata), class = "timegrain_folds")
+            strata = as.integer(strata), class = "climgrain_folds")
 }
 
 #' @export
-print.timegrain_folds <- function(x, ...) {
-  cat("<timegrain folds>", .plural(length(x), "unit"), "in",
+print.climgrain_folds <- function(x, ...) {
+  cat("<climgrain folds>", .plural(length(x), "unit"), "in",
       .plural(attr(x, "v"), "fold"), "\n")
   print(table(fold = unclass(x)))
   invisible(x)

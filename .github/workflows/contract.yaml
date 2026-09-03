@@ -46,7 +46,7 @@ jobs:
       - name: The spec the R package ships is the one the Python suite reads
         run: |
           Rscript -e '
-            inst <- system.file("spec", package = "timegrain")
+            inst <- system.file("spec", package = "climgrain")
             repo <- "inst/spec"
             files <- c("representation.md",
                        file.path("fixtures", sort(list.files(file.path(repo, "fixtures")))))
@@ -59,8 +59,8 @@ jobs:
       - name: The R side against the fixtures
         run: |
           Rscript -e '
-            library(testthat); library(timegrain)
-            test_dir("tests/testthat", package = "timegrain", filter = "fixtures",
+            library(testthat); library(climgrain)
+            test_dir("tests/testthat", package = "climgrain", filter = "fixtures",
                      stop_on_failure = TRUE)'
 
       - name: The Python side against the same fixtures

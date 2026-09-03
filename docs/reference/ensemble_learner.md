@@ -16,7 +16,7 @@ ensemble_learner(members, weights = NULL, name = "ensemble")
 - members:
 
   A list of
-  [`learner()`](https://gillescolling.com/timegrain/reference/learner.md)s,
+  [`learner()`](https://gillescolling.com/climgrain/reference/learner.md)s,
   or names of registered ones. Members left unnamed take their learner's
   own name, made unique where several members share it.
 
@@ -31,7 +31,7 @@ ensemble_learner(members, weights = NULL, name = "ensemble")
 ## Value
 
 A
-[`learner()`](https://gillescolling.com/timegrain/reference/learner.md).
+[`learner()`](https://gillescolling.com/climgrain/reference/learner.md).
 
 ## Details
 

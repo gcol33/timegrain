@@ -1,7 +1,18 @@
-# timegrain 0.2.0
+# climgrain 0.3.0
 
-The binning and the reduction are now one implementation, `src/tg_core.cpp` and
-`src/tg_calendar.cpp`, compiled into the R package by R itself and into the Python extension by
+The package is renamed from `timegrain` to `climgrain`. With it go the C++ prefix (`tg_` to `cg_`
+and the four files that carried it), the S3 classes (`timegrain_matrix` and its siblings to
+`climgrain_matrix`), `timegrain_set()` to `climgrain_set()`, and the Python module. No function
+signature, default or return type changed, and the fixture digests are untouched.
+
+What the user chooses is the temporal grain of a climate representation, and the name now carries
+the thing whose grain it is. The title reads "Temporal Climate Resolution for Ecological
+Prediction".
+
+# climgrain 0.2.0
+
+The binning and the reduction are now one implementation, `src/cg_core.cpp` and
+`src/cg_calendar.cpp`, compiled into the R package by R itself and into the Python extension by
 CMake. The two languages agree by construction rather than by two implementations being checked
 against each other after the fact. What each side keeps above it is the boundary: resolving the
 columns, resolving the zone, and wrapping the result.
@@ -63,7 +74,7 @@ call site.
   the same design; the selection procedure is the same nested one, reporting its estimate under
   every registered metric.
 * Python's `window_matrix()` returns one representation when one window is named, whether as a
-  string or as a sequence of one, and a `timegrain_set()` for two or more. Its fold map carries the
+  string or as a sequence of one, and a `climgrain_set()` for two or more. Its fold map carries the
   units it was drawn for, so aligning one is by name there as it already was in R.
 * The torch encoders take `swa` and `swa_start` on both sides, and both refuse a setting the
   learner does not have rather than ignoring it. A misspelled argument used to be dropped in
@@ -79,7 +90,7 @@ call site.
 * `pyproject.toml` and `CMakeLists.txt` sit at the repository root rather than under `python/`,
   because a Python source distribution cannot reach above its own project directory and the shared
   sources must not be vendored into a second copy. The Python build is scikit-build-core and
-  nanobind; the wheel carries `python/timegrain` as `timegrain`.
+  nanobind; the wheel carries `python/climgrain` as `climgrain`.
 * The wheel depends on `tzdata` on Windows, which ships no IANA database of its own, so a
   zoned record bins there as it does everywhere else. The `sklearn` extra asks for a version
   that the declared floor of Python 3.10 can install.
@@ -88,14 +99,14 @@ call site.
 
 ## Documentation
 
-* One site for both languages at <https://gillescolling.com/timegrain/>: the R reference from the
+* One site for both languages at <https://gillescolling.com/climgrain/>: the R reference from the
   Rd files, the Python reference written from the Python sources by `tools/python_reference.py`,
   and `inst/spec/representation.md` rendered as a page of its own, so the document the two answer
   to is read where the calls are. The `pytest` workflow rewrites the Python pages and fails if what
   is on disk differs, so a docstring cannot change without the page changing with it.
 * Every public class, method and property of the Python package carries a docstring.
 
-# timegrain 0.1.0
+# climgrain 0.1.0
 
 First release. The package builds the representation, fits at every grain, and reports where
 predictive skill saturates.

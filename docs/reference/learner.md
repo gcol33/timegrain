@@ -40,7 +40,7 @@ learner(name, fit, predict, needs = character(), params = list())
 
 ## Value
 
-A `timegrain_learner`.
+A `climgrain_learner`.
 
 ## Examples
 

@@ -46,7 +46,7 @@ window_matrix(
   `"season"`, `"year"`. The four coarse windows follow the calendar, so
   a bin is a real week or month rather than a fixed block of hours.
   Naming several windows returns one representation per window, a
-  [`timegrain_set()`](https://gillescolling.com/timegrain/reference/timegrain_set.md).
+  [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md).
   A function is called on the reading instants and must return the
   `POSIXct` start of each reading's bin, which is how a calendar the
   package does not carry, such as astronomical seasons, is binned.
@@ -89,7 +89,7 @@ statistic names. Attributes:
   cover for their whole calendar span.
 
 Naming more than one window returns a
-[`timegrain_set()`](https://gillescolling.com/timegrain/reference/timegrain_set.md)
+[`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md)
 of those arrays.
 
 ## Details

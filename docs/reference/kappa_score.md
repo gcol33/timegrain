@@ -2,7 +2,7 @@
 
 A chance-corrected agreement rate on a two-by-two table. Read against
 the observed response it is a skill score beside
-[`tss()`](https://gillescolling.com/timegrain/reference/tss.md); read
+[`tss()`](https://gillescolling.com/climgrain/reference/tss.md); read
 between two models' decisions on the same units it says where the two
 part company.
 
@@ -48,7 +48,7 @@ each is the one that is right there.
 Kappa is read at a threshold rather than maximised over one, so the rule
 that picks the threshold is part of the statistic. `"youden"` is the
 operating point
-[`tss()`](https://gillescolling.com/timegrain/reference/tss.md) is
+[`tss()`](https://gillescolling.com/climgrain/reference/tss.md) is
 defined at and inherits its selection bias; `"kappa"` maximises kappa
 itself and inherits the analogous bias; `"prevalence"` cuts at the
 observed presence rate, which selects nothing from the labels and is the

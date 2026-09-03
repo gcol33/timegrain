@@ -9,10 +9,10 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
-library(timegrain)
+library(climgrain)
 ```
 
-The measurement `timegrain` exists to make was first run on 894 alpine plots on Schrankogel, in the
+The measurement `climgrain` exists to make was first run on 894 alpine plots on Schrankogel, in the
 central Austrian Alps: three hydrological years of hourly soil temperature, one logger per plot,
 predicting presence and absence of 101 vascular plant species. The record was read at seven grains,
 from every hour to a single value per year, by three architectures and by logistic models on 188
@@ -194,7 +194,7 @@ The ladder is one call. Each window is built once, the calendar channels are joi
 every encoder is fitted at every rung on the one fold map and the one mask.
 
 ```{r grid}
-ladder_input <- timegrain_set(lapply(binning, function(w) {
+ladder_input <- climgrain_set(lapply(binning, function(w) {
   x <- window_matrix(readings, logger_ID, date, temp, window = w)
   bind_channels(x, calendar_channels(x))
 }))
@@ -222,7 +222,7 @@ within a species and within a fold. Benjamini-Hochberg across all eighteen compa
 The driver is installed with the package:
 
 ```{r script}
-system.file("reproduce", "schrankogel.R", package = "timegrain")
+system.file("reproduce", "schrankogel.R", package = "climgrain")
 ```
 
 ```

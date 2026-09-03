@@ -72,7 +72,7 @@ test_that("keeping the extremes of a window recovers what averaging removed", {
               ncol = 6L, dimnames = list(units, paste0("sp", 1:6)))
 
   f <- fold_map(y, v = 4L, seed = 8L)
-  set <- timegrain_set(list(
+  set <- climgrain_set(list(
     mean = window_matrix(d, plot, t, temp, window = "week", stats = "mean"),
     extreme_day = window_matrix(d, plot, t, temp, window = "week",
                                 stats = c("cold_day", "mean", "warm_day"))))

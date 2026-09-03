@@ -6,7 +6,7 @@
 #'
 #' @param x A named list of [window_matrix()] results, or a single one.
 #'
-#' @return A `timegrain_set`: the list, with the names as window labels.
+#' @return A `climgrain_set`: the list, with the names as window labels.
 #'
 #' @examples
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 60)
@@ -17,17 +17,17 @@
 #' names(s)
 #'
 #' @export
-timegrain_set <- function(x) {
-  if (inherits(x, "timegrain_matrix")) {
+climgrain_set <- function(x) {
+  if (inherits(x, "climgrain_matrix")) {
     x <- stats::setNames(list(x), attr(x, "window"))
   }
   if (!is.list(x) || !length(x)) {
-    stop("a timegrain set is a non-empty list of window_matrix() results.", call. = FALSE)
+    stop("a climgrain set is a non-empty list of window_matrix() results.", call. = FALSE)
   }
   if (is.null(names(x)) || anyDuplicated(names(x)) || any(!nzchar(names(x)))) {
-    stop("every element of a timegrain set needs its own name.", call. = FALSE)
+    stop("every element of a climgrain set needs its own name.", call. = FALSE)
   }
-  ok <- vapply(x, inherits, logical(1L), "timegrain_matrix")
+  ok <- vapply(x, inherits, logical(1L), "climgrain_matrix")
   if (!all(ok)) {
     stop("element", if (sum(!ok) > 1L) "s" else "", " ",
          paste(names(x)[!ok], collapse = ", "), " ",
@@ -39,12 +39,12 @@ timegrain_set <- function(x) {
     stop("every window in a set must cover the same units; ",
          paste(names(x)[!same], collapse = ", "), " does not.", call. = FALSE)
   }
-  structure(x, class = "timegrain_set")
+  structure(x, class = "climgrain_set")
 }
 
 #' @export
-print.timegrain_set <- function(x, ...) {
-  cat("<timegrain set>", .plural(length(x), "window"), "over",
+print.climgrain_set <- function(x, ...) {
+  cat("<climgrain set>", .plural(length(x), "window"), "over",
       .plural(dim(x[[1L]])[1L], "unit"), "\n")
   for (nm in names(x)) {
     m <- x[[nm]]
@@ -55,15 +55,15 @@ print.timegrain_set <- function(x, ...) {
 }
 
 #' @export
-`[.timegrain_set` <- function(x, i) {
-  timegrain_set(NextMethod())
+`[.climgrain_set` <- function(x, i) {
+  climgrain_set(NextMethod())
 }
 
 # Every entry point that fits across windows takes a matrix, a set, or a bare named list, and
 # works on a set. One coercion, so no caller repeats the three cases.
 .as_set <- function(x) {
-  if (inherits(x, "timegrain_set")) {
+  if (inherits(x, "climgrain_set")) {
     return(x)
   }
-  timegrain_set(x)
+  climgrain_set(x)
 }

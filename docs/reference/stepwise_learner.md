@@ -25,12 +25,12 @@ stepwise_learner(max_terms = 3L, degree = 2L)
 ## Value
 
 A
-[`learner()`](https://gillescolling.com/timegrain/reference/learner.md).
+[`learner()`](https://gillescolling.com/climgrain/reference/learner.md).
 
 ## Details
 
 Selection happens inside whichever units the learner is handed, so under
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 it is redone in every fold. That is the footing the other learners are
 fitted on. Reported beside a penalised fit it also prices discrete
 selection: choosing a handful of columns out of hundreds is high

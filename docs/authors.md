@@ -8,16 +8,16 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/gcol33/timegrain/blob/HEAD/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/gcol33/climgrain/blob/HEAD/DESCRIPTION)
 
-Colling G (2026). *timegrain: Temporal Grain Selection for Ecological
-Prediction from Sensor Time Series*. R package version 0.2.0,
-<https://gillescolling.com/timegrain/>.
+Colling G (2026). *climgrain: Temporal Climate Resolution for Ecological
+Prediction*. R package version 0.3.0,
+<https://gillescolling.com/climgrain/>.
 
     @Manual{,
-      title = {timegrain: Temporal Grain Selection for Ecological Prediction from Sensor Time Series},
+      title = {climgrain: Temporal Climate Resolution for Ecological Prediction},
       author = {Gilles Colling},
       year = {2026},
-      note = {R package version 0.2.0},
-      url = {https://gillescolling.com/timegrain/},
+      note = {R package version 0.3.0},
+      url = {https://gillescolling.com/climgrain/},
     }

@@ -13,7 +13,7 @@
 #'   in a leading character or factor column.
 #' @param label The name the arm is reported under.
 #'
-#' @return A `timegrain_matrix` of shape `[unit, feature, 1]`.
+#' @return A `climgrain_matrix` of shape `[unit, feature, 1]`.
 #'
 #' @examples
 #' m <- matrix(rnorm(30), nrow = 10,
@@ -33,6 +33,6 @@ feature_matrix <- function(m, label = "features") {
   attr(out, "bin_n") <- matrix(NA_integer_, nrow = nrow(m), ncol = ncol(m),
                                dimnames = dimnames(m))
   attr(out, "bin_partial") <- rep(FALSE, ncol(m))
-  class(out) <- c("timegrain_matrix", "array")
+  class(out) <- c("climgrain_matrix", "array")
   out
 }

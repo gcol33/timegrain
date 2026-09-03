@@ -7,9 +7,9 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timegrain import (Response, elasticnet_learner, fit_learner, roc_auc, stepwise_learner,
+from climgrain import (Response, elasticnet_learner, fit_learner, roc_auc, stepwise_learner,
                        window_matrix)
-from timegrain.learners import _apply_basis, _logistic, _poly_basis
+from climgrain.learners import _apply_basis, _logistic, _poly_basis
 
 needs_sklearn = pytest.mark.skipif(importlib.util.find_spec("sklearn") is None,
                                    reason="scikit-learn is not installed")

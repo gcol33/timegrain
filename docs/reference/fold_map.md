@@ -39,7 +39,7 @@ fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL)
 ## Value
 
 An integer vector of fold numbers named by unit, of class
-`timegrain_folds`. Any named integer vector of the same shape is
+`climgrain_folds`. Any named integer vector of the same shape is
 accepted wherever this is.
 
 ## Details

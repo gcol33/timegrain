@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Runs the timegrain simulation benchmark detached, one Rscript worker per stripe of cells.
+Runs the climgrain simulation benchmark detached, one Rscript worker per stripe of cells.
 
 .DESCRIPTION
 Point a Scheduled Task at this file so the run survives the shell that started it. Every worker
@@ -9,8 +9,8 @@ every worker has exited. Replicates already on disk are skipped, so a killed run
 re-running the same command and costs at most the replicates that were in flight.
 
 .EXAMPLE
-schtasks /Create /TN "timegrain_bench" /RL HIGHEST /F /SC ONCE /ST 23:59 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\GillesC\Documents\dev\timegrain\inst\benchmark\launch.ps1 -Block elasticnet -Workers 14"
-schtasks /Run /TN "timegrain_bench"
+schtasks /Create /TN "climgrain_bench" /RL HIGHEST /F /SC ONCE /ST 23:59 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\GillesC\Documents\dev\climgrain\inst\benchmark\launch.ps1 -Block elasticnet -Workers 14"
+schtasks /Run /TN "climgrain_bench"
 #>
 [CmdletBinding()]
 param(
@@ -33,7 +33,7 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 
 if (-not (Test-Path $Rscript)) { throw "Rscript not found at $Rscript" }
-$env:TIMEGRAIN_DEVICE = $Device
+$env:CLIMGRAIN_DEVICE = $Device
 
 # The cell list comes from design.R, never from a copy here, so the launcher cannot schedule a cell
 # the runner does not recognise.

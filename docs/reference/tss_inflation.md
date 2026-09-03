@@ -23,7 +23,7 @@ tss_inflation(y, folds, skill = c(0.6, 0.7, 0.9), replicates = 200L, seed = 1L)
 - folds:
 
   A fold map from
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md),
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md),
   or any named integer vector of the same shape.
 
 - skill:
@@ -48,12 +48,12 @@ read back, the inflation, and its interval across replicates.
 Predictions are simulated under a normal model in which the population
 skill is exactly `skill`, at the cell sizes and presence counts of the
 response and fold map supplied, and the level is read back exactly as
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 reports it. The gap between what comes back and the truth planted is the
 inflation.
 
 It cancels in the paired differences
-[`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
 takes, since both arms carry it on the same cell. It does not cancel in
 a level, so a level is an upper bound on the skill a population has.
 

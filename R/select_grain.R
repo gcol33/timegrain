@@ -22,7 +22,7 @@
 #' The cost is the ladder's, multiplied by the number of inner folds: `v_outer * (v_inner *
 #' candidates + 1)` fits. With a neural learner that is where an overnight run goes.
 #'
-#' @param x A [window_matrix()] result, a [timegrain_set()], or a named list of representations.
+#' @param x A [window_matrix()] result, a [climgrain_set()], or a named list of representations.
 #'   Its names are the grains being chosen between.
 #' @param y The response for the same units.
 #' @param learners A learner, a list of them, or names of registered ones, as [window_ladder()]
@@ -40,7 +40,7 @@
 #'   so no two outer folds inherit the same inner partition.
 #' @param verbose Report each outer fold and what it selected as it runs.
 #'
-#' @return A `timegrain_selection`: a list carrying `selected`, one row per outer fold with the
+#' @return A `climgrain_selection`: a list carrying `selected`, one row per outer fold with the
 #'   candidate it chose and the inner score it chose on; `estimate`, the nested score under every
 #'   registered metric with its standard error across variables; `contrast`, one
 #'   [paired_contrast()] row against each arm of `compare`, or `NULL`; `candidates`, the set that
@@ -133,7 +133,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
 
   selected <- do.call(rbind, chosen)
   scores <- .score_arm(.selected_label, "selected", y, p, f, levels, cells, score)
-  scores <- structure(scores, class = c("timegrain_ladder", "data.frame"),
+  scores <- structure(scores, class = c("climgrain_ladder", "data.frame"),
                       predictions = stats::setNames(list(p), .selected_arm),
                       cells = cells, folds = stats::setNames(f, units),
                       metric = metric, response = response)
@@ -146,7 +146,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
     scores = scores,
     inner = do.call(rbind, inner_scores)
   )
-  structure(out, class = "timegrain_selection", metric = metric, response = response,
+  structure(out, class = "climgrain_selection", metric = metric, response = response,
             folds = stats::setNames(f, units), cells = cells,
             predictions = stats::setNames(list(p), .selected_arm))
 }
@@ -157,8 +157,8 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
 .selected_arm <- "selected|selected"
 
 #' @export
-print.timegrain_selection <- function(x, ...) {
-  cat("<timegrain selection>", .plural(nrow(x$selected), "outer fold"), "over",
+print.climgrain_selection <- function(x, ...) {
+  cat("<climgrain selection>", .plural(nrow(x$selected), "outer fold"), "over",
       .plural(nrow(x$candidates), "candidate"), "\n")
   est <- x$estimate[x$estimate$metric == attr(x, "metric"), , drop = FALSE]
   cat(sprintf("%s: %.3f (se %.3f) for the procedure, selection included\n",
@@ -171,7 +171,7 @@ print.timegrain_selection <- function(x, ...) {
 #' @param ... Ignored.
 #' @rdname select_grain
 #' @export
-summary.timegrain_selection <- function(object, ...) {
+summary.climgrain_selection <- function(object, ...) {
   out <- object$candidates
   key <- paste(out$window, out$learner)
   picked <- paste(object$selected$window, object$selected$learner)
@@ -215,7 +215,7 @@ summary.timegrain_selection <- function(object, ...) {
 #' plot(sel)
 #'
 #' @export
-plot.timegrain_selection <- function(x, col = NULL, ...) {
+plot.climgrain_selection <- function(x, col = NULL, ...) {
   inner <- x$inner
   label <- paste(x$candidates$window, x$candidates$learner, sep = "|")
   at <- seq_along(label)
@@ -266,7 +266,7 @@ plot.timegrain_selection <- function(x, col = NULL, ...) {
   if (is.null(compare)) {
     return(invisible(TRUE))
   }
-  if (!inherits(compare, "timegrain_ladder")) {
+  if (!inherits(compare, "climgrain_ladder")) {
     stop("`compare` is a window_ladder() result, got ", class(compare)[1L], ".", call. = FALSE)
   }
   if (!identical(attr(compare, "metric"), metric)) {
@@ -282,7 +282,7 @@ plot.timegrain_selection <- function(x, col = NULL, ...) {
   }
   shared <- intersect(names(scores), names(compare))
   both <- rbind(scores[shared], compare[shared])
-  both <- structure(both, class = c("timegrain_ladder", "data.frame"),
+  both <- structure(both, class = c("climgrain_ladder", "data.frame"),
                     metric = attr(scores, "metric"))
   arms <- unique(paste(compare$window, compare$learner, sep = "|"))
   out <- lapply(arms, function(a) paired_contrast(both, .selected_arm, a))
@@ -318,5 +318,5 @@ plot.timegrain_selection <- function(x, col = NULL, ...) {
 }
 
 .subset_set <- function(set, idx) {
-  timegrain_set(lapply(set, .subset_units, idx = idx))
+  climgrain_set(lapply(set, .subset_units, idx = idx))
 }

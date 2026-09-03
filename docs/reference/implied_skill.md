@@ -1,6 +1,6 @@
 # What population skill a reported level is consistent with
 
-[`tss_inflation()`](https://gillescolling.com/timegrain/reference/tss_inflation.md)
+[`tss_inflation()`](https://gillescolling.com/climgrain/reference/tss_inflation.md)
 maps a population skill to the level a design reports for it. This
 inverts that map: given a level actually read off a ladder, it solves
 for the population skill whose expected reported level equals it.
@@ -29,7 +29,7 @@ implied_skill(
 - folds:
 
   A fold map from
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md),
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md),
   or any named integer vector of the same shape.
 
 - observed:

@@ -1,6 +1,6 @@
 """Write the Python reference pages of the pkgdown site from the Python sources.
 
-Reads ``python/timegrain/*.py`` with ``ast`` rather than importing it, so the pages can be
+Reads ``python/climgrain/*.py`` with ``ast`` rather than importing it, so the pages can be
 written without the compiled core on the machine, and emits one article per section of
 ``_pkgdown.yml``'s reference index, so the two languages are read in the same order.
 
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "python" / "timegrain"
+SOURCE = ROOT / "python" / "climgrain"
 DEST = ROOT / "vignettes" / "articles"
 
 UNDOCUMENTED: list[str] = []
@@ -25,7 +25,7 @@ UNDOCUMENTED: list[str] = []
 BANNER = "<!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->"
 
 # Each section is one article, and carries the symbols of the matching section of the R
-# reference index. Every name in `timegrain.__all__` belongs to exactly one of them; the script
+# reference index. Every name in `climgrain.__all__` belongs to exactly one of them; the script
 # stops if one is missing or listed twice.
 SECTIONS = (
     dict(
@@ -33,8 +33,8 @@ SECTIONS = (
         title="Python: the representation",
         desc="Readings in long form to the array a model is fitted on, at one grain or at every "
              "grain of a ladder.",
-        names=("window_matrix", "timegrain_set", "calendar_channels", "bind_channels",
-               "feature_matrix", "WindowMatrix", "TimegrainSet", "WINDOWS", "STATS",
+        names=("window_matrix", "climgrain_set", "calendar_channels", "bind_channels",
+               "feature_matrix", "WindowMatrix", "ClimgrainSet", "WINDOWS", "STATS",
                "DAY_LEVEL_STATS"),
     ),
     dict(
@@ -92,11 +92,11 @@ and `window_matrix()` in R return the same numbers from the same input, and the 
 `inst/spec/fixtures/` hold them to it.
 
 ```bash
-pip install git+https://github.com/gcol33/timegrain
+pip install git+https://github.com/gcol33/climgrain
 ```
 
 ```python
-import timegrain as tg
+import climgrain as tg
 
 x = tg.window_matrix(readings, id="plot", time="t", value="temp",
                      window="week", stats=("cold_day", "mean", "warm_day"))
@@ -114,7 +114,7 @@ def public_symbols(tree: ast.Module) -> list[str]:
             isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
         ):
             return [e.value for e in node.value.elts]
-    raise SystemExit("no __all__ in python/timegrain/__init__.py")
+    raise SystemExit("no __all__ in python/climgrain/__init__.py")
 
 
 def annotation(node) -> str:
@@ -272,7 +272,7 @@ def main() -> int:
     extra = sorted(set(listed) - set(exported))
     twice = sorted({name for name in listed if listed.count(name) > 1})
     if missing or extra or twice:
-        print("SECTIONS and timegrain.__all__ disagree.", file=sys.stderr)
+        print("SECTIONS and climgrain.__all__ disagree.", file=sys.stderr)
         for label, names in (("not in any section", missing), ("not exported", extra),
                              ("in two sections", twice)):
             if names:

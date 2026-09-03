@@ -5,11 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timegrain import (Learner, Response, fold_map, metrics, paired_contrast, select_grain,
+from climgrain import (Learner, Response, fold_map, metrics, paired_contrast, select_grain,
                        tss_inflation, window_ladder, window_matrix)
-from timegrain.ladder import per_variable
-from timegrain.learners import _logistic
-from timegrain.selection import SELECTED_ARM, _inner_splitter
+from climgrain.ladder import per_variable
+from climgrain.learners import _logistic
+from climgrain.selection import SELECTED_ARM, _inner_splitter
 
 
 def linear_learner(offset: float = 0.0, reduce: str = "mean") -> Learner:

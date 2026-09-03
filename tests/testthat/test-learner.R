@@ -16,7 +16,7 @@ test_that("a learner of one's own needs nothing but a fit and a predict", {
 
 test_that("a registered learner can be asked for by name", {
   expect_true(all(c("elasticnet", "stepwise", "mlp", "cnn", "rescnn") %in% learners()))
-  expect_s3_class(.as_learner("elasticnet"), "timegrain_learner")
+  expect_s3_class(.as_learner("elasticnet"), "climgrain_learner")
   expect_error(.as_learner("nope"), "unknown learner")
   register_learner("test_only", function() learner("test_only",
                                                   fit = function(x, y, ...) NULL,
@@ -139,7 +139,7 @@ test_that("predicting a single unit returns one row and not one column", {
   attributes(one) <- utils::modifyList(attributes(x)[c("window", "stats", "year_start",
                                                        "bin_start", "bin_end", "bin_partial")],
                                        list(dim = dim(one), dimnames = dimnames(one),
-                                            class = c("timegrain_matrix", "array")))
+                                            class = c("climgrain_matrix", "array")))
   for (l in list(elasticnet_learner(), stepwise_learner())) {
     fit <- suppressWarnings(fit_learner(l, x, y))
     p <- stats::predict(fit, one)

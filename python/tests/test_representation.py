@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timegrain import (WINDOWS, TimegrainSet, WindowMatrix, bind_channels,
-                       calendar_channels, timegrain_set, window_matrix)
+from climgrain import (WINDOWS, ClimgrainSet, WindowMatrix, bind_channels,
+                       calendar_channels, climgrain_set, window_matrix)
 
 
 def hourly(units=("a", "b"), hours=24 * 400, start="2021-09-01"):
@@ -225,7 +225,7 @@ def test_naming_one_window_returns_one_representation_however_it_is_named():
 def test_a_set_reads_as_a_mapping_and_can_be_cut_to_some_of_its_windows():
     d = hourly(hours=24 * 60)
     s = window_matrix(d, "id", "time", "value", window=["day", "week", "month"])
-    assert isinstance(s, TimegrainSet)
+    assert isinstance(s, ClimgrainSet)
     assert len(s) == 3 and list(s) == ["day", "week", "month"]
     part = s[["week", "month"]]
     assert list(part) == ["week", "month"]
@@ -237,8 +237,8 @@ def test_a_set_must_cover_the_same_units_at_every_window():
     d = hourly(hours=24 * 40)
     whole = window_matrix(d, "id", "time", "value", window="week")
     with pytest.raises(ValueError, match="same units"):
-        timegrain_set({"week": whole, "cut": whole.take_units([0])})
+        climgrain_set({"week": whole, "cut": whole.take_units([0])})
     with pytest.raises(ValueError, match="not a window_matrix"):
-        timegrain_set({"week": whole.values})
+        climgrain_set({"week": whole.values})
     with pytest.raises(ValueError, match="non-empty"):
-        timegrain_set({})
+        climgrain_set({})

@@ -5,10 +5,10 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timegrain import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
+from climgrain import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
                        paired_contrast, roc_auc, scorable_cells, tss, tss_inflation,
                        window_ladder, window_matrix)
-from timegrain._stats import norm_ppf, wilcoxon_p
+from climgrain._stats import norm_ppf, wilcoxon_p
 
 
 def brute_tss(y, p):
@@ -144,7 +144,7 @@ def test_the_normal_quantile_and_the_signed_rank_p_value_are_the_ones_r_reports(
 
 
 def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
-    from timegrain import implied_skill
+    from climgrain import implied_skill
     rng = np.random.default_rng(61)
     units = tuple(f"p{i:03d}" for i in range(200))
     y = Response(rng.binomial(1, 0.2, (200, 6)).astype(float), units,

@@ -10,11 +10,11 @@ and `window_matrix()` in R return the same numbers from the same input, and the 
 `inst/spec/fixtures/` hold them to it.
 
 ```bash
-pip install git+https://github.com/gcol33/timegrain
+pip install git+https://github.com/gcol33/climgrain
 ```
 
 ```python
-import timegrain as tg
+import climgrain as tg
 
 x = tg.window_matrix(readings, id="plot", time="t", value="temp",
                      window="week", stats=("cold_day", "mean", "warm_day"))

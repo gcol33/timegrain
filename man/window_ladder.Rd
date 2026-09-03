@@ -2,7 +2,7 @@
 % Please edit documentation in R/ladder.R
 \name{window_ladder}
 \alias{window_ladder}
-\alias{summary.timegrain_ladder}
+\alias{summary.climgrain_ladder}
 \title{Fit at every grain and see where skill saturates}
 \usage{
 window_ladder(
@@ -16,10 +16,10 @@ window_ladder(
   verbose = TRUE
 )
 
-\method{summary}{timegrain_ladder}(object, ...)
+\method{summary}{climgrain_ladder}(object, ...)
 }
 \arguments{
-\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result, a \code{\link[=timegrain_set]{timegrain_set()}}, or a named list of representations.}
+\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result, a \code{\link[=climgrain_set]{climgrain_set()}}, or a named list of representations.}
 
 \item{y}{The response for the same units.}
 
@@ -43,7 +43,7 @@ fitted model without refitting it.}
 \item{...}{Ignored, so that \code{summary()} takes the arguments its generic declares.}
 }
 \value{
-A data frame of one row per scored cell, of class \code{timegrain_ladder}, carrying the
+A data frame of one row per scored cell, of class \code{climgrain_ladder}, carrying the
 window, the learner, the variable, the fold and the score. The held-out prediction of every
 unit is kept in the \code{predictions} attribute, and the scorable-cell mask in \code{cells}.
 }

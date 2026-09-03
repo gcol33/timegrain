@@ -125,5 +125,5 @@ test_that("a ladder on which nothing was scorable reports no level rather than f
   out <- summary(lad)
   expect_equal(nrow(out), 0L)
   expect_named(out, c("learner", "window", "score", "n_variable", "best"))
-  expect_output(print(lad), "timegrain ladder")
+  expect_output(print(lad), "climgrain ladder")
 })

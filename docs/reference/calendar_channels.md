@@ -18,14 +18,14 @@ calendar_channels(x)
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
   result.
 
 ## Value
 
 An array of the same units and bins with two channels, `year_sin` and
 `year_cos`, identical across units. Combine it with the readings using
-[`bind_channels()`](https://gillescolling.com/timegrain/reference/bind_channels.md).
+[`bind_channels()`](https://gillescolling.com/climgrain/reference/bind_channels.md).
 
 ## Details
 

@@ -5,7 +5,7 @@ presence-absence response whose dependence on the record is a fixed
 linear functional of the record at one named grain. The grain is
 therefore known before anything is fitted, which is what makes the
 output usable for asking whether
-[`select_grain()`](https://gillescolling.com/timegrain/reference/select_grain.md)
+[`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
 finds it.
 
 ## Usage
@@ -103,7 +103,7 @@ simulate_records(
 - year_start:
 
   `"MM-DD"` boundary of the hydrological year, passed to
-  [`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
   when the mechanism's bins are located. Use the same value when
   representing the readings.
 
@@ -121,8 +121,8 @@ simulate_records(
 
 ## Value
 
-A `timegrain_simulation`: a list with `readings`, the long table
-[`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+A `climgrain_simulation`: a list with `readings`, the long table
+[`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
 takes; `y`, the `[unit, variable]` 0/1 response; `driver`, the
 standardised driver `z` behind it; `grain`, the true grain or `NA`;
 `weights`, the `[reading, variable]` weights defining the driver;
@@ -139,7 +139,7 @@ both. The weights `w_j` are constant within the bins of one window and
 zero outside a short stretch of them, so `g` is exactly a linear
 combination of that window's bin means. The true grain of a mechanism is
 the **coarsest window of
-[`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+[`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
 at which `g` is still an exact linear functional of the
 representation**: at that window and at every window whose bins nest
 inside it, no information about `g` has been averaged away, and at any
@@ -192,9 +192,9 @@ noise on top of it, and the weights have to be estimated.
 
 ## See also
 
-[`select_grain()`](https://gillescolling.com/timegrain/reference/select_grain.md),
+[`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md),
 which this exists to test, and
-[`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md),
+[`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md),
 whose calendar the weights are defined on.
 
 ## Examples

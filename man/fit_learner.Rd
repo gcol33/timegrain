@@ -2,12 +2,12 @@
 % Please edit documentation in R/learner.R
 \name{fit_learner}
 \alias{fit_learner}
-\alias{predict.timegrain_fit}
+\alias{predict.climgrain_fit}
 \title{Fit one learner at one grain}
 \usage{
 fit_learner(learner, x, y, response = "presence_absence", ...)
 
-\method{predict}{timegrain_fit}(object, newdata, ...)
+\method{predict}{climgrain_fit}(object, newdata, ...)
 }
 \arguments{
 \item{learner}{A \code{\link[=learner]{learner()}}, or the name of a registered one.}
@@ -20,12 +20,12 @@ fit_learner(learner, x, y, response = "presence_absence", ...)
 
 \item{...}{Passed to the learner's \code{fit}.}
 
-\item{object}{A \code{timegrain_fit}.}
+\item{object}{A \code{climgrain_fit}.}
 
 \item{newdata}{A representation of the same channels for the units to predict.}
 }
 \value{
-A \code{timegrain_fit}, which \code{\link[stats:predict]{stats::predict()}} takes a new representation.
+A \code{climgrain_fit}, which \code{\link[stats:predict]{stats::predict()}} takes a new representation.
 }
 \description{
 Fit one learner at one grain

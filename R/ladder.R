@@ -8,7 +8,7 @@
 #' Every arm sees identical splits and is restricted to identical cells, so the arms' means share a
 #' denominator and any two of them can be compared cell by cell with [paired_contrast()].
 #'
-#' @param x A [window_matrix()] result, a [timegrain_set()], or a named list of representations.
+#' @param x A [window_matrix()] result, a [climgrain_set()], or a named list of representations.
 #' @param y The response for the same units.
 #' @param learners A learner, a list of them, or names of registered ones. An unnamed list is
 #'   labelled by each learner's own name.
@@ -21,7 +21,7 @@
 #' @param verbose Report each arm and each fold as it runs.
 #' @param ... Ignored, so that `summary()` takes the arguments its generic declares.
 #'
-#' @return A data frame of one row per scored cell, of class `timegrain_ladder`, carrying the
+#' @return A data frame of one row per scored cell, of class `climgrain_ladder`, carrying the
 #'   window, the learner, the variable, the fold and the score. The held-out prediction of every
 #'   unit is kept in the `predictions` attribute, and the scorable-cell mask in `cells`.
 #'
@@ -93,7 +93,7 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
   }
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
-  structure(out, class = c("timegrain_ladder", "data.frame"),
+  structure(out, class = c("climgrain_ladder", "data.frame"),
             predictions = preds, cells = cells, folds = stats::setNames(f, units),
             fits = if (keep_fits) fits else NULL,
             metric = metric %||% spec$metric, response = response)
@@ -123,12 +123,12 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
   attr(out, "bin_end") <- attr(x, "bin_end")
   attr(out, "bin_n") <- attr(x, "bin_n")[idx, , drop = FALSE]
   attr(out, "bin_partial") <- attr(x, "bin_partial")
-  class(out) <- c("timegrain_matrix", "array")
+  class(out) <- c("climgrain_matrix", "array")
   out
 }
 
 .learner_list <- function(learners) {
-  if (inherits(learners, "timegrain_learner") || is.character(learners)) {
+  if (inherits(learners, "climgrain_learner") || is.character(learners)) {
     learners <- list(learners)
   }
   learners <- lapply(learners, .as_learner)
@@ -150,8 +150,8 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
 }
 
 #' @export
-print.timegrain_ladder <- function(x, ...) {
-  cat("<timegrain ladder>", .plural(length(unique(x$window)), "window"), "x",
+print.climgrain_ladder <- function(x, ...) {
+  cat("<climgrain ladder>", .plural(length(unique(x$window)), "window"), "x",
       .plural(length(unique(x$learner)), "learner"), "\n")
   cat("metric:", attr(x, "metric"), "on", .plural(sum(x$scorable), "scorable cell"), "\n")
   print(summary(x))
@@ -161,7 +161,7 @@ print.timegrain_ladder <- function(x, ...) {
 #' @param object A ladder.
 #' @rdname window_ladder
 #' @export
-summary.timegrain_ladder <- function(object, ...) {
+summary.climgrain_ladder <- function(object, ...) {
   per_variable <- .per_variable(object)
   if (!nrow(per_variable)) {
     return(data.frame(learner = character(), window = character(), score = numeric(),

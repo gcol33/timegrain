@@ -76,7 +76,7 @@ bind_channels <- function(...) {
 }
 
 .check_matrix <- function(x) {
-  if (!inherits(x, "timegrain_matrix")) {
+  if (!inherits(x, "climgrain_matrix")) {
     stop("expected a window_matrix() result, got ", class(x)[1L], ".", call. = FALSE)
   }
   invisible(TRUE)
@@ -99,6 +99,6 @@ bind_channels <- function(...) {
   attr(out, "bin_end") <- attr(from, "bin_end")
   attr(out, "bin_n") <- attr(from, "bin_n")
   attr(out, "bin_partial") <- attr(from, "bin_partial")
-  class(out) <- c("timegrain_matrix", "array")
+  class(out) <- c("climgrain_matrix", "array")
   out
 }

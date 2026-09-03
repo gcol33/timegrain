@@ -82,10 +82,10 @@ bench_scale <- function(scale) {
 
 bench_learner <- function(block) {
   switch(block,
-         elasticnet = timegrain::elasticnet_learner(squares = BENCH$elasticnet_squares,
+         elasticnet = climgrain::elasticnet_learner(squares = BENCH$elasticnet_squares,
                                             n_inner = BENCH$elasticnet_n_inner),
-         cnn = timegrain::cnn_learner(epochs = BENCH$cnn_epochs,
-                                      device = Sys.getenv("TIMEGRAIN_DEVICE", unset = "cpu")),
+         cnn = climgrain::cnn_learner(epochs = BENCH$cnn_epochs,
+                                      device = Sys.getenv("CLIMGRAIN_DEVICE", unset = "cpu")),
          stop("unknown block: ", block))
 }
 
@@ -96,13 +96,13 @@ bench_representation <- function(readings, candidates) {
   wanted <- unique(candidates$stat)
   parts <- lapply(wanted, function(s) {
     channels <- candidates$channels[[match(s, candidates$stat)]]
-    m <- timegrain::window_matrix(readings, "unit", "time", "reading",
+    m <- climgrain::window_matrix(readings, "unit", "time", "reading",
                                   window = BENCH$windows, stats = channels,
                                   year_start = BENCH$year_start)
     stats::setNames(unclass(m), paste(names(m), s, sep = "."))
   })
   set <- do.call(c, parts)
-  timegrain::timegrain_set(set[candidates$candidate])
+  climgrain::climgrain_set(set[candidates$candidate])
 }
 
 # Every run says what it was fed before it is fed it: the cell, the seeds, the package it is
@@ -136,12 +136,12 @@ bench_stamp <- function(cell, replicate, candidates, pkg_dir, learner) {
     learner = learner$name,
     learner_digest = .bench_digest(paste(utils::capture.output(utils::str(learner$params)),
                                          collapse = "|")),
-    pkg_version = as.character(utils::packageVersion("timegrain")),
+    pkg_version = as.character(utils::packageVersion("climgrain")),
     pkg_commit = if (length(commit) == 1L) commit else NA_character_,
     pkg_dirty = isTRUE(dirty),
     r_version = paste(R.version$major, R.version$minor, sep = "."),
     platform = R.version$platform,
-    device = Sys.getenv("TIMEGRAIN_DEVICE", unset = "cpu")
+    device = Sys.getenv("CLIMGRAIN_DEVICE", unset = "cpu")
   )
 }
 

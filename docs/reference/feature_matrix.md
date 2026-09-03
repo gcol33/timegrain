@@ -4,7 +4,7 @@ A representation the package did not build, such as a published set of
 hand-aggregated climate summaries, enters here. It becomes a one-channel
 `[unit, feature, 1]` array, which is what a learner reads, so a feature
 table and a temporal grain can be arms of the same
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 and be scored on the same cells by the same rule.
 
 ## Usage
@@ -26,7 +26,7 @@ feature_matrix(m, label = "features")
 
 ## Value
 
-A `timegrain_matrix` of shape `[unit, feature, 1]`.
+A `climgrain_matrix` of shape `[unit, feature, 1]`.
 
 ## Details
 

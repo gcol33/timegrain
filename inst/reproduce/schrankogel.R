@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Reproduce the Schrankogel grid with timegrain.
+# Reproduce the Schrankogel grid with climgrain.
 #
 #   Rscript schrankogel.R <deposit_dir> <out_dir> [options]
 #
@@ -24,7 +24,7 @@
 # either runs over all 894 plots and all 101 species or it does not run.
 
 suppressMessages({
-  library(timegrain)
+  library(climgrain)
 })
 
 # ---- arguments -------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ if ("networks" %in% stages) {
     }
     stats_used <- if (statistic == "mean") "mean" else REPORTED_STATS
     say("network grid on the ", statistic, " reading: ", paste(windows, collapse = ", "))
-    set <- timegrain_set(stats::setNames(
+    set <- climgrain_set(stats::setNames(
       lapply(windows, function(w) {
         x <- build(w, stats_used)
         bind_channels(x, calendar_channels(x))
@@ -218,7 +218,7 @@ if ("contrasts" %in% stages) {
     say("contrasts need at least two result files in ", out_dir, "; skipping")
   } else {
     ladder <- do.call(rbind, lapply(parts, utils::read.csv, stringsAsFactors = FALSE))
-    ladder <- structure(ladder, class = c("timegrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
     arms <- unique(paste(ladder$window, ladder$learner, sep = "|"))
     pairs <- utils::combn(arms, 2L, simplify = FALSE)
@@ -235,7 +235,7 @@ if ("windows" %in% stages) {
     say("the window contrast needs networks_mean.csv in ", out_dir, "; skipping")
   } else {
     ladder <- utils::read.csv(parts[1L], stringsAsFactors = FALSE)
-    ladder <- structure(ladder, class = c("timegrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
     out <- do.call(rbind, lapply(unique(ladder$learner), function(l)
       window_contrasts(ladder, learner = l)))
@@ -258,7 +258,7 @@ if ("inflation" %in% stages) {
   levels_read <- list.files(out_dir, pattern = "^(baseline|networks_)", full.names = TRUE)
   if (length(levels_read)) {
     ladder <- do.call(rbind, lapply(levels_read, utils::read.csv, stringsAsFactors = FALSE))
-    ladder <- structure(ladder, class = c("timegrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
     reported <- summary(ladder)
     back <- implied_skill(y, folds, observed = reported$score, replicates = 500L, seed = CV_SEED)

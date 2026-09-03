@@ -66,11 +66,11 @@ test_that("the core's calendar agrees with the oracle's, instant by instant", {
   t <- seq(as.POSIXct("2018-01-01", tz = "UTC"), by = "97 min", length.out = 20000)
   ys <- list(month = 9L, day = 1L)
   for (w in c("hour", "halfday", "day", "week", "month", "season", "year")) {
-    expect_equal(tg_bin_starts_(as.numeric(t), w, 9L, 1L),
+    expect_equal(cg_bin_starts_(as.numeric(t), w, 9L, 1L),
                  as.numeric(oracle_bin_start(t, w, ys, "UTC")), info = w)
   }
   bins <- unique(oracle_bin_start(t, "month", ys, "UTC"))
-  expect_equal(tg_bin_nexts_(as.numeric(bins), "month", 9L, 1L),
+  expect_equal(cg_bin_nexts_(as.numeric(bins), "month", 9L, 1L),
                as.numeric(oracle_bin_next(bins, "month", ys, "UTC", max(as.numeric(t)))))
 })
 

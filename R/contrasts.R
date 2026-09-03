@@ -46,7 +46,7 @@ window_contrasts <- function(ladder, learner = NULL, reference = NULL, adjust = 
            call. = FALSE)
     }
   }
-  if (!inherits(ladder, "timegrain_ladder")) {
+  if (!inherits(ladder, "climgrain_ladder")) {
     stop("expected a window_ladder() result, got ", class(ladder)[1L], ".", call. = FALSE)
   }
   arms <- unique(ladder$learner)

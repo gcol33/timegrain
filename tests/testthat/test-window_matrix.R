@@ -262,11 +262,11 @@ test_that("the mean of the daily minima is not the coldest day", {
 test_that("naming several windows returns one representation per window", {
   d <- hourly_series(units = c("a", "b"), hours = 24 * 60)
   s <- window_matrix(d, plot, t, temp, window = c("day", "week", "month"))
-  expect_s3_class(s, "timegrain_set")
+  expect_s3_class(s, "climgrain_set")
   expect_named(s, c("day", "week", "month"))
   expect_equal(as.numeric(s$week),
                as.numeric(window_matrix(d, plot, t, temp, window = "week")))
-  expect_s3_class(s["week"], "timegrain_set")
+  expect_s3_class(s["week"], "climgrain_set")
   expect_error(window_matrix(d, plot, t, temp, window = c("day", "day")), "twice")
   expect_error(window_matrix(d, plot, t, temp, window = c("day", "fortnight")), "unknown window")
 })

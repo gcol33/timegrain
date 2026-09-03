@@ -1,10 +1,10 @@
-# timegrain (Python)
+# climgrain (Python)
 
-The Python side of `timegrain`. It answers to `../inst/spec/representation.md`, the same document the R
+The Python side of `climgrain`. It answers to `../inst/spec/representation.md`, the same document the R
 package answers to, and its test suite asserts the digests in `../inst/spec/fixtures/digests.csv`.
 
 ```python
-import timegrain as tg
+import climgrain as tg
 
 x = tg.window_matrix(readings, "logger_ID", "datetime", "temperature",
                      window=["day", "week", "month"],
@@ -32,7 +32,7 @@ tg.paired_contrast(lad, "week|cnn", "week|elasticnet")
 
 The mixed-model window contrast the R side offers as `window_contrasts()` has no counterpart here.
 
-The binning and the reduction are not written here. They are `../src/tg_core.cpp`, the same
+The binning and the reduction are not written here. They are `../src/cg_core.cpp`, the same
 implementation the R package compiles, reached through the `_core` extension that `../CMakeLists.txt`
 builds with nanobind. What is written here is the boundary: resolving the columns, resolving the
 zone, and putting the result into a `WindowMatrix`.

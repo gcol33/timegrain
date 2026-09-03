@@ -145,7 +145,7 @@ month, season or year, and a partial week at each end, because 1
 September 2021 is a Wednesday. A record from an arbitrary deployment
 date carries one at each end of almost every window.
 
-[`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+[`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
 reports the verdict as `bin_partial` and takes a `partial` argument
 saying what becomes of such a bin: `"keep"`, the default, returns it
 alongside the full bins; `"drop"` removes it, and errors rather than
@@ -262,8 +262,8 @@ held-out units into the training input.
 
 ## What crosses the language boundary, and what does not
 
-The binning and the reduction are one implementation: `src/tg_core.cpp`
-and `src/tg_calendar.cpp`, compiled into the R package by R itself and
+The binning and the reduction are one implementation: `src/cg_core.cpp`
+and `src/cg_calendar.cpp`, compiled into the R package by R itself and
 into the Python extension by CMake. What each language holds above it is
 the boundary, which resolves the columns, resolves the zone and wraps
 the result. The two agree by construction rather than by two
@@ -456,7 +456,7 @@ the complementary error function accurate to about 1.2e-7 relative. The
 fixture stays on the exact branch; where a caller lands on the other,
 the two agree to 1e-6 and no closer.
 
-[`tss_inflation()`](https://gillescolling.com/timegrain/reference/tss_inflation.md)
+[`tss_inflation()`](https://gillescolling.com/climgrain/reference/tss_inflation.md)
 cannot be pinned as a digest, because it draws replicates from each
 language’s own random stream, and aligning those streams would be the
 wrong fix for the same reason it is the wrong fix for a fold map. Its
@@ -477,23 +477,23 @@ the difference is recorded here rather than found at a call site.
 
 | concept | the name, on both sides |
 |----|----|
-| the penalised learner | [`elasticnet_learner()`](https://gillescolling.com/timegrain/reference/elasticnet_learner.md) |
-| the forward selector | [`stepwise_learner()`](https://gillescolling.com/timegrain/reference/stepwise_learner.md) |
-| a set of representations | [`timegrain_set()`](https://gillescolling.com/timegrain/reference/timegrain_set.md), which reads as a mapping of window name to representation |
+| the penalised learner | [`elasticnet_learner()`](https://gillescolling.com/climgrain/reference/elasticnet_learner.md) |
+| the forward selector | [`stepwise_learner()`](https://gillescolling.com/climgrain/reference/stepwise_learner.md) |
+| a set of representations | [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md), which reads as a mapping of window name to representation |
 | folds of the inner cross-validation | `n_inner` |
-| the digest | [`digest_array()`](https://gillescolling.com/timegrain/reference/digest_array.md), exported |
-| the three registries | [`register_learner()`](https://gillescolling.com/timegrain/reference/register_learner.md) and [`learners()`](https://gillescolling.com/timegrain/reference/register_learner.md), [`register_metric()`](https://gillescolling.com/timegrain/reference/register_metric.md) and [`metrics()`](https://gillescolling.com/timegrain/reference/register_metric.md), [`register_response()`](https://gillescolling.com/timegrain/reference/register_response.md) and [`responses()`](https://gillescolling.com/timegrain/reference/register_response.md) |
+| the digest | [`digest_array()`](https://gillescolling.com/climgrain/reference/digest_array.md), exported |
+| the three registries | [`register_learner()`](https://gillescolling.com/climgrain/reference/register_learner.md) and [`learners()`](https://gillescolling.com/climgrain/reference/register_learner.md), [`register_metric()`](https://gillescolling.com/climgrain/reference/register_metric.md) and [`metrics()`](https://gillescolling.com/climgrain/reference/register_metric.md), [`register_response()`](https://gillescolling.com/climgrain/reference/register_response.md) and [`responses()`](https://gillescolling.com/climgrain/reference/register_response.md) |
 
 ### The same call does the same thing
 
 - Naming one window returns the representation and naming two or more
   returns a set, whether the one is named as a string or as a sequence
   of one.
-- [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+- [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   and
-  [`select_grain()`](https://gillescolling.com/timegrain/reference/select_grain.md)
+  [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
   left without a fold map build one with the defaults of
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md).
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md).
   The two languages draw different maps from the same seed, so where
   both must see one split, write it and read it back as the section
   above describes.
@@ -508,7 +508,7 @@ the difference is recorded here rather than found at a call site.
   the averaging begins and is then held flat, the averaged weights get
   their own pass to rebuild the batch-normalisation statistics, and the
   default is off, so a default recipe is the same recipe on both sides.
-- [`select_grain()`](https://gillescolling.com/timegrain/reference/select_grain.md)
+- [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
   searches the candidates in the order the windows and the learners were
   declared in, so which candidate an exact tie on the inner score falls
   to does not depend on how the names sort.
@@ -517,8 +517,8 @@ the difference is recorded here rather than found at a call site.
 
 | in R only | why |
 |----|----|
-| [`window_contrasts()`](https://gillescolling.com/timegrain/reference/window_contrasts.md) | fits a mixed model over the whole ladder and reads Dunnett’s comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
-| [`simulate_records()`](https://gillescolling.com/timegrain/reference/simulate_records.md) | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
+| [`window_contrasts()`](https://gillescolling.com/climgrain/reference/window_contrasts.md) | fits a mixed model over the whole ladder and reads Dunnett’s comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
+| [`simulate_records()`](https://gillescolling.com/climgrain/reference/simulate_records.md) | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
 | [`plot()`](https://rdrr.io/r/graphics/plot.default.html) on a ladder and on a selection | the wheel depends on numpy alone, and every number a plot draws is on the object it is called on. |
 
 | in Python only | what it is |

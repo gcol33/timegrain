@@ -5,7 +5,7 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timegrain import (Learner, Response, bin_occlusion, ensemble_learner, feature_matrix,
+from climgrain import (Learner, Response, bin_occlusion, ensemble_learner, feature_matrix,
                        fit_learner, fold_map, window_ladder, window_matrix)
 
 

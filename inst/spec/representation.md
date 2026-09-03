@@ -219,7 +219,7 @@ would leak the held-out units into the training input.
 
 ## What crosses the language boundary, and what does not
 
-The binning and the reduction are one implementation: `src/tg_core.cpp` and `src/tg_calendar.cpp`,
+The binning and the reduction are one implementation: `src/cg_core.cpp` and `src/cg_calendar.cpp`,
 compiled into the R package by R itself and into the Python extension by CMake. What each language
 holds above it is the boundary, which resolves the columns, resolves the zone and wraps the result.
 The two agree by construction rather than by two implementations being checked against each other
@@ -394,7 +394,7 @@ call site.
 |---|---|
 | the penalised learner | `elasticnet_learner()` |
 | the forward selector | `stepwise_learner()` |
-| a set of representations | `timegrain_set()`, which reads as a mapping of window name to representation |
+| a set of representations | `climgrain_set()`, which reads as a mapping of window name to representation |
 | folds of the inner cross-validation | `n_inner` |
 | the digest | `digest_array()`, exported |
 | the three registries | `register_learner()` and `learners()`, `register_metric()` and `metrics()`, `register_response()` and `responses()` |

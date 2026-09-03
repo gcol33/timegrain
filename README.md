@@ -1,12 +1,12 @@
-# timegrain
+# climgrain
 
-[![R-CMD-check](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml)
-[![pytest](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml)
-[![contract](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml)
+[![R-CMD-check](https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml)
+[![pytest](https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml)
+[![contract](https://github.com/gcol33/climgrain/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/contract.yaml)
 
 A logger records every hour for years. Before any model sees it, that record gets reduced: to
 monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited.
-`timegrain` makes the reduction an argument. Build the representation at any grain, fit at each
+`climgrain` makes the reduction an argument. Build the representation at any grain, fit at each
 grain, and read off where predictive skill saturates.
 
 On 894 alpine plots and three years of hourly soil temperature, the full hourly record was the
@@ -26,7 +26,7 @@ paired_contrast(lad, "week|cnn", "week|elasticnet")
 
 A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift
 away from both, so a "monthly" mean built from 730-hour blocks slides through the seasons over
-three years. `timegrain` bins on the calendar and asserts every unit holds readings in every bin.
+three years. `climgrain` bins on the calendar and asserts every unit holds readings in every bin.
 
 ```r
 attr(window_matrix(d, plot, t, temp, window = "month"), "bin_n")[1, 1:3]
@@ -96,7 +96,7 @@ part of that grid.
 ## Installation
 
 ```r
-pak::pak("gcol33/timegrain")
+pak::pak("gcol33/climgrain")
 ```
 
 ## License

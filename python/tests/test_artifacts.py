@@ -13,10 +13,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from timegrain import (Ladder, Response, fold_map, paired_contrast, read_cells, read_folds,
+from climgrain import (Ladder, Response, fold_map, paired_contrast, read_cells, read_folds,
                        read_response, scorable_cells, tss_inflation, write_cells, write_folds,
                        write_response)
-from timegrain.metrics import decision_threshold, kappa_score, roc_auc, tss
+from climgrain.metrics import decision_threshold, kappa_score, roc_auc, tss
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 

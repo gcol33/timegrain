@@ -1,10 +1,10 @@
-# timegrain
+# climgrain
 
-Temporal-grain selection for ecological prediction from sensor time series. Flagship application:
-species modelling from microclimate loggers.
+Temporal climate resolution for ecological prediction. Flagship application: species
+modelling from microclimate loggers.
 
 A logger records every hour for years. Before any model is fitted, that record is reduced: to
-monthly means, to growing-degree-days, to whatever the analyst decides. `timegrain` makes that
+monthly means, to growing-degree-days, to whatever the analyst decides. `climgrain` makes that
 reduction an explicit, testable choice rather than a preprocessing step nobody revisits. It builds
 the representation at any temporal grain, fits models at each grain, and shows where predictive
 skill saturates.
@@ -29,13 +29,23 @@ The package is what lets someone else run that test on their own loggers.
 
 ## Positioning
 
-Ecology and species modelling give the package its identity and audience; they are not a boundary
-in its name. `sdmgrain` was rejected: it claims spatial distribution modelling the method does not
-do, and in SDM writing "grain" reads as raster resolution, which is the opposite of the novelty.
-`thermogram` was rejected: it narrows on the input, where the code has no specialisation at all.
+The chain the package sits in is: logger record, climate representation, temporal grain,
+ecological prediction. Loggers are the input and species models are one application; the question
+the package hands the user is at what temporal grain climate should be represented for a given
+ecological prediction problem, and the name says that.
 
-The real specialisation is presence-absence with rare species, and it lives above the
-representation layer, not in the name.
+`timegrain` was the name through 0.2.0. It names the axis being varied rather than the thing whose
+grain is varied, so it stays true if the package later carries degree days, extreme-event windows,
+lagged climate, diurnal range or humidity, but it reads as finance or time-series storage outside
+ecology and an unrelated Obsidian plugin already ranks above the package under that name.
+`sdmgrain` was rejected: it claims spatial distribution modelling the method does not do, in SDM
+writing "grain" reads as raster resolution, which is the opposite of the novelty, and the same
+ladder runs under occupancy models, GLMMs, GAMs, boosted trees and abundance or phenology
+responses. `thermogram` was rejected: it narrows on the input, where the code has no specialisation
+at all.
+
+Ecology and species modelling give the package its audience. The real specialisation is
+presence-absence with rare species, and it lives above the representation layer, not in the name.
 
 ## Layout
 
@@ -50,10 +60,10 @@ tidiness: a Python source distribution cannot reach above its own project direct
 copy still matched. The project directory is the repository, and there is one copy of the sources.
 
 ```
-timegrain/
+climgrain/
   src/                the shared core, compiled into both languages
-    tg_core.h tg_calendar.cpp tg_core.cpp
-    tg_r.cpp          the cpp11 wrapper; cpp11.cpp is generated
+    cg_core.h cg_calendar.cpp cg_core.cpp
+    cg_r.cpp          the cpp11 wrapper; cpp11.cpp is generated
   R/                  R package source
   tests/testthat/     including helper-oracle.R, the pure-R implementation
   man/ vignettes/
@@ -65,8 +75,8 @@ timegrain/
       fixtures/       small input + expected digests, read by both test suites
     reproduce/        the driver that runs the published grid from the Zenodo deposit
   python/             the Python twin
-    tg_py.cpp         the nanobind wrapper
-    timegrain/
+    cg_py.cpp         the nanobind wrapper
+    climgrain/
     tests/            including oracle.py, the pure-NumPy implementation
 ```
 
@@ -153,13 +163,13 @@ solstices rather than on the first of a month, bin like any named window.
 
 TSS read at the threshold that maximises it is inflated where presences are thin: the Schrankogel
 simulation puts the inflation at +0.110 when the true skill is 0.60, generated in cells holding one
-or two presences. Most SDM code carries that silently. `timegrain` reports the score and the
+or two presences. Most SDM code carries that silently. `climgrain` reports the score and the
 expected inflation for the user's own presence counts. That is a reason to switch that has nothing
 to do with neural networks.
 
 ## Status
 
-Version 0.2.0, 2026-09-03. Not on CRAN or PyPI yet.
+Version 0.3.0, 2026-09-04. Not on CRAN or PyPI yet.
 
 The build order is done on both sides: the representation and the fixtures, the fold map and the
 scorable-cell mask, the ladder and its plot, the learner registry, the torch learners, and above

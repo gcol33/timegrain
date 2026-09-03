@@ -13,7 +13,7 @@ in a leading character or factor column.}
 \item{label}{The name the arm is reported under.}
 }
 \value{
-A \code{timegrain_matrix} of shape \verb{[unit, feature, 1]}.
+A \code{climgrain_matrix} of shape \verb{[unit, feature, 1]}.
 }
 \description{
 A representation the package did not build, such as a published set of hand-aggregated climate

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(timegrain LANGUAGES CXX)
+project(climgrain LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,9 +12,9 @@ find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(nanobind CONFIG REQUIRED)
 
 nanobind_add_module(_core NB_STATIC
-  src/tg_core.cpp
-  src/tg_calendar.cpp
-  python/tg_py.cpp)
+  src/cg_core.cpp
+  src/cg_calendar.cpp
+  python/cg_py.cpp)
 
 target_include_directories(_core PRIVATE src)
-install(TARGETS _core LIBRARY DESTINATION timegrain)
+install(TARGETS _core LIBRARY DESTINATION climgrain)

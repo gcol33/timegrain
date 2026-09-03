@@ -13,7 +13,7 @@
 #' @inheritParams fold_map
 #' @param folds A fold map from [fold_map()], or any named integer vector of the same shape.
 #'
-#' @return A data frame of one row per `(variable, fold)` cell, of class `timegrain_cells`, with
+#' @return A data frame of one row per `(variable, fold)` cell, of class `climgrain_cells`, with
 #'   the counts on each side of the split and a `scorable` flag.
 #'
 #' @examples
@@ -58,13 +58,13 @@ scorable_cells <- function(y, folds) {
             "scorable")
   out <- out[order(out$variable, out$fold, method = "radix"), keep]
   rownames(out) <- NULL
-  structure(out, class = c("timegrain_cells", "data.frame"))
+  structure(out, class = c("climgrain_cells", "data.frame"))
 }
 
 #' @export
-print.timegrain_cells <- function(x, ...) {
+print.climgrain_cells <- function(x, ...) {
   keep <- tapply(x$scorable, x$variable, any)
-  cat("<timegrain cells>", .plural(nrow(x), "cell"), "over",
+  cat("<climgrain cells>", .plural(nrow(x), "cell"), "over",
       .plural(length(keep), "variable"), "\n")
   cat(sprintf("scorable: %d (%.1f%%); variables with at least one scorable fold: %d of %d\n",
               sum(x$scorable), 100 * mean(x$scorable), sum(keep), length(keep)))

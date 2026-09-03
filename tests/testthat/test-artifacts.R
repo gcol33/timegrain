@@ -158,7 +158,7 @@ test_that("the paired contrast matches the value the fixtures pin", {
                stringsAsFactors = FALSE)
   }
   ladder <- structure(rbind(arm("a", "a"), arm("b", "b")),
-                      class = c("timegrain_ladder", "data.frame"))
+                      class = c("climgrain_ladder", "data.frame"))
   got <- paired_contrast(ladder, "week|a", "week|b")
 
   for (i in seq_len(nrow(expected))) {

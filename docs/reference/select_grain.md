@@ -1,6 +1,6 @@
 # Choose the grain inside the training data, and score the whole procedure
 
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 fits every candidate against one fold map and reports the grid, so
 reading the best window off it and quoting that window's score quotes a
 number the held-out units helped choose. This does the choosing inside
@@ -27,7 +27,7 @@ select_grain(
   verbose = TRUE
 )
 
-# S3 method for class 'timegrain_selection'
+# S3 method for class 'climgrain_selection'
 summary(object, ...)
 ```
 
@@ -36,9 +36,9 @@ summary(object, ...)
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
   result, a
-  [`timegrain_set()`](https://gillescolling.com/timegrain/reference/timegrain_set.md),
+  [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md),
   or a named list of representations. Its names are the grains being
   chosen between.
 
@@ -49,15 +49,15 @@ summary(object, ...)
 - learners:
 
   A learner, a list of them, or names of registered ones, as
-  [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   takes. Named alongside the windows they form the candidate set.
 
 - folds:
 
   The outer fold map, from
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md)
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
   or any named integer vector. Built with the defaults of
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md)
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
   when not given.
 
 - inner:
@@ -78,7 +78,7 @@ summary(object, ...)
 - compare:
 
   A
-  [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   result on the same units, response and outer fold map, whose arms the
   selected procedure is contrasted against cell by cell. `NULL` for no
   contrast.
@@ -103,15 +103,15 @@ summary(object, ...)
 
 ## Value
 
-A `timegrain_selection`: a list carrying `selected`, one row per outer
+A `climgrain_selection`: a list carrying `selected`, one row per outer
 fold with the candidate it chose and the inner score it chose on;
 `estimate`, the nested score under every registered metric with its
 standard error across variables; `contrast`, one
-[`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
 row against each arm of `compare`, or `NULL`; `candidates`, the set that
 was searched; and `scores`, the per-cell rows of the selected procedure
 under the selection metric, in the layout
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 returns. The held-out prediction of every unit is in the `predictions`
 attribute and the scorable-cell mask in `cells`.
 
@@ -121,7 +121,7 @@ A candidate is a `(window, learner)` pair: the windows are the elements
 of the representation set, which is where a grain and the statistic its
 windows are summarised by are both named, and the learners are the ones
 passed. Both are registry entries or objects built by
-[`learner()`](https://gillescolling.com/timegrain/reference/learner.md),
+[`learner()`](https://gillescolling.com/climgrain/reference/learner.md),
 so a new grain, a new window summary or a new candidate model widens the
 search with no change here.
 
@@ -139,9 +139,9 @@ is where an overnight run goes.
 
 ## See also
 
-[`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
 for the grid this selects from, and
-[`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
 for the comparison the `contrast` element holds.
 
 ## Examples

@@ -64,7 +64,7 @@ paired_contrast <- function(ladder, a, b) {
 }
 
 .arm_rows <- function(ladder, arm) {
-  if (!inherits(ladder, "timegrain_ladder")) {
+  if (!inherits(ladder, "climgrain_ladder")) {
     stop("expected a window_ladder() result, got ", class(ladder)[1L], ".", call. = FALSE)
   }
   parts <- strsplit(arm, "|", fixed = TRUE)[[1L]]

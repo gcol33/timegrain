@@ -27,7 +27,7 @@ window_matrix(
 \item{window}{One of \code{"hour"}, \code{"halfday"}, \code{"day"}, \code{"week"}, \code{"month"}, \code{"season"},
 \code{"year"}. The four coarse windows follow the calendar, so a bin is a real week or month
 rather than a fixed block of hours. Naming several windows returns one representation per
-window, a \code{\link[=timegrain_set]{timegrain_set()}}. A function is called on the reading instants and must return
+window, a \code{\link[=climgrain_set]{climgrain_set()}}. A function is called on the reading instants and must return
 the \code{POSIXct} start of each reading's bin, which is how a calendar the package does not
 carry, such as astronomical seasons, is binned.}
 
@@ -52,7 +52,7 @@ identifiers, the ISO-8601 start of each bin, and the statistic names. Attributes
 \item \code{bin_partial}: a logical vector marking the bins the record does not cover for their
 whole calendar span.
 }
-Naming more than one window returns a \code{\link[=timegrain_set]{timegrain_set()}} of those arrays.
+Naming more than one window returns a \code{\link[=climgrain_set]{climgrain_set()}} of those arrays.
 }
 \description{
 Bins each unit's readings by the calendar and summarises every bin by one or more statistics,

@@ -113,7 +113,7 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
   agg <- agg[order(agg$part, agg$variable, method = "radix"), ]
   agg$part <- as.character(agg$part)
   rownames(agg) <- NULL
-  structure(agg, class = c("timegrain_occlusion", "data.frame"), arm = label, over = over,
+  structure(agg, class = c("climgrain_occlusion", "data.frame"), arm = label, over = over,
             substitute = substitute, metric = metric)
 }
 
@@ -159,8 +159,8 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
 }
 
 #' @export
-print.timegrain_occlusion <- function(x, ...) {
-  cat("<timegrain occlusion>", attr(x, "arm"), "read by", attr(x, "metric"), "\n")
+print.climgrain_occlusion <- function(x, ...) {
+  cat("<climgrain occlusion>", attr(x, "arm"), "read by", attr(x, "metric"), "\n")
   cat("held back:", attr(x, "over"), "; substitute:", attr(x, "substitute"), "\n")
   w <- stats::aggregate(list(weight = x$weight), x["part"], mean)
   w <- w[order(-w$weight), ]

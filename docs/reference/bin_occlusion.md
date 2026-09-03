@@ -27,7 +27,7 @@ bin_occlusion(
 - ladder:
 
   A
-  [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   result fitted with `keep_fits = TRUE`.
 
 - x:

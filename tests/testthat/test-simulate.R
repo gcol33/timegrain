@@ -38,7 +38,7 @@ test_that("the readings are a gapless grid every window can be built on", {
   expect_equal(nrow(sim$readings), 12L * 365L * 8L)
   for (w in c("halfday", "day", "week", "month", "season", "year")) {
     expect_s3_class(window_matrix(sim$readings, unit, time, reading, window = w),
-                    "timegrain_matrix")
+                    "climgrain_matrix")
   }
 })
 

@@ -17,7 +17,7 @@ window_contrasts(ladder, learner = NULL, reference = NULL, adjust = "mvt")
 - ladder:
 
   A
-  [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   result.
 
 - learner:
@@ -50,7 +50,7 @@ by ten times as much.
 
 Taking the best-observed window as the reference is a choice that
 favours the reference, so read this beside the paired differences
-[`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
 gives, which single out no window.
 
 ## Examples

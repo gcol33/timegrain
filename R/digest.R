@@ -1,7 +1,7 @@
 #' The cross-language digest of a representation
 #'
 #' The MD5 the contract in `inst/spec/representation.md` defines, and what the fixtures in
-#' `inst/spec/fixtures/` are checked against. `timegrain.digest_array()` on the Python side is the
+#' `inst/spec/fixtures/` are checked against. `climgrain.digest_array()` on the Python side is the
 #' same function: the same array gives the same string in either language, which is what makes a
 #' digest a statement about the representation rather than about the machine.
 #'

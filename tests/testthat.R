@@ -1,4 +1,4 @@
 library(testthat)
-library(timegrain)
+library(climgrain)
 
-test_check("timegrain")
+test_check("climgrain")

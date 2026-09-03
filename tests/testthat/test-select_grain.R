@@ -30,7 +30,7 @@ test_that("a selection reports one winner per outer fold from the candidate set 
   f <- selection_fixture()
   sel <- suppressWarnings(select_grain(f$x, f$y, selection_learner(), folds = f$folds, inner = 3L,
                                        verbose = FALSE))
-  expect_s3_class(sel, "timegrain_selection")
+  expect_s3_class(sel, "climgrain_selection")
   expect_equal(nrow(sel$selected), 4L)
   expect_setequal(sel$selected$fold, sort(unique(unclass(f$folds))))
   expect_equal(nrow(sel$candidates), 3L)
@@ -91,7 +91,7 @@ test_that("the summary counts how often each candidate won and print stays terse
   expect_named(s, c("window", "learner", "n_selected", "share", "inner_score"))
   expect_equal(sum(s$n_selected), nrow(sel$selected))
   expect_equal(sum(s$share), 1)
-  expect_output(print(sel), "timegrain selection")
+  expect_output(print(sel), "climgrain selection")
 })
 
 test_that("the plot draws the inner scores and returns them", {
@@ -144,7 +144,7 @@ test_that("adding a window to the set widens the search with no other change", {
   sim <- sim_series(n_unit = 48L, days = 90L, seed = 33L)
   y <- sim_response(sim, n_var = 3L, seed = 34L)
   narrow <- window_matrix(sim$readings, plot, t, temp, window = c("week", "month"))
-  wide <- timegrain_set(c(as.list(narrow),
+  wide <- climgrain_set(c(as.list(narrow),
                           list(week_extreme = window_matrix(sim$readings, plot, t, temp,
                                                             window = "week",
                                                             stats = c("cold_day", "mean",

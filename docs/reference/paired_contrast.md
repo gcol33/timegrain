@@ -18,7 +18,7 @@ paired_contrast(ladder, a, b)
 - ladder:
 
   A
-  [`window_ladder()`](https://gillescolling.com/timegrain/reference/window_ladder.md)
+  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
   result.
 
 - a, b:

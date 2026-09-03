@@ -27,7 +27,7 @@
 #' plot(lad)
 #'
 #' @export
-plot.timegrain_ladder <- function(x, col = NULL, interval = TRUE, ...) {
+plot.climgrain_ladder <- function(x, col = NULL, interval = TRUE, ...) {
   per_variable <- .per_variable(x)
   windows <- unique(x$window)
   arms <- unique(x$learner)

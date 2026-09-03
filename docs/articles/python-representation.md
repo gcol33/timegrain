@@ -24,7 +24,7 @@ Bin readings by the calendar and summarise every bin.
 
 `data` is a mapping of column name to sequence, or any object with
 `__getitem__` over the three column names given by `id`, `time` and
-`value`. Naming two or more windows returns a `TimegrainSet`; naming
+`value`. Naming two or more windows returns a `ClimgrainSet`; naming
 one, whether as a string or as a sequence of one, returns the
 representation itself. `window` may also be a callable, which is handed
 the reading instants and must return the start of each reading’s bin.
@@ -46,10 +46,10 @@ silent. A caller-supplied binning declares its own bins, so the package
 cannot know where the last one was meant to end and takes the record’s
 end as its end.
 
-## `timegrain_set()`
+## `climgrain_set()`
 
 ``` python
-timegrain_set(x)
+climgrain_set(x)
 ```
 
 Every entry point that fits across windows takes a representation, a
@@ -141,7 +141,7 @@ take_units(self, index)
 The representation restricted to a subset of its units, in the order
 given.
 
-## `TimegrainSet`
+## `ClimgrainSet`
 
 A ladder of representations, one per window.
 

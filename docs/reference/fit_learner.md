@@ -7,7 +7,7 @@ Fit one learner at one grain
 ``` r
 fit_learner(learner, x, y, response = "presence_absence", ...)
 
-# S3 method for class 'timegrain_fit'
+# S3 method for class 'climgrain_fit'
 predict(object, newdata, ...)
 ```
 
@@ -16,13 +16,13 @@ predict(object, newdata, ...)
 - learner:
 
   A
-  [`learner()`](https://gillescolling.com/timegrain/reference/learner.md),
+  [`learner()`](https://gillescolling.com/climgrain/reference/learner.md),
   or the name of a registered one.
 
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
   result.
 
 - y:
@@ -39,7 +39,7 @@ predict(object, newdata, ...)
 
 - object:
 
-  A `timegrain_fit`.
+  A `climgrain_fit`.
 
 - newdata:
 
@@ -47,7 +47,7 @@ predict(object, newdata, ...)
 
 ## Value
 
-A `timegrain_fit`, which
+A `climgrain_fit`, which
 [`stats::predict()`](https://rdrr.io/r/stats/predict.html) takes a new
 representation.
 

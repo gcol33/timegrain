@@ -68,7 +68,7 @@ held-out deployment sample be drawn from the same population as a training sampl
 \item{draw}{Seed of the unit draw. Also names the units, so two draws never collide.}
 }
 \value{
-A \code{timegrain_simulation}: a list with \code{readings}, the long table \code{\link[=window_matrix]{window_matrix()}} takes;
+A \code{climgrain_simulation}: a list with \code{readings}, the long table \code{\link[=window_matrix]{window_matrix()}} takes;
 \code{y}, the \verb{[unit, variable]} 0/1 response; \code{driver}, the standardised driver \code{z} behind it;
 \code{grain}, the true grain or \code{NA}; \code{weights}, the \verb{[reading, variable]} weights defining the
 driver; \code{link}, the solved \code{b0} and \code{b1}; and \code{design}, the settings the draw is reproducible

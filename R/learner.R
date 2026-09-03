@@ -14,7 +14,7 @@
 #'   than falling back to something else.
 #' @param params Settings carried with the learner and passed to `fit`.
 #'
-#' @return A `timegrain_learner`.
+#' @return A `climgrain_learner`.
 #'
 #' @examples
 #' # The bin means of a unit, fed to one logistic regression per variable.
@@ -38,12 +38,12 @@ learner <- function(name, fit, predict, needs = character(), params = list()) {
     stop("a learner needs a `fit` and a `predict` function.", call. = FALSE)
   }
   structure(list(name = name, fit = fit, predict = predict, needs = needs, params = params),
-            class = "timegrain_learner")
+            class = "climgrain_learner")
 }
 
 #' @export
-print.timegrain_learner <- function(x, ...) {
-  cat("<timegrain learner>", x$name, "\n")
+print.climgrain_learner <- function(x, ...) {
+  cat("<climgrain learner>", x$name, "\n")
   if (length(x$params)) {
     cat("settings:", paste(names(x$params), vapply(x$params, .describe, character(1L)),
                            sep = " = ", collapse = ", "), "\n")
@@ -92,7 +92,7 @@ learners <- function() .learners_reg$names()
 #' @param response Name of the registered response head. `"presence_absence"` ships.
 #' @param ... Passed to the learner's `fit`.
 #'
-#' @return A `timegrain_fit`, which [stats::predict()] takes a new representation.
+#' @return A `climgrain_fit`, which [stats::predict()] takes a new representation.
 #'
 #' @examples
 #' set.seed(1)
@@ -120,14 +120,14 @@ fit_learner <- function(learner, x, y, response = "presence_absence", ...) {
   structure(list(learner = learner, model = model, response = response,
                  variables = colnames(y), window = attr(x, "window"),
                  stats = attr(x, "stats")),
-            class = "timegrain_fit")
+            class = "climgrain_fit")
 }
 
-#' @param object A `timegrain_fit`.
+#' @param object A `climgrain_fit`.
 #' @param newdata A representation of the same channels for the units to predict.
 #' @rdname fit_learner
 #' @export
-predict.timegrain_fit <- function(object, newdata, ...) {
+predict.climgrain_fit <- function(object, newdata, ...) {
   p <- object$learner$predict(object$model, newdata)
   p <- as.matrix(p)
   if (nrow(p) != dim(newdata)[1L]) {
@@ -139,15 +139,15 @@ predict.timegrain_fit <- function(object, newdata, ...) {
 }
 
 #' @export
-print.timegrain_fit <- function(x, ...) {
-  cat("<timegrain fit>", x$learner$name, "at the", x$window, "window\n")
+print.climgrain_fit <- function(x, ...) {
+  cat("<climgrain fit>", x$learner$name, "at the", x$window, "window\n")
   cat("channels:", paste(x$stats, collapse = ", "), "\n")
   cat("response:", x$response, "on", .plural(length(x$variables), "variable"), "\n")
   invisible(x)
 }
 
 .as_learner <- function(learner) {
-  if (inherits(learner, "timegrain_learner")) {
+  if (inherits(learner, "climgrain_learner")) {
     return(learner)
   }
   if (is.character(learner) && length(learner) == 1L) {

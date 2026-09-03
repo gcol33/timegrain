@@ -21,7 +21,7 @@ than falling back to something else.}
 \item{params}{Settings carried with the learner and passed to \code{fit}.}
 }
 \value{
-A \code{timegrain_learner}.
+A \code{climgrain_learner}.
 }
 \description{
 A learner is a pair of functions: one that fits a model to a representation and a response, and

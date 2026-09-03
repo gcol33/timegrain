@@ -1,0 +1,211 @@
+---
+title: "Choosing the grain a sensor record is read at"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Choosing the grain a sensor record is read at}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6.5, fig.height = 4.5,
+                      dev.args = list(pointsize = 14))
+set.seed(1)
+library(climgrain)
+```
+
+A logger records every hour for years. Before any model sees it, the record is reduced: to monthly
+means, to growing-degree-days, to whatever the analyst settled on once. `climgrain` makes that
+reduction an argument, fits at each setting of it, and shows where predictive skill saturates.
+
+This vignette runs the whole path on a small simulated record, from readings to a curve that says
+how much of the record the models needed.
+
+## A record to read
+
+Sixty plots, four months of hourly readings. Each plot has a level of its own, and that level is
+buried in hour-to-hour noise an order of magnitude larger.
+
+```{r data}
+hours <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 120)
+plots <- sprintf("p%03d", 1:60)
+warmth <- rnorm(60)
+
+readings <- data.frame(
+  plot = rep(plots, each = length(hours)),
+  t = rep(hours, times = 60),
+  temp = as.numeric(vapply(warmth, function(w) {
+    1.5 * w + 6 * sin(seq_along(hours) / (24 * 40)) + rnorm(length(hours), sd = 12)
+  }, numeric(length(hours))))
+)
+
+sign <- rep(c(1, -1), length.out = 6)
+y <- matrix(rbinom(60 * 6, 1, plogis(3 * as.numeric(outer(warmth, sign)))), ncol = 6,
+            dimnames = list(plots, paste0("sp", 1:6)))
+```
+
+## The representation
+
+`window_matrix()` bins the readings by the calendar and summarises every bin.
+
+```{r representation}
+x <- window_matrix(readings, plot, t, temp, window = "week",
+                   stats = c("cold_day", "mean", "warm_day"))
+x
+```
+
+The result is a `[plot, bin, channel]` array, and it carries the binning that produced it.
+
+```{r bins}
+attr(x, "bin_n")[1, 1:4]
+dimnames(x)[[3]]
+```
+
+Bins follow the calendar. A month is 28, 30 or 31 days, and a week starts on a Monday, so a bin is
+a real month or a real week and not a drifting block of 730 or 168 hours.
+
+```{r calendar}
+attr(window_matrix(readings, plot, t, temp, window = "month"), "bin_n")[1, ]
+```
+
+### An extreme day is not an extreme reading
+
+`min` and `max` take the coldest and warmest single reading of a bin. `cold_day` and `warm_day`
+reduce each day to its own mean first and then take the extreme over days. `mean_daily_min` and
+`mean_daily_max` take the mean of the daily extremes, which is the exposure a typical day of the
+bin brought. One hour at -50 sets `min` to -50 outright; it reaches the day-level statistics only
+through its twenty-fourth of that day's mean.
+
+```{r statistics}
+week <- window_matrix(readings, plot, t, temp, window = "week",
+                      stats = c("min", "mean_daily_min", "cold_day", "mean",
+                                "warm_day", "mean_daily_max", "max"))
+round(week[1, 1, ], 2)
+```
+
+## The split, and the cells a score is defined on
+
+One fold map, built once, is read by everything that scores, so every model is fitted and scored on
+identical splits.
+
+```{r folds}
+folds <- fold_map(y, v = 5, seed = 1)
+folds
+```
+
+A per-species score needs both classes among the held-out plots, and a per-species model needs both
+classes among the plots it was fitted on. The mask says which cells those are, from the response
+and the fold map alone.
+
+```{r cells}
+scorable_cells(y, folds)
+```
+
+Because it involves no model, every arm below is restricted to the same cells: their means share
+one denominator and every paired difference runs on matched cells.
+
+## The ladder
+
+`window_matrix()` given several windows returns one representation per window, which is what
+`window_ladder()` fits across.
+
+```{r ladder}
+set <- window_matrix(readings, plot, t, temp, window = c("day", "week", "month"))
+lad <- window_ladder(set, y, elasticnet_learner(), folds = folds, verbose = FALSE)
+summary(lad)
+```
+
+```{r plot, fig.alt = "Mean true skill statistic against aggregation window, with an interval across species."}
+plot(lad)
+```
+
+Skill rises as the record is smoothed, and it is still rising at the coarsest window here: the
+signal was planted at a scale wider than a month and the daily reading is still buried in the
+hourly noise. The paired contrast is what a claim about that rests on. The difference is taken
+inside each cell both arms scored, averaged within a species, and summarised across the species,
+which are the independent replicates. Six species is few enough that the interval spans zero even
+where the means are ordered.
+
+```{r contrast}
+paired_contrast(lad, "month|elasticnet", "day|elasticnet")
+```
+
+Where the whole curve is the question rather than one pair of it, `window_contrasts()` fits a mixed
+model on the per-cell scores and compares every window against the best one, correcting for the
+comparisons made and no others.
+
+```{r window-contrasts, eval = requireNamespace("emmeans", quietly = TRUE) && requireNamespace("lmerTest", quietly = TRUE)}
+window_contrasts(lad)
+```
+
+## Reading a level honestly
+
+The true skill statistic is read at the threshold that maximises it, chosen on the same plots the
+score is then read on. That inflates the level, and by more the fewer presences a cell holds.
+`tss_inflation()` measures the inflation for the presence counts of the design in hand.
+
+```{r inflation}
+tss_inflation(y, folds, skill = c(0.6, 0.9), replicates = 100)
+```
+
+The inflation is common to every arm scored the same way, so it cancels in the paired differences
+above. It does not cancel in a level, so a level is an upper bound on the skill a population has.
+
+## Other learners
+
+The learners that ship are the two aggregate-feature arms, `elasticnet_learner()` and
+`stepwise_learner()`, and three sequence encoders that need `torch`: `mlp_learner()`,
+`cnn_learner()` and `rescnn_learner()`. All three encoders are joint multi-label models, so every
+species is predicted together from a shared embedding, which is what makes the rarer ones learnable
+at these sample sizes.
+
+An encoder that ends in global pooling discards when a thermal event happened, so the position of a
+bin in the year has to be given to it as input.
+
+```{r channels}
+week_mean <- window_matrix(readings, plot, t, temp, window = "week")
+dimnames(bind_channels(week_mean, calendar_channels(week_mean)))[[3]]
+```
+
+`ensemble_learner()` averages members' predicted probabilities before the threshold is chosen, so
+the set is scored as one model rather than as a vote between decisions. Members differing in
+architecture, in width, or in the grain they read are what it is for.
+
+```{r ensemble}
+both <- ensemble_learner(list(ridge = elasticnet_learner(alpha = 0), lasso = elasticnet_learner(alpha = 1)))
+summary(window_ladder(set["week"], y, both, folds = folds, verbose = FALSE))
+```
+
+A learner of your own is a fit and a predict pair, and nothing else. It goes through the same
+folds, the same cells and the same scoring as the ones that ship.
+
+```{r custom}
+flat <- function(x) matrix(as.numeric(x), nrow = dim(x)[1])
+
+nearest_neighbour <- learner(
+  "1nn",
+  fit = function(x, y, ...) list(x = flat(x), y = y),
+  predict = function(model, x) {
+    d <- as.matrix(dist(rbind(flat(x), model$x)))[seq_len(dim(x)[1]), -seq_len(dim(x)[1])]
+    model$y[apply(d, 1, which.min), , drop = FALSE]
+  }
+)
+
+summary(window_ladder(set, y, list(elasticnet = elasticnet_learner(), nn = nearest_neighbour),
+                      folds = folds, verbose = FALSE))
+```
+
+## What was read
+
+With the fits kept, `bin_occlusion()` holds each bin of the record back in turn, rescores the
+held-out plots, and records the fall in score as that bin's weight. Nothing is refitted.
+
+```{r occlusion}
+kept <- window_ladder(set["month"], y, elasticnet_learner(), folds = folds,
+                      keep_fits = TRUE, verbose = FALSE)
+weight <- bin_occlusion(kept, set, y, "month|elasticnet", permutations = 5)
+head(aggregate(weight ~ part, weight, mean), 4)
+```
+
+Holding a channel back instead asks what each statistic of a window carries, which is the question
+behind keeping a bin's extremes at all.

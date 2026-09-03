@@ -1,6 +1,6 @@
 # Reproducing the Schrankogel grid
 
-The measurement `timegrain` exists to make was first run on 894 alpine
+The measurement `climgrain` exists to make was first run on 894 alpine
 plots on Schrankogel, in the central Austrian Alps: three hydrological
 years of hourly soil temperature, one logger per plot, predicting
 presence and absence of 101 vascular plant species. The record was read
@@ -69,7 +69,7 @@ sum(cells$scorable)
 1003 of 1010 cells, 99.3 percent, and all 101 species keep at least one
 scorable fold. Building a map here instead gives a different partition
 of the same design, since
-[`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md)
+[`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
 draws on R’s random stream and `rsample` drew on a different one:
 
 ``` r
@@ -151,7 +151,7 @@ input <- bind_channels(reported, calendar_channels(reported))
 
 The aggregated-feature arms read the deposit’s 188 variables. A feature
 table has no time axis, so it enters through
-[`feature_matrix()`](https://gillescolling.com/timegrain/reference/feature_matrix.md)
+[`feature_matrix()`](https://gillescolling.com/climgrain/reference/feature_matrix.md)
 and is then an arm of the same ladder, scored on the same cells by the
 same rule.
 
@@ -179,16 +179,16 @@ them at, which are the defaults here:
 encoders <- list(mlp = mlp_learner(), cnn = cnn_learner(), rescnn = rescnn_learner())
 ```
 
-[`cnn_learner()`](https://gillescolling.com/timegrain/reference/torch_learners.md)
+[`cnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
 is four blocks of a one-dimensional convolution of kernel width 7, batch
 normalisation, a rectified linear activation and max pooling by two, at
 16, 32, 64 and 128 channels, then global average pooling and dropout at
 0.3.
-[`rescnn_learner()`](https://gillescolling.com/timegrain/reference/torch_learners.md)
+[`rescnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
 is a convolutional stem and four stages of 32, 64, 128 and 256 channels
 holding two dilated residual blocks each, dilations 1, 2, 4 and 8, with
 squeeze-excitation gates, pooling average and maximum together.
-[`mlp_learner()`](https://gillescolling.com/timegrain/reference/torch_learners.md)
+[`mlp_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
 flattens the channels through two hidden layers of 512 and 256 units.
 All three train with AdamW at a learning rate of 1e-3 and weight decay
 of 1e-4, cosine annealing over 60 epochs, early stopping on an inner
@@ -218,7 +218,7 @@ fold map and the one mask.
 
 ``` r
 
-ladder_input <- timegrain_set(lapply(binning, function(w) {
+ladder_input <- climgrain_set(lapply(binning, function(w) {
   x <- window_matrix(readings, logger_ID, date, temp, window = w)
   bind_channels(x, calendar_channels(x))
 }))
@@ -251,7 +251,7 @@ The driver is installed with the package:
 
 ``` r
 
-system.file("reproduce", "schrankogel.R", package = "timegrain")
+system.file("reproduce", "schrankogel.R", package = "climgrain")
 ```
 
     Rscript schrankogel.R <deposit_dir> <out_dir> \

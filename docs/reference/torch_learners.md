@@ -145,7 +145,7 @@ rescnn_learner(
 ## Value
 
 A
-[`learner()`](https://gillescolling.com/timegrain/reference/learner.md).
+[`learner()`](https://gillescolling.com/climgrain/reference/learner.md).
 
 ## Details
 

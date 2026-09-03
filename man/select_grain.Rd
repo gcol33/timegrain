@@ -2,7 +2,7 @@
 % Please edit documentation in R/select_grain.R
 \name{select_grain}
 \alias{select_grain}
-\alias{summary.timegrain_selection}
+\alias{summary.climgrain_selection}
 \title{Choose the grain inside the training data, and score the whole procedure}
 \usage{
 select_grain(
@@ -18,10 +18,10 @@ select_grain(
   verbose = TRUE
 )
 
-\method{summary}{timegrain_selection}(object, ...)
+\method{summary}{climgrain_selection}(object, ...)
 }
 \arguments{
-\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result, a \code{\link[=timegrain_set]{timegrain_set()}}, or a named list of representations.
+\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result, a \code{\link[=climgrain_set]{climgrain_set()}}, or a named list of representations.
 Its names are the grains being chosen between.}
 
 \item{y}{The response for the same units.}
@@ -53,7 +53,7 @@ so no two outer folds inherit the same inner partition.}
 \item{...}{Ignored.}
 }
 \value{
-A \code{timegrain_selection}: a list carrying \code{selected}, one row per outer fold with the
+A \code{climgrain_selection}: a list carrying \code{selected}, one row per outer fold with the
 candidate it chose and the inner score it chose on; \code{estimate}, the nested score under every
 registered metric with its standard error across variables; \code{contrast}, one
 \code{\link[=paired_contrast]{paired_contrast()}} row against each arm of \code{compare}, or \code{NULL}; \code{candidates}, the set that

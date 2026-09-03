@@ -5,15 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Temporal Grain Selection for Ecological Prediction from Sensor Time Series • timegrain</title>
+<title>Temporal Climate Resolution for Ecological Prediction • climgrain</title>
 <script src="lightswitch.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><link href="extra.css" rel="stylesheet">
-<meta property="og:title" content="Temporal Grain Selection for Ecological Prediction from Sensor Time Series">
-<meta name="description" content="Builds model-ready representations of sensor time series at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
-<meta property="og:description" content="Builds model-ready representations of sensor time series at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
+<meta property="og:title" content="Temporal Climate Resolution for Ecological Prediction">
+<meta name="description" content="Builds model-ready representations of climate records at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
+<meta property="og:description" content="Builds model-ready representations of climate records at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
 <script>
 (function () {
   var D = String.fromCharCode(36);
@@ -35,9 +35,9 @@
 
     <nav class="navbar navbar-expand-lg fixed-top " aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="index.html">timegrain</a>
+    <a class="navbar-brand me-2" href="index.html">climgrain</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -46,7 +46,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="articles/timegrain.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/climgrain.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-python" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Python</button>
@@ -77,7 +77,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/timegrain/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/climgrain/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -94,10 +94,10 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="timegrain">timegrain<a class="anchor" aria-label="anchor" href="#timegrain"></a>
+<div class="page-header"><h1 id="climgrain">climgrain<a class="anchor" aria-label="anchor" href="#climgrain"></a>
 </h1></div>
-<p><a href="https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml" class="external-link"><img src="https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml/badge.svg" alt="pytest"></a> <a href="https://github.com/gcol33/timegrain/actions/workflows/contract.yaml" class="external-link"><img src="https://github.com/gcol33/timegrain/actions/workflows/contract.yaml/badge.svg" alt="contract"></a></p>
-<p>A logger records every hour for years. Before any model sees it, that record gets reduced: to monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited. <code>timegrain</code> makes the reduction an argument. Build the representation at any grain, fit at each grain, and read off where predictive skill saturates.</p>
+<p><a href="https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml/badge.svg" alt="pytest"></a> <a href="https://github.com/gcol33/climgrain/actions/workflows/contract.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/contract.yaml/badge.svg" alt="contract"></a></p>
+<p>A logger records every hour for years. Before any model sees it, that record gets reduced: to monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited. <code>climgrain</code> makes the reduction an argument. Build the representation at any grain, fit at each grain, and read off where predictive skill saturates.</p>
 <p>On 894 alpine plots and three years of hourly soil temperature, the full hourly record was the best input for none of three architectures, skill peaked at the weekly average, and a week’s coldest and warmest <strong>day</strong> carried more than its mean, by more the coarser the window.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">x</span>   <span class="op">&lt;-</span> <span class="fu"><a href="reference/window_matrix.html">window_matrix</a></span><span class="op">(</span><span class="va">readings</span>, <span class="va">plot</span>, <span class="va">datetime</span>, <span class="va">temperature</span>,</span>
@@ -109,7 +109,7 @@
 <div class="section level2">
 <h2 id="calendar-bins-not-blocks-of-hours">Calendar bins, not blocks of hours<a class="anchor" aria-label="anchor" href="#calendar-bins-not-blocks-of-hours"></a>
 </h2>
-<p>A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift away from both, so a “monthly” mean built from 730-hour blocks slides through the seasons over three years. <code>timegrain</code> bins on the calendar and asserts every unit holds readings in every bin.</p>
+<p>A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift away from both, so a “monthly” mean built from 730-hour blocks slides through the seasons over three years. <code>climgrain</code> bins on the calendar and asserts every unit holds readings in every bin.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="reference/window_matrix.html">window_matrix</a></span><span class="op">(</span><span class="va">d</span>, <span class="va">plot</span>, <span class="va">t</span>, <span class="va">temp</span>, window <span class="op">=</span> <span class="st">"month"</span><span class="op">)</span>, <span class="st">"bin_n"</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span></span>
 <span><span class="co">#&gt; 2021-09-01T00:00:00Z 2021-10-01T00:00:00Z 2021-11-01T00:00:00Z</span></span>
@@ -161,7 +161,7 @@
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"gcol33/timegrain"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"gcol33/climgrain"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
@@ -172,8 +172,8 @@
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/gcol33/timegrain/" class="external-link">Browse source code</a></li>
-<li><a href="https://github.com/gcol33/timegrain/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://github.com/gcol33/climgrain/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/gcol33/climgrain/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
 
@@ -190,7 +190,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing timegrain</a></li>
+<li><a href="authors.html#citation">Citing climgrain</a></li>
 </ul>
 </div>
 

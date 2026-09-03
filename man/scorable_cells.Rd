@@ -13,7 +13,7 @@ the row names or in a leading character or factor column.}
 \item{folds}{A fold map from \code{\link[=fold_map]{fold_map()}}, or any named integer vector of the same shape.}
 }
 \value{
-A data frame of one row per \verb{(variable, fold)} cell, of class \code{timegrain_cells}, with
+A data frame of one row per \verb{(variable, fold)} cell, of class \code{climgrain_cells}, with
 the counts on each side of the split and a \code{scorable} flag.
 }
 \description{

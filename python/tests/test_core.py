@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from oracle import oracle_window_matrix
-from timegrain import _core
-from timegrain.representation import window_matrix
+from climgrain import _core
+from climgrain.representation import window_matrix
 
 SCHEMES = [["min", "mean", "max"],
            ["mean_daily_min", "mean", "mean_daily_max"],

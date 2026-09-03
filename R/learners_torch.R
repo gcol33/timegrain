@@ -202,7 +202,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   net$eval()
   structure(list(net = net, scaler = scaler, device = device, channels = dimnames(x)[[3L]],
                  bins = dim(x)[2L], batch_size = cfg$batch_size),
-            class = "timegrain_torch")
+            class = "climgrain_torch")
 }
 
 .torch_predict <- function(model, x) {
@@ -310,7 +310,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
 .pool_module <- function() {
   torch <- .torch()
   torch$nn_module(
-    "timegrain_lensafe_pool",
+    "climgrain_lensafe_pool",
     initialize = function(kernel = 2L) {
       self$kernel <- kernel
       self$pool <- torch$nn_max_pool1d(kernel)
@@ -328,7 +328,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
 .mlp_module <- function(in_ch, in_len, n_out, arch) {
   torch <- .torch()
   torch$nn_module(
-    "timegrain_mlp",
+    "climgrain_mlp",
     initialize = function() {
       layers <- list(torch$nn_flatten())
       prev <- in_ch * in_len
@@ -350,7 +350,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   torch <- .torch()
   pool <- .pool_module()
   torch$nn_module(
-    "timegrain_cnn",
+    "climgrain_cnn",
     initialize = function() {
       layers <- list()
       prev <- in_ch
@@ -373,7 +373,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   pool <- .pool_module()
 
   se <- torch$nn_module(
-    "timegrain_se",
+    "climgrain_se",
     initialize = function(c, r = 8L) {
       h <- max(c %/% r, 4L)
       self$fc <- torch$nn_sequential(torch$nn_linear(c, h), torch$nn_gelu(),
@@ -383,7 +383,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   )
 
   block <- torch$nn_module(
-    "timegrain_resblock",
+    "climgrain_resblock",
     initialize = function(c, kernel, dilation, dropout) {
       pad <- (kernel %/% 2L) * dilation
       self$conv <- torch$nn_sequential(
@@ -397,7 +397,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   )
 
   torch$nn_module(
-    "timegrain_rescnn",
+    "climgrain_rescnn",
     initialize = function() {
       self$stem <- torch$nn_sequential(
         torch$nn_conv1d(in_ch, arch$channels[1L], arch$kernel, padding = arch$kernel %/% 2L),

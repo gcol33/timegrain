@@ -5,7 +5,7 @@ so a small change in a prediction often moves it not at all and then
 moves it a long way; the area responds to every reordering, which is
 what makes it the steadier reading when many rescorings are compared, as
 in
-[`bin_occlusion()`](https://gillescolling.com/timegrain/reference/bin_occlusion.md).
+[`bin_occlusion()`](https://gillescolling.com/climgrain/reference/bin_occlusion.md).
 Tied predictions take the average rank.
 
 ## Usage

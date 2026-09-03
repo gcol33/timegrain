@@ -1,4 +1,4 @@
-url: https://gillescolling.com/timegrain/
+url: https://gillescolling.com/climgrain/
 template:
   bootstrap: 5
   bootswatch: sandstone
@@ -66,7 +66,7 @@ reference:
     Readings in long form to the array a model is fitted on, at one grain or at every grain of a ladder.
   contents:
   - window_matrix
-  - timegrain_set
+  - climgrain_set
   - calendar_channels
   - bind_channels
   - feature_matrix
@@ -81,8 +81,8 @@ reference:
   - window_ladder
   - fit_learner
   - select_grain
-  - plot.timegrain_ladder
-  - plot.timegrain_selection
+  - plot.climgrain_ladder
+  - plot.climgrain_selection
 - title: Learners
   desc: |
     The arms that ship, and the interface a learner of your own goes through.
@@ -118,7 +118,7 @@ reference:
 - title: A record to test on
   contents: simulate_records
 - title: The package
-  contents: timegrain-package
+  contents: climgrain-package
 articles:
 - title: Articles
   navbar: ~

@@ -269,7 +269,7 @@ as_ladder <- function(cells) {
                score = score, scorable = !is.na(score), stringsAsFactors = FALSE)
   }
   structure(rbind(arm("a", cells$a), arm("b", cells$b)),
-            class = c("timegrain_ladder", "data.frame"))
+            class = c("climgrain_ladder", "data.frame"))
 }
 QUANTITIES <- c("diff", "lower", "upper", "n_variable", "n_cell", "n_favour", "p_value")
 contrast <- paired_contrast(as_ladder(contrast_cells), "week|a", "week|b")

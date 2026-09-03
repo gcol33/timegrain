@@ -5,7 +5,7 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timegrain import (Response, cnn_learner, fit_learner, mlp_learner, rescnn_learner, roc_auc,
+from climgrain import (Response, cnn_learner, fit_learner, mlp_learner, rescnn_learner, roc_auc,
                        window_matrix)
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None,

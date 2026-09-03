@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from timegrain import Response, digest_array, scorable_cells, window_matrix
+from climgrain import Response, digest_array, scorable_cells, window_matrix
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 

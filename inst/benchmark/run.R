@@ -9,7 +9,7 @@
 #   Rscript inst/benchmark/run.R --scale=smoke --list
 
 suppressWarnings(suppressMessages({
-  library(timegrain)
+  library(climgrain)
 }))
 
 .bench_args <- function() {
@@ -80,7 +80,7 @@ learner <- bench_learner(cell$block)
     attr(out, a) <- attr(first, a)
   }
   attr(out, "bin_n") <- do.call(rbind, lapply(parts, function(p) attr(p, "bin_n")))
-  class(out) <- c("timegrain_matrix", "array")
+  class(out) <- c("climgrain_matrix", "array")
   out
 }
 
@@ -105,7 +105,7 @@ learner <- bench_learner(cell$block)
     parts[[i]] <- unclass(bench_representation(sim$readings, candidates))
     ys[[i]] <- sim$y
   }
-  set <- timegrain_set(stats::setNames(
+  set <- climgrain_set(stats::setNames(
     lapply(candidates$candidate, function(cc) .bench_bind(lapply(parts, `[[`, cc))),
     candidates$candidate))
   list(set = set, y = do.call(rbind, ys))
@@ -115,7 +115,7 @@ learner <- bench_learner(cell$block)
 # variables, so a deployment number and a reported number are the same quantity.
 .bench_deploy_score <- function(fit, x, y, metric) {
   p <- stats::predict(fit, x)
-  score <- timegrain:::.metrics_reg$get(metric)
+  score <- climgrain:::.metrics_reg$get(metric)
   vapply(colnames(y), function(v) score(y[rownames(p), v], p[, v]), numeric(1L))
 }
 
@@ -162,7 +162,7 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
   # The oracle arm: every candidate fitted on one outer training set and scored on units the
   # procedure never saw, which is the only place a regret can be read from.
   truth <- tick("oracle", vapply(candidates$candidate, function(cc) {
-    fit <- fit_learner(learner, timegrain:::.subset_units(set[[cc]], which(f != levels[1L])),
+    fit <- fit_learner(learner, climgrain:::.subset_units(set[[cc]], which(f != levels[1L])),
                        sim$y[train1, , drop = FALSE])
     mean(.bench_deploy_score(fit, dep$set[[cc]], dep$y, BENCH$metric))
   }, numeric(1L)))
@@ -172,7 +172,7 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
   true_fold <- tick("procedure", vapply(seq_along(levels), function(i) {
     cc <- sel$selected$window[match(levels[i], sel$selected$fold)]
     idx <- which(f != levels[i])
-    fit <- fit_learner(learner, timegrain:::.subset_units(set[[cc]], idx),
+    fit <- fit_learner(learner, climgrain:::.subset_units(set[[cc]], idx),
                        sim$y[names(f)[idx], , drop = FALSE])
     mean(.bench_deploy_score(fit, dep$set[[cc]], dep$y, BENCH$metric))
   }, numeric(1L)))

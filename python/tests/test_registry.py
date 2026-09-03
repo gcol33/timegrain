@@ -5,10 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timegrain import (Learner, Response, fold_map, get_learner, learners, metrics,
+from climgrain import (Learner, Response, fold_map, get_learner, learners, metrics,
                        register_learner, register_metric, register_response, responses,
                        scorable_cells, window_ladder, window_matrix)
-from timegrain.registry import LEARNERS, METRICS, RESPONSES
+from climgrain.registry import LEARNERS, METRICS, RESPONSES
 
 
 @pytest.fixture(autouse=True)

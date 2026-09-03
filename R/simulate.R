@@ -70,7 +70,7 @@
 #'   held-out deployment sample be drawn from the same population as a training sample.
 #' @param draw Seed of the unit draw. Also names the units, so two draws never collide.
 #'
-#' @return A `timegrain_simulation`: a list with `readings`, the long table [window_matrix()] takes;
+#' @return A `climgrain_simulation`: a list with `readings`, the long table [window_matrix()] takes;
 #'   `y`, the `[unit, variable]` 0/1 response; `driver`, the standardised driver `z` behind it;
 #'   `grain`, the true grain or `NA`; `weights`, the `[reading, variable]` weights defining the
 #'   driver; `link`, the solved `b0` and `b1`; and `design`, the settings the draw is reproducible
@@ -167,13 +167,13 @@ simulate_records <- function(n = 300L,
                   sensor_sd = sensor_sd, year_start = year_start,
                   seed = seed, draw = draw, bins = design$bins, anchor = design$anchor)
   )
-  structure(out, class = "timegrain_simulation")
+  structure(out, class = "climgrain_simulation")
 }
 
 #' @export
-print.timegrain_simulation <- function(x, ...) {
+print.climgrain_simulation <- function(x, ...) {
   d <- x$design
-  cat("<timegrain simulation>", d$mechanism, "over", .plural(d$n, "unit"), "x",
+  cat("<climgrain simulation>", d$mechanism, "over", .plural(d$n, "unit"), "x",
       .plural(nrow(x$weights), "reading"), "\n")
   cat("true grain:", if (is.na(x$grain)) "none, the response does not read the record"
       else paste0(x$grain, " (", d$bins, " bins), stat mean"), "\n")

@@ -20,7 +20,7 @@ window_ladder(
   verbose = TRUE
 )
 
-# S3 method for class 'timegrain_ladder'
+# S3 method for class 'climgrain_ladder'
 summary(object, ...)
 ```
 
@@ -29,9 +29,9 @@ summary(object, ...)
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/timegrain/reference/window_matrix.md)
+  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
   result, a
-  [`timegrain_set()`](https://gillescolling.com/timegrain/reference/timegrain_set.md),
+  [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md),
   or a named list of representations.
 
 - y:
@@ -46,9 +46,9 @@ summary(object, ...)
 - folds:
 
   A fold map from
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md),
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md),
   or any named integer vector. Built with the defaults of
-  [`fold_map()`](https://gillescolling.com/timegrain/reference/fold_map.md)
+  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
   when not given.
 
 - response:
@@ -62,7 +62,7 @@ summary(object, ...)
 - keep_fits:
 
   Keep every per-fold fitted model, which is what lets
-  [`bin_occlusion()`](https://gillescolling.com/timegrain/reference/bin_occlusion.md)
+  [`bin_occlusion()`](https://gillescolling.com/climgrain/reference/bin_occlusion.md)
   read a fitted model without refitting it.
 
 - verbose:
@@ -80,7 +80,7 @@ summary(object, ...)
 
 ## Value
 
-A data frame of one row per scored cell, of class `timegrain_ladder`,
+A data frame of one row per scored cell, of class `climgrain_ladder`,
 carrying the window, the learner, the variable, the fold and the score.
 The held-out prediction of every unit is kept in the `predictions`
 attribute, and the scorable-cell mask in `cells`.
@@ -90,7 +90,7 @@ attribute, and the scorable-cell mask in `cells`.
 Every arm sees identical splits and is restricted to identical cells, so
 the arms' means share a denominator and any two of them can be compared
 cell by cell with
-[`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md).
+[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md).
 
 ## Examples
 
