@@ -86,6 +86,15 @@ call site.
 * `R-CMD-check`, `pytest` and `contract` run on push and on pull requests, the last of them
   running both fixture suites against one `inst/spec/fixtures/` in a single job.
 
+## Documentation
+
+* One site for both languages at <https://gillescolling.com/timegrain/>: the R reference from the
+  Rd files, the Python reference written from the Python sources by `tools/python_reference.py`,
+  and `inst/spec/representation.md` rendered as a page of its own, so the document the two answer
+  to is read where the calls are. The `pytest` workflow rewrites the Python pages and fails if what
+  is on disk differs, so a docstring cannot change without the page changing with it.
+* Every public class, method and property of the Python package carries a docstring.
+
 # timegrain 0.1.0
 
 First release. The package builds the representation, fits at every grain, and reports where

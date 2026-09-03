@@ -19,6 +19,11 @@ from .representation import WindowMatrix
 
 @dataclass
 class Learner:
+    """A name, a fit and a predict, and what has to be installed for them to run.
+
+    The one interface every arm goes through, the ones that ship and a pair of your own alike.
+    """
+
     name: str
     fit: Callable
     predict: Callable
@@ -26,6 +31,7 @@ class Learner:
     params: dict = field(default_factory=dict)
 
     def require(self) -> None:
+        """Error, naming the install, unless what the learner needs is importable."""
         missing = [p for p in self.needs if importlib.util.find_spec(p) is None]
         if missing:
             raise ImportError(f"the {self.name} learner needs {' and '.join(missing)}. "
@@ -34,12 +40,15 @@ class Learner:
 
 @dataclass
 class Fit:
+    """A fitted learner and the variables it was fitted on."""
+
     learner: Learner
     model: object
     variables: tuple[str, ...]
     response: str = "presence_absence"
 
     def predict(self, x: WindowMatrix) -> np.ndarray:
+        """Predictions for a representation, as a `[unit, variable]` matrix."""
         p = np.asarray(self.learner.predict(self.model, x), dtype=np.float64)
         if p.shape[0] != x.values.shape[0]:
             raise ValueError(f"the learner returned {p.shape[0]} rows for "

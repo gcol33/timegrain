@@ -32,6 +32,7 @@ class Ladder:
     fits: dict
 
     def arm(self, name: str):
+        """A mask over the rows of one window-and-learner arm, named `window/learner`."""
         window, learner = _split_arm(self, name)
         return (self.window == window) & (self.learner == learner)
 

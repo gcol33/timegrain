@@ -1,71 +1,141 @@
 url: https://gillescolling.com/timegrain/
-
 template:
   bootstrap: 5
-
+  bootswatch: sandstone
+  light-switch: yes
+  includes:
+    in_header: |
+      <script>
+      (function () {
+        var D = String.fromCharCode(36);
+        window.MathJax = {
+          tex: {
+            inlineMath: [[D, D], ["\\(", "\\)"]],
+            displayMath: [[D + D, D + D], ["\\[", "\\]"]]
+          },
+          chtml: { linebreaks: { automatic: true, width: "90% container" } },
+          svg: { linebreaks: { automatic: true, width: "90% container" } },
+          options: { renderActions: { addMenu: [] } }
+        };
+      })();
+      </script>
 figures:
-  dev: svglite
+  dev: svglite::svglite
   fig.ext: svg
-  bg: "#F5F6F8"
-
+  bg: '#F5F6F8'
+navbar:
+  structure:
+    left:
+    - intro
+    - reference
+    - python
+    - contract
+    - articles
+    - news
+    right:
+    - search
+    - github
+    - lightswitch
+  components:
+    python:
+      text: Python
+      menu:
+      - text: Overview
+        href: articles/python.html
+      - text: '-------'
+      - text: The representation
+        href: articles/python-representation.html
+      - text: The split and the cells
+        href: articles/python-split.html
+      - text: Fitting
+        href: articles/python-fitting.html
+      - text: Learners
+        href: articles/python-learners.html
+      - text: Scoring and comparison
+        href: articles/python-scoring.html
+      - text: Extending
+        href: articles/python-extending.html
+      - text: What crosses the boundary
+        href: articles/python-artifacts.html
+    contract:
+      text: Contract
+      href: articles/contract.html
 reference:
-  - title: The representation
-    desc: >
-      Readings in long form to the array a model is fitted on, at one grain or at every grain of a
-      ladder.
-    contents:
-      - window_matrix
-      - timegrain_set
-      - calendar_channels
-      - bind_channels
-      - feature_matrix
-
-  - title: The split and the cells
-    desc: >
-      One fold map read by everything that scores, and the cells a score is defined on, computed
-      with no model involved.
-    contents:
-      - fold_map
-      - scorable_cells
-
-  - title: Fitting
-    contents:
-      - window_ladder
-      - fit_learner
-      - plot.timegrain_ladder
-
-  - title: Learners
-    desc: >
-      The arms that ship, and the interface a learner of your own goes through.
-    contents:
-      - elasticnet_learner
-      - stepwise_learner
-      - torch_learners
-      - ensemble_learner
-      - learner
-      - register_learner
-
-  - title: Scoring and comparison
-    contents:
-      - tss
-      - roc_auc
-      - kappa_score
-      - paired_contrast
-      - window_contrasts
-      - tss_inflation
-      - implied_skill
-      - bin_occlusion
-
-  - title: Extending
-    desc: >
-      The response head and the metric are registrations, never a fork of the fitting code.
-    contents:
-      - register_response
-      - register_metric
-
+- title: The representation
+  desc: |
+    Readings in long form to the array a model is fitted on, at one grain or at every grain of a ladder.
+  contents:
+  - window_matrix
+  - timegrain_set
+  - calendar_channels
+  - bind_channels
+  - feature_matrix
+- title: The split and the cells
+  desc: |
+    One fold map read by everything that scores, and the cells a score is defined on, computed with no model involved.
+  contents:
+  - fold_map
+  - scorable_cells
+- title: Fitting
+  contents:
+  - window_ladder
+  - fit_learner
+  - select_grain
+  - plot.timegrain_ladder
+  - plot.timegrain_selection
+- title: Learners
+  desc: |
+    The arms that ship, and the interface a learner of your own goes through.
+  contents:
+  - elasticnet_learner
+  - stepwise_learner
+  - torch_learners
+  - ensemble_learner
+  - learner
+  - register_learner
+- title: Scoring and comparison
+  contents:
+  - tss
+  - roc_auc
+  - kappa_score
+  - paired_contrast
+  - window_contrasts
+  - tss_inflation
+  - implied_skill
+  - bin_occlusion
+- title: Extending
+  desc: |
+    The response head and the metric are registrations, never a fork of the fitting code.
+  contents:
+  - register_response
+  - register_metric
+- title: What crosses the boundary
+  desc: |
+    The three artifacts a split is carried in, and the digest that says two arrays are the same array.
+  contents:
+  - artifacts
+  - digest_array
+- title: A record to test on
+  contents: simulate_records
+- title: The package
+  contents: timegrain-package
 articles:
-  - title: Articles
-    navbar: ~
-    contents:
-      - timegrain
-      - reproducing-schrankogel
+- title: Articles
+  navbar: ~
+  contents: reproducing-schrankogel
+- title: The contract
+  desc: |
+    What both implementations answer to, and what each language carries.
+  contents: articles/contract
+- title: Python
+  desc: |
+    The same calls from Python, returning the same numbers.
+  contents:
+  - articles/python
+  - articles/python-representation
+  - articles/python-split
+  - articles/python-fitting
+  - articles/python-learners
+  - articles/python-scoring
+  - articles/python-extending
+  - articles/python-artifacts

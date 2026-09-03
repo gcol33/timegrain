@@ -43,12 +43,15 @@ class WindowMatrix:
 
     @property
     def shape(self) -> tuple[int, int, int]:
+        """Units, bins and channels."""
         return self.values.shape
 
     def channel(self, name: str) -> np.ndarray:
+        """One statistic as a `[unit, bin]` matrix."""
         return self.values[:, :, self.stats.index(name)]
 
     def take_units(self, index) -> "WindowMatrix":
+        """The representation restricted to a subset of its units, in the order given."""
         index = np.asarray(index)
         return replace(self, values=self.values[index], bin_n=self.bin_n[index],
                        units=tuple(np.asarray(self.units)[index]))
@@ -98,6 +101,7 @@ class TimegrainSet(Mapping):
 
     @property
     def units(self) -> tuple[str, ...]:
+        """The units the set covers, which every window in it shares."""
         return next(iter(self._parts.values())).units
 
     def __repr__(self) -> str:  # pragma: no cover - display only

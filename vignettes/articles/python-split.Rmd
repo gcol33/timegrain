@@ -1,0 +1,173 @@
+---
+title: "Python: the split and the cells"
+---
+
+<!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
+
+One fold map read by everything that scores, and the cells a score is defined on, computed with no model involved.
+
+## `fold_map()`
+
+```python
+fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None)
+```
+
+Assign units to folds, balanced within equal-count strata of a stratifying value.
+
+The stream is numpy's, so a map built here is not the map the R side builds from the same seed.
+Where both languages must see identical splits, build the map once, write it with
+`write_folds` and read it in the other with `read_folds`.
+
+## `scorable_cells()`
+
+```python
+scorable_cells(y: Response, folds)
+```
+
+Which cells admit a score, from the response and the fold map alone.
+
+A cell needs both classes among the held-out units and both classes among the units a model is
+fitted on. Computing the mask without a model is what lets every arm be restricted to the same
+cells, so their means share a denominator and every paired difference runs on matched cells.
+
+## `align_folds()`
+
+```python
+align_folds(folds, units)
+```
+
+A fold map reaches the fitting path as an integer vector in the row order of the
+representation, whether it arrived as a `Folds`, a mapping of unit to fold, or a bare vector
+already in that order.
+
+## `as_response()`
+
+```python
+as_response(y)
+```
+
+The response reaches everything downstream as a `Response`, whether it arrived as one, as
+a mapping of variable name to values, or as a two-dimensional array with no names at all.
+
+## `Response`
+
+```python
+Response(values, units, variables)
+```
+
+A `[unit, variable]` matrix of observed values, with the units named.
+
+Attributes:
+
+- `values` - np.ndarray
+- `units` - tuple[str, ...]
+- `variables` - tuple[str, ...]
+
+### `from_columns()`
+
+```python
+from_columns(cls, data, id: str, variables=None)
+```
+
+A response from a table of one unit column and one column per variable.
+
+### `take_units()`
+
+```python
+take_units(self, index)
+```
+
+The response restricted to a subset of its units, in the order given.
+
+### `align()`
+
+```python
+align(self, units)
+```
+
+Put the response into the row order of a representation, by unit and never by position.
+
+### `check_presence_absence()`
+
+```python
+check_presence_absence(self)
+```
+
+Error unless every value is 0 or 1 and none is missing.
+
+## `Folds`
+
+```python
+Folds(fold, units)
+```
+
+Which fold each unit is held out in, named by unit.
+
+Named rather than positional, because a fold map is aligned to a representation by unit and
+never by row: two tables of the same height are not two tables in the same order.
+
+Attributes:
+
+- `fold` - np.ndarray
+- `units` - tuple[str, ...]
+
+### `v`
+
+How many folds the map holds.
+
+### `coerce()`
+
+```python
+coerce(cls, x, units=None)
+```
+
+A `Folds`, a mapping of unit to fold, or a bare vector read in `units` order.
+
+### `align()`
+
+```python
+align(self, units)
+```
+
+Put the map into the row order of a representation, by unit and never by position.
+
+### `as_dict()`
+
+```python
+as_dict(self)
+```
+
+The map as unit to fold.
+
+## `Cells`
+
+```python
+Cells(variable, fold, n_occ, pres_train, abs_train, pres_test, abs_test, scorable)
+```
+
+Which `(variable, fold)` cells admit a score, and the counts that decided it.
+
+Attributes:
+
+- `variable` - np.ndarray
+- `fold` - np.ndarray
+- `n_occ` - np.ndarray
+- `pres_train` - np.ndarray
+- `abs_train` - np.ndarray
+- `pres_test` - np.ndarray
+- `abs_test` - np.ndarray
+- `scorable` - np.ndarray
+
+### `is_scorable()`
+
+```python
+is_scorable(self, variable: str, fold: int)
+```
+
+Whether one `(variable, fold)` cell admits a score.
+
+## `PRESENCE_ABSENCE`
+
+```python
+PRESENCE_ABSENCE = dict(prepare=lambda y: as_response(y).check_presence_absence(), activation='sigmoid', loss='binary_cross_entropy', metric='tss', cells=lambda y, folds: scorable_cells(y, folds))
+```

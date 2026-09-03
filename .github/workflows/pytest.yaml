@@ -45,3 +45,19 @@ jobs:
 
       - name: Run the suite
         run: python -m pytest python/tests -q
+
+  reference:
+    runs-on: ubuntu-latest
+    name: the reference pages match the sources
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Reads the sources with ast rather than importing them, so this needs neither the
+      # compiled core nor numpy.
+      - name: Check the generated Python reference
+        run: python tools/python_reference.py --check

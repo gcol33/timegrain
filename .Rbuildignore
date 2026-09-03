@@ -4,6 +4,8 @@
 ^docs$
 ^pkgdown$
 ^_pkgdown\.yml$
+^build_site\.R$
+^vignettes/articles$
 ^CLAUDE\.md$
 ^\.claude$
 ^cran-comments\.md$

@@ -1,0 +1,9 @@
+---
+title: "The representation contract"
+---
+
+```{r, echo = FALSE, results = "asis"}
+spec <- readLines(system.file("spec", "representation.md", package = "timegrain"),
+                  encoding = "UTF-8")
+cat(spec[-seq_len(match(TRUE, !grepl("^#|^$", spec)) - 1L)], sep = "\n")
+```

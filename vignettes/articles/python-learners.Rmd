@@ -1,0 +1,152 @@
+---
+title: "Python: learners"
+---
+
+<!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
+
+The arms that ship, and the interface a learner of your own goes through.
+
+## `elasticnet_learner()`
+
+```python
+elasticnet_learner(alpha=0.5, n_inner=5, squares=True, weight_positives=True, seed=1)
+```
+
+One penalised logistic regression per variable, over every bin-by-channel column and, by
+default, their squares, with the penalty chosen by an inner cross-validation on the fitting
+units.
+
+There is no discrete selection step: the penalty path uses every column and shrinks, and
+nothing about the model is decided outside the fold it is fitted in.
+
+## `stepwise_learner()`
+
+```python
+stepwise_learner(max_terms=3, degree=2)
+```
+
+One logistic regression per variable, its predictors chosen by forward selection over every
+bin-by-channel column, admitting a column while it lowers Akaike's criterion and stopping at a
+fixed budget.
+
+Each candidate enters as an orthogonal polynomial, so a term can be non-monotone in the reading
+the way a niche optimum is. Selection happens inside whichever units the learner is handed, so
+under `window_ladder` it is redone in every fold. Reported beside a penalised fit it also
+prices discrete selection: choosing a handful of columns out of hundreds is high variance, and
+that variance is a cost of the selector rather than of the features.
+
+## `mlp_learner()`
+
+```python
+mlp_learner(
+    hidden=(512, 256),
+    dropout=0.3,
+    epochs=60,
+    batch_size=64,
+    lr=0.001,
+    weight_decay=0.0001,
+    val_frac=0.15,
+    patience=10,
+    pos_weight_cap=50.0,
+    swa=False,
+    swa_start=0.7,
+    seed=1,
+    device=None,
+)
+```
+
+Flattens the channels and builds in no temporal geometry.
+
+## `cnn_learner()`
+
+```python
+cnn_learner(
+    channels=(16, 32, 64, 128),
+    kernel=7,
+    dropout=0.3,
+    epochs=60,
+    batch_size=32,
+    lr=0.001,
+    weight_decay=0.0001,
+    val_frac=0.15,
+    patience=10,
+    pos_weight_cap=50.0,
+    swa=False,
+    swa_start=0.7,
+    seed=1,
+    device=None,
+)
+```
+
+Convolution, batch normalisation, activation and pooling, then global average pooling.
+
+## `rescnn_learner()`
+
+```python
+rescnn_learner(
+    channels=(32, 64, 128, 256),
+    blocks_per_stage=2,
+    kernel=7,
+    dilations=(1, 2, 4, 8),
+    dropout=0.3,
+    epochs=60,
+    batch_size=32,
+    lr=0.001,
+    weight_decay=0.0001,
+    val_frac=0.15,
+    patience=10,
+    pos_weight_cap=50.0,
+    swa=False,
+    swa_start=0.7,
+    seed=1,
+    device=None,
+)
+```
+
+Dilated residual blocks with channel gates, pooling average and maximum together.
+
+## `ensemble_learner()`
+
+```python
+ensemble_learner(members, weights=None, name: str = 'ensemble')
+```
+
+Average several learners' predicted probabilities before the threshold is chosen.
+
+The average is taken before any decision is made, so the set is scored as one model rather than
+as a vote between decisions. Choose the members on an inner validation split or on prior
+grounds, never on the held-out folds.
+
+## `Learner`
+
+```python
+Learner(name, fit, predict, needs, params)
+```
+
+A name, a fit and a predict, and what has to be installed for them to run.
+
+The one interface every arm goes through, the ones that ship and a pair of your own alike.
+
+Attributes:
+
+- `name` - str
+- `fit` - Callable
+- `predict` - Callable
+- `needs` - tuple[str, ...]
+- `params` - dict
+
+### `require()`
+
+```python
+require(self)
+```
+
+Error, naming the install, unless what the learner needs is importable.
+
+## `flatten()`
+
+```python
+flatten(x: WindowMatrix)
+```
+
+`[unit, bin, channel]` to `[unit, bin * channel]` in the array's own order.

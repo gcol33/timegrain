@@ -1,0 +1,131 @@
+---
+title: "Python: scoring and comparison"
+---
+
+<!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
+
+The metrics, the paired contrast between two learners on matched cells, and the inflation of a score read at its own best threshold.
+
+## `tss()`
+
+```python
+tss(y, p)
+```
+
+Sensitivity plus specificity minus one, at the threshold that maximises it.
+
+## `roc_auc()`
+
+```python
+roc_auc(y, p)
+```
+
+The area under the ROC curve, as the rank sum of the presences. Ties take the average rank.
+
+## `kappa_score()`
+
+```python
+kappa_score(y, p, rule: str = 'youden')
+```
+
+Cohen's kappa of a model's decisions against the observed response.
+
+## `cohen_kappa()`
+
+```python
+cohen_kappa(a, b)
+```
+
+Chance-corrected agreement of two labellings of the same units, in either order.
+
+## `decision_threshold()`
+
+```python
+decision_threshold(y, p, rule: str = 'youden')
+```
+
+The probability cut a rule selects. Presence is predicted at `p >= threshold`.
+
+## `model_agreement()`
+
+```python
+model_agreement(y, p_a, p_b, rule: str = 'youden')
+```
+
+Agreement between two models' decisions, with how often each is right where they differ.
+
+## `paired_contrast()`
+
+```python
+paired_contrast(ladder: Ladder, a: str, b: str)
+```
+
+The difference between two arms, taken inside each cell both scored.
+
+Two arms scored on the same held-out units do not necessarily have the same set of defined
+cells, so a difference of two marginal means is not a difference between the arms. Pairing also
+cancels what a threshold-selected metric carries in its level, since both arms carry the same
+bias on the same cell.
+
+## `tss_inflation()`
+
+```python
+tss_inflation(
+    y: Response,
+    folds,
+    skill=(0.6, 0.7, 0.9),
+    replicates: int = 200,
+    seed: int = 1,
+)
+```
+
+How much a threshold chosen on the scored units inflates the level it reports.
+
+Predictions are simulated under a normal model whose population skill is exactly the value
+planted, at the cell sizes and presence counts of this design, and read back the way a ladder
+reports a level. The gap is the inflation. It cancels in a paired difference and does not
+cancel in a level, so a level is an upper bound on the skill a population has.
+
+## `implied_skill()`
+
+```python
+implied_skill(
+    y: Response,
+    folds,
+    observed,
+    grid=None,
+    replicates: int = 200,
+    seed: int = 1,
+)
+```
+
+What population skill a level actually read is consistent with.
+
+`tss_inflation` maps a population skill to the level a design reports for it; this inverts
+that map. It is the only honest way to read a level as a statement about a population rather
+than about a scoring rule, and it says nothing about a difference between two arms, where the
+inflation cancels and the reported number stands as it is.
+
+## `bin_occlusion()`
+
+```python
+bin_occlusion(
+    ladder,
+    x,
+    y: Response,
+    arm: str,
+    over: str = 'bin',
+    substitute: str = 'permute',
+    metric: str = 'roc_auc',
+    permutations: int = 20,
+    seed: int = 1,
+)
+```
+
+Hold one bin of the record back at a time and record the fall in score as its weight.
+
+Nothing is refitted: the models kept by `window_ladder(keep_fits=True)` are the ones read.
+What a held-back bin is replaced by decides what the weight means, so the substitute is part of
+the answer: `permute` keeps the observed readings and cuts only the link between a reading
+and its unit, `fold_mean` removes all between-unit variation, `unit_mean` keeps how warm a
+unit is and removes only that bin's departure from it.

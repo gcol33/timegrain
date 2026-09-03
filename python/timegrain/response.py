@@ -23,6 +23,7 @@ class Response:
 
     @classmethod
     def from_columns(cls, data, id: str, variables=None) -> "Response":
+        """A response from a table of one unit column and one column per variable."""
         units = [str(v) for v in data[id]]
         variables = list(variables) if variables is not None else \
             [k for k in data.keys() if k != id]
@@ -30,10 +31,12 @@ class Response:
         return cls(values=values, units=tuple(units), variables=tuple(variables))
 
     def take_units(self, index) -> "Response":
+        """The response restricted to a subset of its units, in the order given."""
         index = np.asarray(index)
         return Response(self.values[index], tuple(np.asarray(self.units)[index]), self.variables)
 
     def align(self, units) -> "Response":
+        """Put the response into the row order of a representation, by unit and never by position."""
         if tuple(units) == self.units:
             return self
         position = {u: i for i, u in enumerate(self.units)}
@@ -44,6 +47,7 @@ class Response:
         return self.take_units([position[u] for u in units])
 
     def check_presence_absence(self) -> "Response":
+        """Error unless every value is 0 or 1 and none is missing."""
         if not np.isin(self.values, (0, 1)).all():
             raise ValueError("a presence-absence response must be 0/1 or logical")
         if np.isnan(self.values).any():
@@ -65,6 +69,7 @@ class Cells:
     scorable: np.ndarray
 
     def is_scorable(self, variable: str, fold: int) -> bool:
+        """Whether one `(variable, fold)` cell admits a score."""
         hit = (self.variable == variable) & (self.fold == fold)
         return bool(self.scorable[hit][0]) if hit.any() else False
 
@@ -95,6 +100,7 @@ class Folds:
 
     @property
     def v(self) -> int:
+        """How many folds the map holds."""
         return int(len(np.unique(self.fold)))
 
     @classmethod
@@ -127,6 +133,7 @@ class Folds:
         return Folds(fold=self.fold[[position[u] for u in units]], units=units)
 
     def as_dict(self) -> dict:
+        """The map as unit to fold."""
         return {u: int(k) for u, k in zip(self.units, self.fold)}
 
     def __len__(self) -> int:

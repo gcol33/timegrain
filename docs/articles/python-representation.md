@@ -1,0 +1,173 @@
+# Python: the representation
+
+Readings in long form to the array a model is fitted on, at one grain or
+at every grain of a ladder.
+
+## `window_matrix()`
+
+``` python
+window_matrix(
+    data=None,
+    id=None,
+    time=None,
+    value=None,
+    *,
+    window='day',
+    stats=('mean',),
+    year_start='09-01',
+    partial='keep',
+    tz=None,
+)
+```
+
+Bin readings by the calendar and summarise every bin.
+
+`data` is a mapping of column name to sequence, or any object with
+`__getitem__` over the three column names given by `id`, `time` and
+`value`. Naming two or more windows returns a `TimegrainSet`; naming
+one, whether as a string or as a sequence of one, returns the
+representation itself. `window` may also be a callable, which is handed
+the reading instants and must return the start of each reading’s bin.
+
+`tz` names the calendar to bin by. Left at `None` the instants are taken
+as already expressed in that calendar, which is what a zone-free
+`datetime64` says and what the R side does for a series carried in UTC.
+Given a zone name, the instants are read as UTC and binned by that
+zone’s clock, which is what the R side does for a series carrying a
+`tzone`: the same instants and the same zone give the same answer in
+both languages.
+
+`partial` says what becomes of a bin the record does not cover for its
+whole calendar span, which is what a record beginning or ending away
+from a bin boundary produces. `"keep"`, the default, returns it
+alongside the full bins; `"drop"` removes it. Either way the verdict is
+carried on `bin_partial`, so a kept partial bin is labelled rather than
+silent. A caller-supplied binning declares its own bins, so the package
+cannot know where the last one was meant to end and takes the record’s
+end as its end.
+
+## `timegrain_set()`
+
+``` python
+timegrain_set(x)
+```
+
+Every entry point that fits across windows takes a representation, a
+set, or a bare mapping, and works on a set. One coercion, so no caller
+repeats the three cases.
+
+## `calendar_channels()`
+
+``` python
+calendar_channels(x: WindowMatrix)
+```
+
+Where in the year each bin sits, as the sine and cosine of its
+fractional position.
+
+## `bind_channels()`
+
+``` python
+bind_channels(*parts: WindowMatrix)
+```
+
+Put the channels of several representations of the same units and bins
+side by side.
+
+## `feature_matrix()`
+
+``` python
+feature_matrix(m, units=None, features=None, label: str = 'features')
+```
+
+Bring an already-reduced feature table into a ladder as a one-channel
+representation.
+
+It carries no time axis, because it has none: the reduction already
+happened, elsewhere, and what reaches the model is a list of numbers per
+unit. That is the whole point of comparing against it.
+
+## `WindowMatrix`
+
+``` python
+WindowMatrix(
+    values,
+    units,
+    bins,
+    stats,
+    window,
+    year_start,
+    bin_start,
+    bin_end,
+    bin_n,
+    bin_partial,
+)
+```
+
+A `[unit, bin, channel]` representation and the binning that produced
+it.
+
+Attributes:
+
+- `values` - np.ndarray
+- `units` - tuple\[str, …\]
+- `bins` - tuple\[str, …\]
+- `stats` - tuple\[str, …\]
+- `window` - str
+- `year_start` - str
+- `bin_start` - np.ndarray
+- `bin_end` - np.ndarray
+- `bin_n` - np.ndarray
+- `bin_partial` - np.ndarray
+
+### `shape`
+
+Units, bins and channels.
+
+### `channel()`
+
+``` python
+channel(self, name: str)
+```
+
+One statistic as a `[unit, bin]` matrix.
+
+### `take_units()`
+
+``` python
+take_units(self, index)
+```
+
+The representation restricted to a subset of its units, in the order
+given.
+
+## `TimegrainSet`
+
+A ladder of representations, one per window.
+
+Naming several windows in `window_matrix` returns one of these:
+representations of the same units, differing only in how coarsely the
+record was read. It is what `window_ladder` fits across, and it reads as
+a mapping of window name to representation.
+
+### `units`
+
+The units the set covers, which every window in it shares.
+
+## `WINDOWS`
+
+``` python
+WINDOWS = ('hour', 'halfday', 'day', 'week', 'month', 'season', 'year')
+```
+
+## `STATS`
+
+``` python
+STATS = ('mean', 'min', 'max') + DAY_LEVEL_STATS
+```
+
+## `DAY_LEVEL_STATS`
+
+``` python
+DAY_LEVEL_STATS = ('cold_day', 'warm_day', 'mean_daily_min', 'mean_daily_max')
+```
