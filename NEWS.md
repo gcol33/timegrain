@@ -52,6 +52,11 @@ on the Python side with them (#3).
   because a Python source distribution cannot reach above its own project directory and the shared
   sources must not be vendored into a second copy. The Python build is scikit-build-core and
   nanobind; the wheel carries `python/timegrain` as `timegrain`.
+* The wheel depends on `tzdata` on Windows, which ships no IANA database of its own, so a
+  zoned record bins there as it does everywhere else. The `sklearn` extra asks for a version
+  that the declared floor of Python 3.10 can install.
+* `R-CMD-check`, `pytest` and `contract` run on push and on pull requests, the last of them
+  running both fixture suites against one `inst/spec/fixtures/` in a single job.
 
 # timegrain 0.1.0
 

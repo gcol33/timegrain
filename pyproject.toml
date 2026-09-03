@@ -10,11 +10,13 @@ readme = "python/README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "Gilles Colling", email = "gilles.colling051@gmail.com" }]
-dependencies = ["numpy>=1.24"]
+# Windows ships no IANA database for zoneinfo, and a zone is what the binning of a zoned
+# record is read through.
+dependencies = ["numpy>=1.24", "tzdata; platform_system == 'Windows'"]
 
 [project.optional-dependencies]
 torch = ["torch>=2.0"]
-sklearn = ["scikit-learn>=1.8"]
+sklearn = ["scikit-learn>=1.3"]
 test = ["pytest>=8.0"]
 
 [project.urls]
