@@ -86,11 +86,10 @@ SECTIONS = (
     ),
 )
 
-OVERVIEW = """The Python package is the same package: one binning, one set of statistics, one
-array, compiled from `src/` into both languages and answering to
-[the representation contract](contract.html). `window_matrix()` here and `window_matrix()` in R
-return the same numbers from the same input, and the fixtures under `inst/spec/fixtures/` are what
-holds them to it.
+OVERVIEW = """The binning, the statistics and the array assembly are `src/`, compiled into both
+languages and answering to [the representation contract](contract.html). `window_matrix()` here
+and `window_matrix()` in R return the same numbers from the same input, and the fixtures under
+`inst/spec/fixtures/` hold them to it.
 
 ```bash
 pip install git+https://github.com/gcol33/timegrain
@@ -105,7 +104,7 @@ lad = tg.window_ladder(x, y, learners=[tg.mlp_learner(), tg.cnn_learner()])
 ```
 
 The contract's last section says what each language carries, so a difference between the two is a
-recorded decision rather than something to be found at the call site.
+recorded decision.
 """
 
 

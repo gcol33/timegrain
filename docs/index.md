@@ -1,10 +1,5 @@
 # timegrain
 
-*the grain a sensor record is read at*
-
-**Calendar-aware reduction of sensor time series, at every temporal
-grain, with the same numbers in R and Python.**
-
 [![R-CMD-check](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/R-CMD-check.yaml)
 [![pytest](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/pytest.yaml)
 [![contract](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/timegrain/actions/workflows/contract.yaml)
@@ -44,12 +39,12 @@ attr(window_matrix(d, plot, t, temp, window = "month"), "bin_n")[1, 1:3]
 #>                  720                  744                  720
 ```
 
-A calendar the package does not carry is a function: pass one that
-returns each reading’s bin start, and seasons cut at the equinoxes bin
-like any named window. They are a different calendar from the named
-`season`, not a different reading of it: three years from 1 September
-are twelve bins of three calendar months and thirteen cut at the
-equinoxes, because the record begins inside one of those.
+A calendar of your own is a function: pass one that returns each
+reading’s bin start, and seasons cut at the equinoxes bin like any named
+window. They are a different calendar from the named `season`, not a
+different reading of it: three years from 1 September are twelve bins of
+three calendar months and thirteen cut at the equinoxes, because the
+record begins inside one of those.
 
 A record that begins away from a bin boundary gives a bin the calendar
 does not fill. `bin_partial` marks those bins and `partial = "drop"`
@@ -108,12 +103,12 @@ and on soil temperature it is the day-level pair that predicts.
   presence counts, and what population skill a level you read is
   consistent with.
 
-## The score you report is an upper bound, and it says so
+## The score you report is an upper bound
 
 TSS is read at the threshold that maximises it, chosen on the same
 held-out units the score is read on. That inflates the level where
 presences are thin: on the Schrankogel design, by +0.110 when the truth
-is 0.60. Most species distribution code carries that silently.
+is 0.60.
 [`tss_inflation()`](https://gillescolling.com/timegrain/reference/tss_inflation.md)
 measures it for your design, and
 [`paired_contrast()`](https://gillescolling.com/timegrain/reference/paired_contrast.md)
