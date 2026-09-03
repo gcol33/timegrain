@@ -19,12 +19,13 @@
     get = function(name) {
       if (!exists(name, envir = entries, inherits = FALSE)) {
         stop("unknown ", what, " \"", name, "\". Registered: ",
-             paste(sort(ls(entries)), collapse = ", "), ".", call. = FALSE)
+             paste(sort(ls(entries), method = "radix"), collapse = ", "), ".", call. = FALSE)
       }
       get(name, envir = entries, inherits = FALSE)
     },
     has = function(name) exists(name, envir = entries, inherits = FALSE),
-    names = function() sort(ls(entries))
+    # C collation, so a registry lists the same order on every machine and beside Python's.
+    names = function() sort(ls(entries), method = "radix")
   )
 }
 

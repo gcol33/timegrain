@@ -110,7 +110,7 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
   agg <- stats::aggregate(out[c("score_full", "score_held_back", "weight")],
                           out[c("part", "variable")], mean)
   agg$part <- factor(agg$part, levels = labels)
-  agg <- agg[order(agg$part, agg$variable), ]
+  agg <- agg[order(agg$part, agg$variable, method = "radix"), ]
   agg$part <- as.character(agg$part)
   rownames(agg) <- NULL
   structure(agg, class = c("timegrain_occlusion", "data.frame"), arm = label, over = over,

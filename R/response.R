@@ -45,10 +45,18 @@ scorable_cells <- function(y, folds) {
   )
   out$pres_train <- out$n_occ - out$pres_test
   out$abs_train <- (nrow(y) - out$n_occ) - out$abs_test
+  # Counts, so integers: a mask read back from a file carries integers, and a mask that compared
+  # unequal to it on storage mode alone would report a difference there is none of.
+  for (nm in c("n_occ", "pres_train", "abs_train", "pres_test", "abs_test")) {
+    out[[nm]] <- as.integer(out[[nm]])
+  }
   out$scorable <- out$pres_train >= 1L & out$abs_train >= 1L &
     out$pres_test >= 1L & out$abs_test >= 1L
-  out <- out[order(out$variable, out$fold), c("variable", "fold", "n_occ", "pres_train",
-                                              "abs_train", "pres_test", "abs_test", "scorable")]
+  # C collation for the variable names, so the cell order is the same on every machine and the
+  # same as the one the Python side builds.
+  keep <- c("variable", "fold", "n_occ", "pres_train", "abs_train", "pres_test", "abs_test",
+            "scorable")
+  out <- out[order(out$variable, out$fold, method = "radix"), keep]
   rownames(out) <- NULL
   structure(out, class = c("timegrain_cells", "data.frame"))
 }

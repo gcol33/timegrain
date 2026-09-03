@@ -172,7 +172,7 @@ summary.timegrain_ladder <- function(object, ...) {
                stats::aggregate(list(n_variable = per_variable$score), key, length),
                by = c("learner", "window"))
   windows <- unique(object$window)
-  out <- out[order(out$learner, match(out$window, windows)), ]
+  out <- out[order(out$learner, match(out$window, windows), method = "radix"), ]
   # One window per learner is the best, even where two tie: it is the reference a contrast is read
   # against, and a reference has to be a single window.
   out$best <- stats::ave(out$score, out$learner,

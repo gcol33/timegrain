@@ -23,6 +23,28 @@ Requirements, each checked and each an error rather than a warning:
 Ordering of the input rows carries no meaning and is not relied on. The output is ordered by
 sorted unique id and by bin start.
 
+## Ordering identifiers
+
+Every place an identifier decides a position -- the ids naming the first dimension of the
+representation, and the variable names naming the cells of the scorable mask -- they are sorted by
+**C collation**: the byte order of the UTF-8 encoding, which for every code point is also the code
+point order. It does not depend on the session's locale, on the machine, or on the language.
+
+That has to be stated because the two languages' defaults disagree and so do two R sessions in
+different locales. R's `sort()` follows `LC_COLLATE`, which in an English locale orders `_z` before
+`a` before `A`, and NumPy's `np.unique()` orders by code point, which puts `A` first. Both
+implementations therefore name the rule rather than take a default: R passes
+`method = "radix"`, which sorts characters in the C locale whatever `LC_COLLATE` says, and NumPy
+already sorts this way.
+
+The failure this prevents is silent rather than loud. Two orderings hold the same numbers in
+different rows, so a response matrix built in one language and a representation built in the other
+line up row for row while naming different units, and nothing errors. `series_order.csv` carries
+ids the two rules order differently, so the fixtures fail rather than the user.
+
+The channel names are never sorted: the channel order is the order the caller named the statistics
+in.
+
 ## The time zone
 
 Bin membership is decided from the calendar the series is carried in, so the zone has to be named
@@ -215,10 +237,58 @@ that both sides read rather than each side computing: the response matrix, the f
 mask of scorable cells that follows from those two. A fold map built from a seed in R and a fold
 map built from the same seed in Python are different maps, because the two languages draw on
 different random streams; the fix is not to align the streams but to build the map once and read
-it in the other language.
+it in the other language. **The file format below is what makes that possible**, and both sides
+carry the reader and the writer for all three.
 
 A model fitted in one language and a model fitted in the other cannot be byte-identical and are
 not required to be.
+
+## The file format of the three artifacts
+
+One format for all three: CSV, UTF-8, a header row, `,` as the separator, no quoting, and LF line
+endings on every platform. Written the same way in either language, the same artifact gives the
+same bytes, so a round trip through a file is checkable and is checked.
+
+A number is written with `%.12g`: twelve significant digits, which renders `0` and `1` as `0` and
+`1` and carries any measurement a response holds. A logical is written `TRUE` or `FALSE`, and is
+read from either that or `1`/`0`.
+
+### The fold map: `id,fold`
+
+| column | type | |
+|---|---|---|
+| `id` | character | the unit |
+| `fold` | integer | the fold it is held out in, from 1 |
+
+One row per unit, ordered by the id under **Ordering identifiers**. A unit may appear once.
+
+### The response matrix: `id` and one column per variable
+
+| column | type | |
+|---|---|---|
+| `id` | character | the unit |
+| each remaining column | numeric | that variable's value at that unit |
+
+The columns after `id` are the variables, **in the file's own order**, which is the order the
+response carries them in; they are not sorted, because a response's column order is the caller's.
+Rows are ordered by the id. A presence-absence response holds `0` and `1` and nothing else, and is
+checked for that when it is prepared rather than when it is read.
+
+### The scorable mask: `variable,fold,n_occ,pres_train,abs_train,pres_test,abs_test,scorable`
+
+One row per `(variable, fold)` cell, ordered by variable under **Ordering identifiers** and then
+by fold ascending. The seven columns after `variable` are integers except `scorable`, which is a
+logical. The mask is a pure function of the response and the fold map, so it can be recomputed
+rather than carried; it is written because reading it is how a language that did not build it gets
+the exact cells the other one scored on.
+
+### A unit the file does not carry
+
+Aligning any of the three to a representation's units is by name, never by position. A unit in the
+representation that the file has no row for is an error, reporting how many are missing and naming
+the first of them in the representation's own order. A unit the file carries that the
+representation does not is dropped without comment: a fold map covering a whole study is a normal
+thing to read a subset of.
 
 ## Fixtures
 
@@ -267,3 +337,47 @@ tolerance in this document, not to loosen the scheme for everything.
 
 A digest that moves without a matching change to this document is a bug in whichever
 implementation moved. Regenerating the fixtures is a deliberate act with its own commit.
+
+## What else is pinned
+
+The representation is not the only deterministic thing the two languages share, and a contract
+that pinned it alone would let everything above it drift. Four more fixtures, generated by the same
+script and read by both suites:
+
+`response.csv`, `folds.csv` and `cells.csv` hold one response of 40 units by 6 variables, a fold
+map of five folds over it, and the mask that follows. The variable names order differently under
+C collation and under an English locale, and the prevalences are chosen so the mask is not all
+`TRUE`: one variable is present nowhere and one everywhere, so neither has a scorable cell at all,
+and a rare one is scorable in some folds and not others. Both suites read the response and the
+fold map, recompute the mask, and assert it cell by cell. Both also write all three back and
+assert the bytes, which is what makes the file format a contract rather than a convention.
+
+`metric_cases.csv` and `metrics.csv` hold ten `(y, p)` cases and the value of every threshold
+metric on each: `tss`, `roc_auc`, `kappa` under both rules, and `decision_threshold` under all
+three. The cases are where the tie rule is the whole answer -- every prediction tied, ties within
+a class, ties across the classes, one presence, one absence, all presences, all absences, a
+perfect separation and a reversed one. A metric a case defines no value on is written `NA` rather
+than left out, so a suite that quietly skipped it fails rather than passes.
+
+`contrast_cells.csv` and `contrast.csv` hold a fixed table of per-cell scores for two arms, with
+cells one arm scored and the other did not, and the paired contrast read off it. No model is
+involved: the pairing, the per-variable mean and the signed-rank p-value are what the two
+languages own, and a fitted model is what they are not required to share.
+
+### How exactly
+
+Everything named above is **byte-exact**, at the twelve significant digits the format writes. It
+is arithmetic on the same finite inputs in both languages, so anything less would be a difference
+worth finding rather than a tolerance worth allowing. The one exception is the signed-rank
+p-value: it is exact where the exact distribution applies, which is fewer than fifty values with
+no tie, and the Python side reaches the normal approximation beyond that through a Chebyshev fit
+to the complementary error function accurate to about 1.2e-7 relative. The fixture stays on the
+exact branch; where a caller lands on the other, the two agree to 1e-6 and no closer.
+
+`tss_inflation()` cannot be pinned as a digest, because it draws replicates from each language's
+own random stream, and aligning those streams would be the wrong fix for the same reason it is the
+wrong fix for a fold map. Its inflation figure is a headline claim of the package, so what is
+required of it is stated rather than left to a hand check: **at 200 replicates the two
+implementations agree on the inflation to within 0.02 at each planted skill**, which is well
+inside the Monte Carlo error of either one alone and far below the +0.110 the claim rests on. A
+disagreement beyond that is a bug in one of them, not sampling.

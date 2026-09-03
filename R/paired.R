@@ -135,15 +135,20 @@ tss_inflation <- function(y, folds, skill = c(0.6, 0.7, 0.9), replicates = 200L,
     # Under a binormal model with unit variances the maximum of sensitivity + specificity - 1 is
     # 2 * Phi(delta / 2) - 1, so a separation is what plants a population skill exactly.
     delta <- 2 * stats::qnorm((target + 1) / 2)
+    # The variables are visited in the order the mask carries them, which is C collation, and not
+    # in the order tapply() would impose by turning them into a factor: that follows LC_COLLATE,
+    # and the draws are consumed variable by variable, so a session in another locale would read a
+    # different number off the same design. Same order as the Python side, for the same reason.
+    variables <- unique(cells$variable)
     per_replicate <- vapply(seq_len(replicates), function(r) {
-      by_variable <- tapply(seq_len(nrow(cells)), cells$variable, function(i) {
-        mean(vapply(i, function(k) {
+      by_variable <- vapply(variables, function(v) {
+        mean(vapply(which(cells$variable == v), function(k) {
           n_pos <- cells$pres_test[k]
           n_neg <- cells$abs_test[k]
           tss(c(rep(1L, n_pos), rep(0L, n_neg)),
               c(stats::rnorm(n_pos, delta), stats::rnorm(n_neg)))
         }, numeric(1L)))
-      })
+      }, numeric(1L))
       mean(by_variable)
     }, numeric(1L))
     data.frame(skill = target, reported = mean(per_replicate),

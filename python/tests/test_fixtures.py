@@ -13,12 +13,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from timegrain import digest_array, window_matrix
+from timegrain import Response, digest_array, scorable_cells, window_matrix
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 
 SERIES_FILE = {"aligned": "series.csv", "offset": "series_offset.csv",
-               "zoned": "series_zoned.csv"}
+               "zoned": "series_zoned.csv", "order": "series_order.csv"}
 
 
 def read_series(name):
@@ -74,6 +74,10 @@ def test_digest_matches_the_r_side(series, row):
     assert x.bins[0] == row["first_bin"]
     assert x.bins[-1] == row["last_bin"]
     assert int(x.bin_partial.sum()) == int(row["n_partial"])
+    # The row order is asserted by name before the digest, so an implementation that orders the
+    # ids differently is reported as that rather than as an unexplained hash mismatch.
+    assert x.units[0] == row["first_unit"]
+    assert x.units[-1] == row["last_unit"]
     assert digest_array(x) == row["digest"]
 
 
@@ -82,7 +86,7 @@ def test_the_fixtures_cover_a_record_that_starts_on_no_bin_boundary():
     # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
     # never makes one agree. The contract is only a contract if it also carries the other case.
     rows = read_digests()
-    assert {r["series"] for r in rows} == {"aligned", "offset", "zoned"}
+    assert {r["series"] for r in rows} == {"aligned", "offset", "zoned", "order"}
     offset = [r for r in rows if r["series"] == "offset"]
     assert {r["window"] for r in offset} == {"hour", "halfday", "day", "week", "month", "season",
                                              "year", "astronomical"}
@@ -116,3 +120,27 @@ def test_the_traversal_is_unit_fastest_then_bin_then_channel():
     flat = values.flatten(order="F")
     assert list(flat[:2]) == [values[0, 0, 0], values[1, 0, 0]]
     assert flat[2] == values[0, 1, 0]
+
+
+def test_the_row_order_is_c_collation_and_not_the_locales(series):
+    # These five ids are the case that made the two languages disagree: an English locale orders
+    # them _x a1 A1 P10 P9, C collation orders them A1 P10 P9 _x a1, and the contract names the
+    # second. NumPy already sorts this way; the fixture is what keeps it that way in both.
+    record = series["order"]
+    x = window_matrix(record, "id", "time", "value", window="day")
+    assert x.units == ("A1", "P10", "P9", "_x", "a1")
+
+    # The input row order carries no meaning: the ids arrive in a third order again.
+    seen = list(dict.fromkeys(record["id"]))
+    assert seen == ["a1", "P9", "_x", "A1", "P10"]
+    order = np.argsort(np.asarray(record["value"]), kind="stable")
+    shuffled = {k: [record[k][i] for i in order] for k in ("id", "time", "value")}
+    assert digest_array(window_matrix(shuffled, "id", "time", "value", window="day"))         == digest_array(x)
+
+
+def test_the_scorable_mask_orders_its_variables_by_c_collation_too():
+    y = Response(values=np.array([[1.0, 1.0, 1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0],
+                                  [0.0, 0.0, 1.0]]),
+                 units=("u1", "u2", "u3", "u4"), variables=("a1", "P9", "_x"))
+    cells = scorable_cells(y, {"u1": 1, "u2": 1, "u3": 2, "u4": 2})
+    assert list(dict.fromkeys(cells.variable)) == ["P9", "_x", "a1"]

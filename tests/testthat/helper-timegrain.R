@@ -1,3 +1,16 @@
+# The contract's fixtures, read from the installed package where there is one and from the
+# source tree otherwise, so the suite asserts them on an installed copy too.
+fixture_dir <- function() {
+  installed <- system.file("spec", "fixtures", package = "timegrain")
+  candidates <- c(installed, "../../inst/spec/fixtures", "inst/spec/fixtures")
+  for (p in candidates) {
+    if (nzchar(p) && file.exists(file.path(p, "digests.csv"))) {
+      return(p)
+    }
+  }
+  NULL
+}
+
 # A synthetic record whose units differ by a level and by what one stretch of the calendar did,
 # so a test can ask a fitted model which of the two it read.
 sim_series <- function(n_unit = 40L, days = 120L, sd = 0.5, level = 2, seed = 1L,
@@ -31,4 +44,13 @@ brute_tss <- function(y, p) {
     d <- as.integer(p >= c)
     sum(d == 1L & y == 1L) / sum(y == 1L) + sum(d == 0L & y == 0L) / sum(y == 0L) - 1
   }, numeric(1L)))
+}
+
+# A directory that lives for one test. withr would do this and is not worth an entry in Suggests
+# for three lines; test_that() runs its block in a function, so on.exit() there is the whole
+# lifetime.
+temp_dir <- function() {
+  dir <- tempfile("timegrain")
+  dir.create(dir)
+  dir
 }

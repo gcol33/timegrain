@@ -10,7 +10,7 @@ from ._stats import norm_ppf, wilcoxon_p
 from .learners import fit_learner, get_learner
 from .metrics import METRICS, tss
 from .representation import WindowMatrix
-from .response import Response, read_folds, scorable_cells
+from .response import Folds, Response, align_folds, scorable_cells
 
 
 @dataclass
@@ -72,7 +72,7 @@ def window_ladder(x, y: Response, learners, folds, metric: str = "tss", keep_fit
     windows = {x.window: x} if isinstance(x, WindowMatrix) else dict(x)
     units = next(iter(windows.values())).units
     y = y.align(units).check_presence_absence()
-    f = read_folds(folds, units)
+    f = align_folds(folds, units)
     cells = scorable_cells(y, f)
     score = METRICS[metric] if isinstance(metric, str) else metric
     learners = _learner_dict(learners)

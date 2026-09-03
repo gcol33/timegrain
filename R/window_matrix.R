@@ -156,7 +156,12 @@ window_matrix <- function(data,
   .check_readings(unit, when, instant, reading, id_col, time_col, value_col)
   local <- .naive_seconds(instant, tz, time_col)
 
-  units <- sort(unique(unit))
+  # C collation, never the session's, so the row order of the representation is the same on
+  # every machine and the same as the one NumPy gives the Python side. R's default sort
+  # follows LC_COLLATE, which orders `P10` against `P9` and `a` against `A` by rules that
+  # differ between locales, and a response matrix built in one order against a
+  # representation built in the other lines up row for row while naming different units.
+  units <- sort(unique(unit), method = "radix")
   supplied <- if (is.function(window)) .custom_bins(window, when, tz, time_col) else NULL
 
   fit <- tg_reduce_(match(unit, units), reading, instant, local, supplied, units,
@@ -313,7 +318,7 @@ print.timegrain_matrix <- function(x, ...) {
   if (n < 2L) {
     return(invisible(TRUE))
   }
-  code <- match(unit, sort(unique(unit)))
+  code <- match(unit, sort(unique(unit), method = "radix"))
   o <- order(code, instant, method = "radix")
   same <- code[o][-1L] == code[o][-n] & instant[o][-1L] == instant[o][-n]
   if (any(same)) {

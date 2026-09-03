@@ -9,7 +9,7 @@ import numpy as np
 from .learners import Learner, get_learner
 from .metrics import METRICS
 from .representation import WindowMatrix
-from .response import Response, read_folds
+from .response import Response, align_folds
 
 
 def feature_matrix(m, units=None, features=None, label: str = "features") -> WindowMatrix:
@@ -79,7 +79,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     label = f"{window}|{learner}"
     m = x if isinstance(x, WindowMatrix) else dict(x)[window]
     y = y.align(m.units).check_presence_absence()
-    f = read_folds(ladder.folds, m.units)
+    f = align_folds(ladder.folds, m.units)
     score = METRICS[metric] if isinstance(metric, str) else metric
 
     n_parts = m.values.shape[1] if over == "bin" else m.values.shape[2]

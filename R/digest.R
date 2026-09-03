@@ -1,10 +1,25 @@
-# The cross-language digest of a representation, defined in inst/spec/representation.md.
-#
-# Values are traversed in the array's own order (unit fastest, then bin, then channel), each
-# formatted to twelve decimal places, one per line, LF-terminated. The LF is written explicitly
-# because writeLines() emits CRLF on Windows, which would make a digest depend on the machine
-# that produced it.
-.digest_array <- function(x) {
+#' The cross-language digest of a representation
+#'
+#' The MD5 the contract in `inst/spec/representation.md` defines, and what the fixtures in
+#' `inst/spec/fixtures/` are checked against. `timegrain.digest_array()` on the Python side is the
+#' same function: the same array gives the same string in either language, which is what makes a
+#' digest a statement about the representation rather than about the machine.
+#'
+#' Values are traversed in the array's own order, unit fastest, then bin, then channel; each is
+#' formatted to twelve decimal places, joined with a line feed and terminated with one, and the
+#' UTF-8 bytes of that are hashed. The line ending is a line feed on every platform. It is written
+#' explicitly because `writeLines()` emits CRLF on Windows, which would make a digest depend on
+#' the machine that produced it.
+#'
+#' @param x A [window_matrix()] result, or any numeric array.
+#'
+#' @return The digest, a single string of 32 hexadecimal characters.
+#'
+#' @examples
+#' digest_array(array(c(1, -0.5), dim = c(2L, 1L, 1L)))
+#'
+#' @export
+digest_array <- function(x) {
   body <- paste0(paste(sprintf("%.12f", as.numeric(x)), collapse = "\n"), "\n")
   f <- tempfile()
   on.exit(unlink(f), add = TRUE)

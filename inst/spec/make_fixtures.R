@@ -37,14 +37,21 @@ write_series <- function(series, file) {
 # The third is short and sits across 4 November 2018, the night America/Sao_Paulo moved its clock
 # at midnight and that local day began at 01:00. It is the record that tells a calendar read by
 # arithmetic apart from one read by writing a local midnight and parsing it back.
+# The fourth carries ids that C collation and an English locale's collation order differently:
+# C gives A1 P10 P9 _x a1, an English locale gives _x a1 A1 P10 P9. The ids arrive in a third
+# order again, so a fixture that passes is evidence both that the input order carries no meaning
+# and that the output order is the one the contract names. Ids like p01 to p03 agree under every
+# rule and pin nothing.
 SERIES <- list(
   aligned = make_series("2021-09-01 00:00:00", c("p01", "p02", "p03"), 400, 20260902L),
   offset = make_series("2021-10-17 05:00:00", c("p01", "p02"), 200, 20260903L),
-  zoned = make_series("2018-11-01 00:00:00", c("p01", "p02"), 10, 20260904L)
+  zoned = make_series("2018-11-01 00:00:00", c("p01", "p02"), 10, 20260904L),
+  order = make_series("2021-09-01 00:00:00", c("a1", "P9", "_x", "A1", "P10"), 30, 20260905L)
 )
 write_series(SERIES$aligned, "series.csv")
 write_series(SERIES$offset, "series_offset.csv")
 write_series(SERIES$zoned, "series_zoned.csv")
+write_series(SERIES$order, "series_order.csv")
 
 # A calendar the package does not carry, cut where the deposit cuts its seasons: at the equinoxes
 # and the solstices rather than on the first of a month. The first edge is the series' own first
@@ -89,7 +96,10 @@ digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep", t
              stat = paste(stats, collapse = "+"), n_unit = dim(x)[1], n_bin = dim(x)[2],
              first_bin = format(start[1], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
              last_bin = format(start[length(start)], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
-             n_partial = sum(attr(x, "bin_partial")), digest = .digest_array(x),
+             n_partial = sum(attr(x, "bin_partial")),
+             first_unit = dimnames(x)[[1L]][1L],
+             last_unit = dimnames(x)[[1L]][dim(x)[1]],
+             digest = digest_array(x),
              stringsAsFactors = FALSE)
 }
 add <- function(...) rows[[length(rows) + 1L]] <<- digest_row(...)
@@ -147,6 +157,143 @@ add("zoned", "day", c("min", "mean", "max"), tz = "America/Sao_Paulo")
 add("zoned", "day", c("cold_day", "mean", "warm_day"), tz = "America/Sao_Paulo")
 add("zoned", "year", "mean", year_start = "11-04", tz = "America/Sao_Paulo")
 
+# The row order. Every unit holds a different level, so reading the units in the wrong order moves
+# the digest rather than leaving it as it was, and the first and last unit are named in the row so
+# a mismatch is reported as an order rather than as an unexplained hash.
+for (w in c("day", "week", "month")) {
+  add("order", w, "mean")
+}
+add("order", "day", c("cold_day", "mean", "warm_day"))
+
 write.csv(do.call(rbind, rows), file.path(out_dir, "digests.csv"),
           row.names = FALSE, quote = FALSE)
 cat("wrote", length(rows), "digests\n")
+
+# ---- what crosses the boundary above the representation ----------------------------------------
+# The three artifacts, in the format the contract defines, plus the numbers read off them that are
+# deterministic: the scorable mask, every threshold metric, and a paired contrast. None of these
+# has a fitted model in it, so each can be pinned exactly rather than compared by hand once and
+# left that way.
+
+set.seed(20260906L)
+resp_units <- sprintf("u%02d", 1:40)
+# Variable names that C collation and an English locale order differently, so the cell order of the
+# mask is pinned by the same case the representation's row order is.
+resp_vars <- c("a1", "P9", "_x", "sp1", "sp2", "sp3")
+# Prevalences chosen so the mask is not all TRUE: a species present nowhere and one present
+# everywhere have no scorable cell at all, and a rare one has some folds and not others.
+prevalence <- c(0.5, 0.05, 0, 1, 0.2, 0.3)
+y_fix <- vapply(prevalence, function(pr) as.numeric(stats::rbinom(length(resp_units), 1L, pr)),
+                numeric(length(resp_units)))
+dimnames(y_fix) <- list(resp_units, resp_vars)
+f_fix <- fold_map(y_fix, v = 5, seed = 11L)
+
+write_folds(f_fix, file.path(out_dir, "folds.csv"))
+write_response(y_fix, file.path(out_dir, "response.csv"))
+write_cells(scorable_cells(y_fix, f_fix), file.path(out_dir, "cells.csv"))
+
+# The threshold metrics and the sweep they all read off. Ties, a single presence, a single absence,
+# a cell of one class, a perfect separation and a reversed one: the cases where the rule about
+# where a cut may fall is the whole answer.
+METRIC_CASES <- list(
+  plain = list(y = c(0, 0, 0, 1, 1, 1, 0, 1),
+               p = c(0.10, 0.20, 0.35, 0.40, 0.60, 0.90, 0.55, 0.70)),
+  all_tied = list(y = c(0, 1, 0, 1, 1, 0), p = rep(0.5, 6)),
+  some_tied = list(y = c(0, 1, 1, 0, 1, 0), p = c(0.2, 0.2, 0.8, 0.8, 0.5, 0.5)),
+  tied_across_classes = list(y = c(0, 1, 0, 1), p = c(0.3, 0.3, 0.7, 0.7)),
+  one_presence = list(y = c(0, 0, 0, 1, 0, 0), p = c(0.10, 0.30, 0.20, 0.90, 0.40, 0.05)),
+  one_absence = list(y = c(1, 1, 1, 0, 1), p = c(0.9, 0.8, 0.7, 0.2, 0.6)),
+  all_presence = list(y = c(1, 1, 1, 1), p = c(0.1, 0.4, 0.6, 0.9)),
+  all_absence = list(y = c(0, 0, 0, 0), p = c(0.1, 0.4, 0.6, 0.9)),
+  perfect = list(y = c(0, 0, 1, 1), p = c(0.1, 0.2, 0.8, 0.9)),
+  reversed = list(y = c(1, 1, 0, 0), p = c(0.1, 0.2, 0.8, 0.9))
+)
+write.csv(
+  do.call(rbind, lapply(names(METRIC_CASES), function(nm) {
+    d <- METRIC_CASES[[nm]]
+    data.frame(case = nm, y = d$y, p = sprintf("%.12g", d$p), stringsAsFactors = FALSE)
+  })),
+  file.path(out_dir, "metric_cases.csv"), row.names = FALSE, quote = FALSE
+)
+
+METRIC_FNS <- list(
+  tss = tss, roc_auc = roc_auc,
+  kappa = function(y, p) kappa_score(y, p, "prevalence"),
+  kappa_youden = function(y, p) kappa_score(y, p, "youden"),
+  threshold_youden = function(y, p) decision_threshold(y, p, "youden"),
+  threshold_kappa = function(y, p) decision_threshold(y, p, "kappa"),
+  threshold_prevalence = function(y, p) decision_threshold(y, p, "prevalence")
+)
+# A case a metric defines no value on is written NA rather than left out, so a suite that quietly
+# skipped it would fail rather than pass.
+write.csv(
+  do.call(rbind, lapply(names(METRIC_CASES), function(nm) {
+    d <- METRIC_CASES[[nm]]
+    data.frame(case = nm, metric = names(METRIC_FNS),
+               value = vapply(METRIC_FNS, function(fn) {
+                 v <- fn(d$y, d$p)
+                 if (is.finite(v)) sprintf("%.12g", v) else "NA"
+               }, character(1L)),
+               stringsAsFactors = FALSE)
+  })),
+  file.path(out_dir, "metrics.csv"), row.names = FALSE, quote = FALSE
+)
+
+# The paired contrast, from a fixed table of per-cell scores rather than from a fit: the pairing,
+# the per-variable mean and the signed-rank p-value are the part both languages own, and a fitted
+# model is the part they are not required to share. Cells one arm scored and the other did not are
+# in the table, because dropping those is what the function is for. Six variables with no tied
+# per-variable difference keeps the p-value on the exact branch of the signed-rank distribution,
+# where the two implementations agree to the last place rather than to the normal approximation.
+contrast_cells <- expand.grid(fold = 1:5, variable = resp_vars,
+                              KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
+contrast_cells <- contrast_cells[order(contrast_cells$variable, contrast_cells$fold,
+                                       method = "radix"), c("variable", "fold")]
+set.seed(20260907L)
+contrast_cells$a <- round(stats::runif(nrow(contrast_cells), 0.30, 0.85), 6)
+contrast_cells$b <- round(contrast_cells$a - stats::rnorm(nrow(contrast_cells), 0.04, 0.06), 6)
+contrast_cells$a[c(2L, 17L)] <- NA_real_
+contrast_cells$b[c(5L, 17L, 23L)] <- NA_real_
+rownames(contrast_cells) <- NULL
+write.csv(
+  data.frame(variable = contrast_cells$variable, fold = contrast_cells$fold,
+             a = ifelse(is.na(contrast_cells$a), "NA", sprintf("%.12g", contrast_cells$a)),
+             b = ifelse(is.na(contrast_cells$b), "NA", sprintf("%.12g", contrast_cells$b)),
+             stringsAsFactors = FALSE),
+  file.path(out_dir, "contrast_cells.csv"), row.names = FALSE, quote = FALSE
+)
+
+as_ladder <- function(cells) {
+  arm <- function(name, score) {
+    data.frame(window = "week", learner = name, variable = cells$variable, fold = cells$fold,
+               score = score, scorable = !is.na(score), stringsAsFactors = FALSE)
+  }
+  structure(rbind(arm("a", cells$a), arm("b", cells$b)),
+            class = c("timegrain_ladder", "data.frame"))
+}
+QUANTITIES <- c("diff", "lower", "upper", "n_variable", "n_cell", "n_favour", "p_value")
+contrast <- paired_contrast(as_ladder(contrast_cells), "week|a", "week|b")
+write.csv(
+  data.frame(quantity = QUANTITIES,
+             value = vapply(QUANTITIES, function(nm) sprintf("%.12g", contrast[[nm]]),
+                            character(1L)),
+             stringsAsFactors = FALSE),
+  file.path(out_dir, "contrast.csv"), row.names = FALSE, quote = FALSE
+)
+
+# The one number here that cannot be a digest: it draws replicates, from each language's own random
+# stream, and aligning those streams would be the wrong fix for the same reason it is for a fold
+# map. What is pinned is this side's value, and what the contract requires is that the other side
+# lands within the band the document states.
+inflation <- tss_inflation(y_fix, f_fix, skill = c(0.6, 0.7, 0.9), replicates = 200L, seed = 1L)
+write.csv(
+  data.frame(skill = sprintf("%.12g", inflation$skill),
+             reported = sprintf("%.12g", inflation$reported),
+             inflation = sprintf("%.12g", inflation$inflation),
+             replicates = 200L, tolerance = 0.02, stringsAsFactors = FALSE),
+  file.path(out_dir, "inflation.csv"), row.names = FALSE, quote = FALSE
+)
+
+cat("wrote the response, the fold map, the mask,",
+    nrow(utils::read.csv(file.path(out_dir, "metrics.csv"))),
+    "metric values, the contrast and the inflation", "\n")

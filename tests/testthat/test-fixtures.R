@@ -1,17 +1,6 @@
-fixture_dir <- function() {
-  installed <- system.file("spec", "fixtures", package = "timegrain")
-  candidates <- c(installed, "../../inst/spec/fixtures", "inst/spec/fixtures")
-  for (p in candidates) {
-    if (nzchar(p) && file.exists(file.path(p, "digests.csv"))) {
-      return(p)
-    }
-  }
-  NULL
-}
-
 fixture_series <- function(dir, name) {
   file <- switch(name, aligned = "series.csv", offset = "series_offset.csv",
-                 zoned = "series_zoned.csv")
+                 zoned = "series_zoned.csv", order = "series_order.csv")
   s <- read.csv(file.path(dir, file), stringsAsFactors = FALSE)
   s$time <- as.POSIXct(s$time, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
   s
@@ -53,7 +42,11 @@ test_that("every representation matches the digest the Python side reads", {
     expect_equal(format(start[length(start)], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
                  row$last_bin, info = label)
     expect_equal(sum(attr(x, "bin_partial")), row$n_partial, info = label)
-    expect_identical(timegrain:::.digest_array(x), row$digest, info = label)
+    # The row order is asserted by name before the digest, so a session whose collation orders the
+    # ids differently is reported as that rather than as an unexplained hash mismatch.
+    expect_identical(dimnames(x)[[1L]][1L], row$first_unit, info = label)
+    expect_identical(dimnames(x)[[1L]][dim(x)[1]], row$last_unit, info = label)
+    expect_identical(digest_array(x), row$digest, info = label)
   }
 })
 
@@ -65,7 +58,7 @@ test_that("the fixtures cover a record that starts on no bin boundary", {
   # A record beginning at midnight on the year_start anniversary puts every window in phase with
   # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
   # never makes one agree. The contract is only a contract if it also carries the other case.
-  expect_true(all(c("aligned", "offset") %in% expected$series))
+  expect_true(all(c("aligned", "offset", "zoned", "order") %in% expected$series))
   offset <- expected[expected$series == "offset", ]
   expect_true(all(c("hour", "halfday", "day", "week", "month", "season", "year", "astronomical")
                   %in% offset$window))
@@ -104,6 +97,31 @@ test_that("the digest is the LF-terminated twelve-place form and nothing else", 
   con <- file(f, open = "wb")
   writeBin(body, con)
   close(con)
-  expect_identical(timegrain:::.digest_array(x), unname(tools::md5sum(f)))
+  expect_identical(digest_array(x), unname(tools::md5sum(f)))
   unlink(f)
+})
+
+test_that("the row order is C collation and not the session's", {
+  dir <- fixture_dir()
+  skip_if(is.null(dir), "fixtures are not in the built package")
+  record <- fixture_series(dir, "order")
+
+  # These five ids are the case that made the two languages disagree: an English locale orders
+  # them _x a1 A1 P10 P9, C collation orders them A1 P10 P9 _x a1, and NumPy gives the second.
+  # The representation must give the second whatever LC_COLLATE the session runs in.
+  x <- window_matrix(record, id, time, value, window = "day")
+  expect_identical(dimnames(x)[[1L]], c("A1", "P10", "P9", "_x", "a1"))
+
+  # The input row order carries no meaning: the ids arrive in a third order again.
+  expect_identical(unique(record$id), c("a1", "P9", "_x", "A1", "P10"))
+  shuffled <- record[order(record$value), , drop = FALSE]
+  expect_identical(digest_array(window_matrix(shuffled, id, time, value, window = "day")),
+                   digest_array(x))
+})
+
+test_that("the scorable mask orders its variables by C collation too", {
+  y <- matrix(c(1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1), nrow = 4,
+              dimnames = list(paste0("u", 1:4), c("a1", "P9", "_x")))
+  cells <- scorable_cells(y, c(u1 = 1L, u2 = 1L, u3 = 2L, u4 = 2L))
+  expect_identical(unique(cells$variable), c("P9", "_x", "a1"))
 })

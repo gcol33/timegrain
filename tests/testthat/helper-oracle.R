@@ -152,7 +152,7 @@ oracle_window_matrix <- function(data, id, time, value, window = "day", stats = 
              day = as.integer(substr(year_start, 4L, 5L)))
 
   bin_start <- oracle_bin_start(when, window, ys, tz)
-  units <- sort(unique(unit))
+  units <- sort(unique(unit), method = "radix")
   bins <- sort(unique(bin_start))
   n_u <- length(units)
   n_b <- length(bins)

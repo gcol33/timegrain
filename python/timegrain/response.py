@@ -2,7 +2,8 @@
 
 The fold map is an artifact rather than an algorithm: it is built once and read by everything that
 scores, in either language, so that every arm sees identical splits and any two of them can be
-compared cell by cell. ``fold_map`` builds one; ``read_folds`` reads one somebody else built.
+compared cell by cell. ``fold_map`` builds one; ``timegrain.read_folds`` reads one somebody else
+built, from the file format ``inst/spec/representation.md`` defines.
 """
 
 from __future__ import annotations
@@ -77,12 +78,78 @@ class Cells:
                 f"{sum(by_variable.values())} of {len(by_variable)}")
 
 
-def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None) -> np.ndarray:
+@dataclass(frozen=True)
+class Folds:
+    """Which fold each unit is held out in, named by unit.
+
+    Named rather than positional, because a fold map is aligned to a representation by unit and
+    never by row: two tables of the same height are not two tables in the same order.
+    """
+
+    fold: np.ndarray
+    units: tuple[str, ...]
+
+    def __post_init__(self):
+        if len(self.fold) != len(self.units):
+            raise ValueError(f"{len(self.fold)} folds for {len(self.units)} units")
+
+    @property
+    def v(self) -> int:
+        return int(len(np.unique(self.fold)))
+
+    @classmethod
+    def coerce(cls, x, units=None) -> "Folds":
+        """A ``Folds``, a mapping of unit to fold, or a bare vector read in ``units`` order."""
+        if isinstance(x, cls):
+            return x
+        if isinstance(x, dict):
+            return cls(fold=np.asarray(list(x.values()), dtype=np.int64),
+                       units=tuple(str(u) for u in x))
+        fold = np.asarray(x, dtype=np.int64)
+        if units is None:
+            raise ValueError("a bare fold map has no unit names, so it can only be read "
+                             "alongside the units it is in the order of")
+        if len(fold) != len(units):
+            raise ValueError(f"an unnamed fold map must have one entry per unit, got "
+                             f"{len(fold)} for {len(units)}")
+        return cls(fold=fold, units=tuple(str(u) for u in units))
+
+    def align(self, units) -> "Folds":
+        """Put the map into the row order of a representation, by unit and never by position."""
+        units = tuple(str(u) for u in units)
+        if units == self.units:
+            return self
+        position = {u: i for i, u in enumerate(self.units)}
+        missing = [u for u in units if u not in position]
+        if missing:
+            raise ValueError(f"{len(missing)} unit{'s have' if len(missing) > 1 else ' has'} "
+                             f"no row in the fold map, first: {missing[0]}")
+        return Folds(fold=self.fold[[position[u] for u in units]], units=units)
+
+    def as_dict(self) -> dict:
+        return {u: int(k) for u, k in zip(self.units, self.fold)}
+
+    def __len__(self) -> int:
+        return len(self.fold)
+
+    def __iter__(self):
+        return iter(self.fold.tolist())
+
+    def __array__(self, dtype=None, copy=None):
+        return self.fold if dtype is None else self.fold.astype(dtype)
+
+    def __repr__(self) -> str:  # pragma: no cover - display only
+        counts = np.bincount(self.fold)[1:]
+        return (f"<timegrain folds> {len(self.fold)} units in {self.v} folds\n"
+                + "  ".join(f"{k + 1}: {n}" for k, n in enumerate(counts)))
+
+
+def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None) -> Folds:
     """Assign units to folds, balanced within equal-count strata of a stratifying value.
 
     The stream is numpy's, so a map built here is not the map the R side builds from the same seed.
-    Where both languages must see identical splits, build the map once and read it in the other
-    with ``read_folds``.
+    Where both languages must see identical splits, build the map once, write it with
+    ``write_folds`` and read it in the other with ``read_folds``.
     """
     n = y.values.shape[0]
     if not 2 <= v <= n:
@@ -99,21 +166,14 @@ def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None) 
         rng.shuffle(idx)
         labels = rng.permutation(v) + 1
         fold[idx] = np.resize(labels, len(idx))
-    return fold
+    return Folds(fold=fold, units=y.units)
 
 
-def read_folds(mapping, units) -> np.ndarray:
-    """Put a fold map somebody else built into the row order of a representation."""
-    if isinstance(mapping, dict):
-        missing = [u for u in units if u not in mapping]
-        if missing:
-            raise ValueError(f"{len(missing)} units have no fold, first: {missing[0]}")
-        return np.asarray([int(mapping[u]) for u in units])
-    out = np.asarray(mapping, dtype=int)
-    if len(out) != len(units):
-        raise ValueError(f"an unnamed fold map must have one entry per unit, got {len(out)} "
-                         f"for {len(units)}")
-    return out
+def align_folds(folds, units) -> np.ndarray:
+    """A fold map reaches the fitting path as an integer vector in the row order of the
+    representation, whether it arrived as a ``Folds``, a mapping of unit to fold, or a bare vector
+    already in that order."""
+    return Folds.coerce(folds, units).align(units).fold
 
 
 def scorable_cells(y: Response, folds) -> Cells:
@@ -123,7 +183,7 @@ def scorable_cells(y: Response, folds) -> Cells:
     fitted on. Computing the mask without a model is what lets every arm be restricted to the same
     cells, so their means share a denominator and every paired difference runs on matched cells.
     """
-    folds = read_folds(folds, y.units)
+    folds = align_folds(folds, y.units)
     levels = np.unique(folds)
     n_occ = y.values.sum(axis=0).astype(np.int64)
 
