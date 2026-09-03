@@ -26,7 +26,8 @@ def feature_matrix(m, units=None, features=None, label: str = "features") -> Win
     empty = np.full(n_f, np.datetime64("NaT"), dtype="datetime64[s]")
     return WindowMatrix(values=m.reshape(n_u, n_f, 1), units=units, bins=features,
                         stats=(label,), window=label, year_start="", bin_start=empty,
-                        bin_end=empty, bin_n=np.zeros((n_u, n_f), dtype=np.int64))
+                        bin_end=empty, bin_n=np.zeros((n_u, n_f), dtype=np.int64),
+                        bin_partial=np.zeros(n_f, dtype=bool))
 
 
 def ensemble_learner(members, weights=None, name: str = "ensemble") -> Learner:

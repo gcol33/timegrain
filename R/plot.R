@@ -38,8 +38,7 @@ plot.timegrain_ladder <- function(x, col = NULL, interval = TRUE, ...) {
 
   stat <- lapply(arms, function(a) {
     m <- vapply(windows, function(w) {
-      v <- per_variable$score[per_variable$learner == a & per_variable$window == w]
-      c(mean(v, na.rm = TRUE), stats::sd(v, na.rm = TRUE) / sqrt(sum(!is.na(v))))
+      .mean_se(per_variable$score[per_variable$learner == a & per_variable$window == w])
     }, numeric(2L))
     data.frame(learner = a, window = windows, score = m[1L, ], se = m[2L, ],
                stringsAsFactors = FALSE)

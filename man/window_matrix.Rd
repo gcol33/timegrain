@@ -11,7 +11,8 @@ window_matrix(
   value,
   window = "day",
   stats = "mean",
-  year_start = "09-01"
+  year_start = "09-01",
+  partial = c("keep", "drop")
 )
 }
 \arguments{
@@ -34,6 +35,10 @@ carry, such as astronomical seasons, is binned.}
 
 \item{year_start}{\code{"MM-DD"} boundary of the hydrological year, used by \code{"season"} and
 \code{"year"}. Defaults to \code{"09-01"}.}
+
+\item{partial}{What to do with a bin the record does not cover for its whole calendar span,
+which is what a record beginning or ending away from a bin boundary produces. \code{"keep"}, the
+default, returns it alongside the full bins; \code{"drop"} removes it. See Partial bins.}
 }
 \value{
 A numeric array of shape \verb{[unit, bin, channel]}, with dimnames giving the sorted unit
@@ -44,6 +49,8 @@ identifiers, the ISO-8601 start of each bin, and the statistic names. Attributes
 \item \code{year_start}: the boundary used.
 \item \code{bin_start}, \code{bin_end}: the first and last reading instant assigned to each bin.
 \item \code{bin_n}: a \verb{[unit, bin]} matrix of how many readings fell in each bin.
+\item \code{bin_partial}: a logical vector marking the bins the record does not cover for their
+whole calendar span.
 }
 Naming more than one window returns a \code{\link[=timegrain_set]{timegrain_set()}} of those arrays.
 }
@@ -74,6 +81,33 @@ bin.
 Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 representation, because computing it over all units would leak held-out units into the input.
 }
+\section{Partial bins}{
+
+A bin is partial when the record does not cover its whole calendar span. Which bins those are
+follows from where the record starts and stops against the calendar, not from the window alone:
+three years of hourly readings from 1 September carry no partial month and no partial season on
+a \code{"09-01"} boundary, but the same record carries a partial week at each end, because 1
+September is a Wednesday. A record from an arbitrary deployment date carries one at each end of
+almost every window.
+
+A bin is partial if its start precedes the first reading of the record, or if its calendar span
+runs past the last reading plus the record's own sampling interval, taken as the smallest gap
+between consecutive distinct reading instants. Only a bin at an end of the record can satisfy
+either, because every unit is required to span every bin in between. The verdict is returned as
+the \code{bin_partial} attribute whichever way \code{partial} is set, so a kept partial bin is labelled
+rather than silent.
+
+Keeping partial bins is the default because dropping them discards the record's ends: on a
+seasonal window that is up to three months of readings at each end. The cost of keeping them is
+that such a bin's mean is taken over fewer readings and its extremes over fewer days, so
+\code{cold_day} and \code{warm_day} there are drawn from a shorter draw and sit closer to the bin mean
+than a full bin's would. \code{bin_n} gives the count the bin was actually reduced from.
+
+A caller-supplied binning declares its own bins, so the package cannot know where the last one
+was meant to end and takes the record's end as its end. Such a final bin is never reported
+partial; its leading bin is judged as any other.
+}
+
 \examples{
 t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 40)
 d <- data.frame(plot = rep(c("a", "b"), each = length(t)),

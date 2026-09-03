@@ -32,6 +32,7 @@ feature_matrix <- function(m, label = "features") {
   attr(out, "bin_end") <- .POSIXct(rep(NA_real_, ncol(m)), tz = "UTC")
   attr(out, "bin_n") <- matrix(NA_integer_, nrow = nrow(m), ncol = ncol(m),
                                dimnames = dimnames(m))
+  attr(out, "bin_partial") <- rep(FALSE, ncol(m))
   class(out) <- c("timegrain_matrix", "array")
   out
 }

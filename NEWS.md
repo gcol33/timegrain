@@ -9,8 +9,11 @@ predictive skill saturates.
   one of seven temporal grains, from the unreduced record to a single value per hydrological year.
   Naming several windows returns one representation per window; passing a function bins by a
   calendar the package does not carry, such as seasons cut at the equinoxes.
-* Bins follow the calendar, so a month is 28, 30 or 31 days and a week starts on a Monday, and the
-  bins are asserted to tile the record with no gap and no overlap.
+* Bins follow the calendar, so a month is 28, 30 or 31 days and a week starts on a Monday, and
+  every `(unit, bin)` cell is asserted to hold readings.
+* A bin the record does not cover for its whole calendar span is reported on `bin_partial` and
+  kept or removed by the `partial` argument, so a record that begins away from a bin boundary
+  says so rather than carrying a short bin that looks like any other.
 * Seven statistics: `mean`, `min`, `max`, the day-level `cold_day` and `warm_day`, which reduce
   each day to its own mean before taking the extreme over days, and `mean_daily_min` and
   `mean_daily_max`, which take the mean of the daily extremes.

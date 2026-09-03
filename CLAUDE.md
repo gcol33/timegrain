@@ -146,7 +146,7 @@ The build order is done on both sides: the representation and the fixtures, the 
 scorable-cell mask, the ladder and its plot, the learner registry, the torch learners, and above
 them the paired contrast, the mixed-model window contrast, the occlusion profile and the inflation
 of a self-selected threshold. The Python side carries the same except the mixed model, and
-reproduces every one of the 58 fixture digests from an implementation written against the spec
+reproduces every one of the 149 fixture digests from an implementation written against the spec
 rather than transcribed from the R source.
 
 `inst/reproduce/schrankogel.R` runs the published grid from the deposit and asserts its input at

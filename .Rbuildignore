@@ -19,3 +19,4 @@
 .*\.tar\.gz$
 .*\.Rcheck$
 ^docs_preview$
+^dev_notes$

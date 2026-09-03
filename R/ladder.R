@@ -122,6 +122,7 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
   attr(out, "bin_start") <- attr(x, "bin_start")
   attr(out, "bin_end") <- attr(x, "bin_end")
   attr(out, "bin_n") <- attr(x, "bin_n")[idx, , drop = FALSE]
+  attr(out, "bin_partial") <- attr(x, "bin_partial")
   class(out) <- c("timegrain_matrix", "array")
   out
 }
@@ -183,6 +184,13 @@ summary.timegrain_ladder <- function(object, ...) {
   keep <- ladder[!is.na(ladder$score), , drop = FALSE]
   stats::aggregate(list(score = keep$score), keep[c("window", "learner", "variable")],
                    mean)
+}
+
+# A level and the spread of the variables it was averaged over, in one place, so a ladder and a
+# selection report the same quantity computed the same way.
+.mean_se <- function(v) {
+  ok <- !is.na(v)
+  c(mean(v[ok]), stats::sd(v[ok]) / sqrt(sum(ok)))
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a

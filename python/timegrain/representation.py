@@ -32,6 +32,7 @@ class WindowMatrix:
     bin_start: np.ndarray
     bin_end: np.ndarray
     bin_n: np.ndarray = field(repr=False)
+    bin_partial: np.ndarray = field(repr=False)
 
     @property
     def shape(self) -> tuple[int, int, int]:
@@ -53,19 +54,27 @@ class WindowMatrix:
 
 
 def window_matrix(data=None, id=None, time=None, value=None, *, window="day", stats=("mean",),
-                  year_start="09-01"):
+                  year_start="09-01", partial="keep"):
     """Bin readings by the calendar and summarise every bin.
 
     ``data`` is a mapping of column name to sequence, or any object with ``__getitem__`` over the
     three column names given by ``id``, ``time`` and ``value``. Naming several windows returns a
     dict of one representation per window. ``window`` may also be a callable, which is handed the
     reading instants and must return the start of each reading's bin.
+
+    ``partial`` says what becomes of a bin the record does not cover for its whole calendar span,
+    which is what a record beginning or ending away from a bin boundary produces. ``"keep"``, the
+    default, returns it alongside the full bins; ``"drop"`` removes it. Either way the verdict is
+    carried on ``bin_partial``, so a kept partial bin is labelled rather than silent. A
+    caller-supplied binning declares its own bins, so the package cannot know where the last one
+    was meant to end and takes the record's end as its end.
     """
     unit, when, reading = _columns(data, id, time, value)
+    partial = _check_partial(partial)
 
     if not callable(window) and not isinstance(window, str):
         return {w: window_matrix(data, id, time, value, window=w, stats=stats,
-                                 year_start=year_start)
+                                 year_start=year_start, partial=partial)
                 for w in _check_windows(window)}
 
     stats = _check_stats(stats, window)
@@ -107,12 +116,28 @@ def window_matrix(data=None, id=None, time=None, value=None, *, window="day", st
         out[:, :, k] = flat.reshape(n_b, n_u).T
 
     bin_end = _bin_extent(when, bin_ix, n_b)
-    return WindowMatrix(
+    x = WindowMatrix(
         values=out, units=tuple(str(u) for u in units), bins=tuple(_iso(b) for b in bins),
         stats=tuple(stats), window="custom" if callable(window) else window,
         year_start=year_start, bin_start=bins, bin_end=bin_end,
-        bin_n=count.reshape(n_b, n_u).T,
+        bin_n=count.reshape(n_b, n_u).T, bin_partial=_bin_partial(when, bins, window, ys),
     )
+    return _drop_partial(x) if partial == "drop" else x
+
+
+def _drop_partial(x: WindowMatrix) -> WindowMatrix:
+    """Keeping or dropping a partial bin is the caller's choice, so the array is built over every
+    bin the calendar produced and the unwanted ones are removed afterwards, which keeps one binning
+    path rather than one per setting."""
+    keep = np.flatnonzero(~x.bin_partial)
+    if not len(keep):
+        raise ValueError(f"dropping the partial bins leaves no bin: the record covers no whole "
+                         f"{x.window}. Use partial='keep' or a finer window.")
+    if len(keep) == len(x.bin_partial):
+        return x
+    return replace(x, values=x.values[:, keep, :], bins=tuple(x.bins[i] for i in keep),
+                   bin_start=x.bin_start[keep], bin_end=x.bin_end[keep],
+                   bin_n=x.bin_n[:, keep], bin_partial=x.bin_partial[keep])
 
 
 def calendar_channels(x: WindowMatrix) -> WindowMatrix:
@@ -170,6 +195,39 @@ def _bin_start(when: np.ndarray, window, ys) -> np.ndarray:
         return when.astype("datetime64[M]").astype("datetime64[s]")
     step = 3 if window == "season" else 12
     return _anniversary(_offset_months(when, ys) // step * step, ys)
+
+
+def _bin_partial(when: np.ndarray, bins: np.ndarray, window, ys) -> np.ndarray:
+    """Which bins the record does not cover for their whole calendar span. The record covers from
+    its first reading to its last plus one sampling interval, and a bin is partial when its own
+    span reaches outside that. Only a bin at an end of the record can, because _check_grid() has
+    already required every unit to hold readings in every bin between them."""
+    covered_start = when.min()
+    covered_end = when.max() + _sampling_step(when)
+    return (bins < covered_start) | (_bin_next(bins, window, ys, covered_end) > covered_end)
+
+
+def _sampling_step(when: np.ndarray) -> np.timedelta64:
+    u = np.unique(when)
+    return np.diff(u).min() if len(u) > 1 else np.timedelta64(0, "s")
+
+
+def _bin_next(bins: np.ndarray, window, ys, covered_end) -> np.ndarray:
+    """Where each bin ends, which is where the next one on the same calendar starts. The four
+    coarse windows step by the calendar rather than by a count of seconds, so the successor is
+    taken by landing well inside the following bin and flooring that, which is exact whatever the
+    month length. A caller-supplied binning declares its own bins, so its successors are read off
+    the bins themselves and its last bin is taken to end with the record."""
+    if callable(window):
+        return np.concatenate([bins[1:], np.asarray([covered_end], dtype="datetime64[s]")])
+    if window == "hour":
+        return bins + _HOUR
+    if window == "halfday":
+        return bins + 12 * _HOUR
+    if window in ("day", "week", "month"):
+        ahead = {"day": 36 * _HOUR, "week": 180 * _HOUR, "month": 40 * _DAY}[window]
+        return _bin_start(bins + ahead, window, ys)
+    return _anniversary(_offset_months(bins, ys) + (3 if window == "season" else 12), ys)
 
 
 def _offset_months(when: np.ndarray, ys) -> np.ndarray:
@@ -263,6 +321,12 @@ def _check_stats(stats, window):
                              f"{' and '.join(day_level)} is not defined there. "
                              "Use a window of `day` or coarser.")
     return stats
+
+
+def _check_partial(partial):
+    if partial not in ("keep", "drop"):
+        raise ValueError(f'`partial` must be "keep" or "drop", got "{partial}"')
+    return partial
 
 
 def _parse_year_start(year_start: str):

@@ -26,7 +26,7 @@ paired_contrast(lad, "week|cnn", "week|glmnet")
 
 A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift
 away from both, so a "monthly" mean built from 730-hour blocks slides through the seasons over
-three years. `timegrain` bins on the calendar and asserts the bins tile the record exactly.
+three years. `timegrain` bins on the calendar and asserts every unit holds readings in every bin.
 
 ```r
 attr(window_matrix(d, plot, t, temp, window = "month"), "bin_n")[1, 1:3]
@@ -35,7 +35,14 @@ attr(window_matrix(d, plot, t, temp, window = "month"), "bin_n")[1, 1:3]
 ```
 
 A calendar the package does not carry is a function: pass one that returns each reading's bin
-start, and seasons cut at the equinoxes bin like any named window.
+start, and seasons cut at the equinoxes bin like any named window. They are a different calendar
+from the named `season`, not a different reading of it: three years from 1 September are twelve
+bins of three calendar months and thirteen cut at the equinoxes, because the record begins inside
+one of those.
+
+A record that begins away from a bin boundary gives a bin the calendar does not fill. `bin_partial`
+marks those bins and `partial = "drop"` removes them, so the choice between a short bin and a lost
+end of the record is one the caller makes.
 
 ## An extreme day is not an extreme reading
 

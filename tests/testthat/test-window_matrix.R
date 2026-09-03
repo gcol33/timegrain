@@ -91,6 +91,56 @@ test_that("seasons are three calendar months counted from year_start", {
   expect_equal(starts[1:3], c("2021-09-01", "2021-12-01", "2022-03-01"))
 })
 
+test_that("a bin the record does not fill is reported and can be dropped", {
+  # 1 September 2021 is a Wednesday, so three hydrological years from it fill every month, season
+  # and year of the calendar and neither the first nor the last week of it.
+  aligned <- hourly_series(units = "a", from = "2021-09-01 00:00:00", hours = 26304)
+  for (w in c("hour", "halfday", "day", "month", "season", "year")) {
+    x <- window_matrix(aligned, plot, t, temp, window = w)
+    expect_false(any(attr(x, "bin_partial")), info = w)
+  }
+  week <- window_matrix(aligned, plot, t, temp, window = "week")
+  expect_equal(which(attr(week, "bin_partial")), c(1L, 157L))
+  expect_equal(dim(window_matrix(aligned, plot, t, temp, window = "week",
+                                 partial = "drop"))[2], 155L)
+
+  # A logger deployed on no boundary at all carries one at the start of every window that
+  # aggregates, and the bin it starts is the one holding fewer readings than its neighbours.
+  offset <- hourly_series(units = "a", from = "2021-10-17 05:00:00", hours = 24 * 300)
+  for (w in c("halfday", "day", "week", "month", "season")) {
+    p <- attr(window_matrix(offset, plot, t, temp, window = w), "bin_partial")
+    expect_true(p[1L], info = w)
+    expect_false(any(p[-c(1L, length(p))]), info = w)
+  }
+  m <- window_matrix(offset, plot, t, temp, window = "month")
+  n <- attr(m, "bin_n")[1, ]
+  expect_lt(n[1], n[2])
+  dropped <- window_matrix(offset, plot, t, temp, window = "month", partial = "drop")
+  expect_equal(dim(dropped)[2], dim(m)[2] - sum(attr(m, "bin_partial")))
+  expect_false(any(attr(dropped, "bin_partial")))
+  expect_equal(as.numeric(dropped), as.numeric(m[, !attr(m, "bin_partial"), , drop = FALSE]))
+})
+
+test_that("a caller-supplied calendar owns its own bin lengths", {
+  d <- hourly_series(units = "a", from = "2021-09-01 00:00:00", hours = 24 * 200)
+  # Cut at the equinox rather than on the first of a month, with the first edge at the record's
+  # own start: the leading bin is three weeks against a season's three months, and that is the
+  # calendar the caller asked for rather than a bin the record failed to fill.
+  edges <- as.POSIXct(c("2021-09-01", "2021-09-22", "2021-12-21", "2022-03-20"), tz = "UTC")
+  astronomical <- function(when) edges[findInterval(as.numeric(when), as.numeric(edges))]
+  x <- window_matrix(d, plot, t, temp, window = astronomical)
+  expect_equal(dim(x)[2], 3L)
+  expect_false(any(attr(x, "bin_partial")))
+  expect_lt(attr(x, "bin_n")[1, 1], attr(x, "bin_n")[1, 2])
+
+  # The same record on the named window counts three calendar months from the anniversary, so it
+  # is a different rule and a different number of bins, not a different implementation of one.
+  expect_equal(dim(window_matrix(d, plot, t, temp, window = "season"))[2], 3L)
+  expect_equal(format(attr(window_matrix(d, plot, t, temp, window = "season"), "bin_start"),
+                      "%Y-%m-%d", tz = "UTC"),
+               c("2021-09-01", "2021-12-01", "2022-03-01"))
+})
+
 test_that("a column can be named bare or as a string", {
   d <- hourly_series(units = "a", hours = 48)
   bare <- window_matrix(d, plot, t, temp, window = "day")

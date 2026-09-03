@@ -39,10 +39,38 @@ of hours, so a bin is a real week or a real month rather than a drifting block o
 | `year` | the year running from `year_start` |
 
 `year_start` is a `"MM-DD"` string, default `"09-01"`. It sets the boundary of the hydrological
-year and therefore also the phase of the seasonal bins.
+year and therefore also the phase of the seasonal bins. A seasonal bin is three calendar months
+counted from that anniversary, so a record of three hydrological years beginning on it holds
+twelve of them and no partial one. Cutting seasons anywhere else, at the equinoxes and solstices
+for instance, is a different calendar and is passed as a function; see Custom bins.
 
-Bins are contiguous and cover the record with no gap and no overlap. The implementation asserts
-this: the summed bin lengths must equal the number of readings per id.
+Bins are contiguous and cover the record with no gap and no overlap. What is asserted is that
+every `(id, bin)` cell holds at least one reading, which is what makes a bin the same span for
+every id and a record that stops early an error rather than a padded row.
+
+## Partial bins
+
+A bin is **partial** when the record does not cover its whole calendar span. The record covers
+from its first reading to its last plus one sampling interval, taken as the smallest gap between
+consecutive distinct reading instants, and a bin is partial when its own span reaches outside
+that. Only a bin at an end of the record can, because every id is required to hold readings in
+every bin between them.
+
+Which bins those are follows from where the record starts and stops against the calendar, not from
+the window alone. Three years of hourly readings from 1 September on a `"09-01"` boundary carry no
+partial month, season or year, and a partial week at each end, because 1 September 2021 is a
+Wednesday. A record from an arbitrary deployment date carries one at each end of almost every
+window.
+
+`window_matrix()` reports the verdict as `bin_partial` and takes a `partial` argument saying what
+becomes of such a bin: `"keep"`, the default, returns it alongside the full bins; `"drop"` removes
+it, and errors rather than returning an empty representation if that leaves no bin. Dropping is a
+choice about the record, not about the implementation: it discards up to three months of readings
+at each end of a seasonal window, while keeping gives a bin whose mean is taken over fewer readings
+and whose `cold_day` and `warm_day` are drawn from fewer days, so they sit closer to that bin's
+mean than a full bin's would. `bin_n` gives the count each bin was reduced from.
+
+Both implementations obey the same rule and the fixtures pin both settings.
 
 ## Statistics
 
@@ -84,6 +112,21 @@ required to tile the record, and the output still carries the bin starts as its 
 names. This is how a calendar the package does not carry is used, such as seasons cut at the
 equinoxes and solstices rather than on the first of a month.
 
+Such a calendar owns its own bin lengths. A record beginning inside one of its seasons gives a
+leading bin of a few weeks beside neighbours of three months, and that is the calendar the caller
+asked for rather than a bin the record failed to fill: it is what makes three years cut at the
+equinoxes thirteen bins where three calendar months from `"09-01"` are twelve. The function
+declares where its bins begin, so the package cannot know where the last one was meant to end and
+takes the record's end as its end; that final bin is never reported partial, and a leading bin is
+judged as any other.
+
+The function must return a bin start for every reading, including any that precede its first
+boundary. Deciding that with an interval lookup is the natural way to write one and the two
+languages disagree below the first boundary, where R's `findInterval()` gives 0 and NumPy's
+`searchsorted() - 1` gives -1: the first silently shortens the result, which is an error, and the
+second silently wraps to the last boundary, which is not. Either put the first boundary at or
+before the record's first reading, as the fixtures do, or handle the readings below it explicitly.
+
 ## Output
 
 A numeric array of shape `[n_id, n_bin, n_channel]`.
@@ -102,6 +145,7 @@ Attributes carried on the array:
 | `bin_start` | the bin start instants |
 | `bin_end` | the last reading instant assigned to each bin |
 | `bin_n` | a `[id, bin]` matrix of how many readings fell in each cell |
+| `bin_partial` | a logical vector marking the bins the record does not cover for their whole calendar span |
 
 No standardisation, centring or scaling happens here. Scaling is a property of a fit and belongs
 to the fold it is computed on, never to the representation, because computing it over all ids
@@ -121,11 +165,27 @@ not required to be.
 
 ## Fixtures
 
-`spec/fixtures/series.csv` is a synthetic three-unit, 400-day hourly series. `digests.csv` holds,
-for every window-by-statistic combination and for each of the three-channel schemes
-(`min+mean+max`, `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the digest of
-the resulting array. Both test suites read the series, rebuild every combination and assert the
-digests.
+Two series, because a record that starts on a bin boundary cannot tell two binning rules apart.
+`spec/fixtures/series.csv` is a synthetic three-unit, 400-day hourly series beginning at midnight
+on the default anniversary, so every coarse window is in phase with it from the first reading.
+`series_offset.csv` is a two-unit, 200-day series beginning at 05:00 on 17 October, which is what
+a logger deployed when someone could walk to it gives, and puts every window out of phase.
+`seasons.csv` holds the equinox and solstice boundaries that make each series a caller-supplied
+calendar, which is the only path the manuscript's seasonal rung ever took.
+
+`digests.csv` holds one row per series, window, `year_start`, `partial` setting and statistic,
+covering every window-by-statistic combination, each of the three-channel schemes
+(`min+mean+max`, `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the coarse
+windows at anniversaries other than the default, both `partial` settings, and the supplied
+calendar. Each row carries `n_unit`, `n_bin`, the first and last bin start, how many bins are
+partial, and the digest.
+
+Both test suites read the series, rebuild every row and assert all of it. The shape is asserted
+before the digest, so two implementations that put the record into a different number of bins are
+reported as that rather than as an unexplained hash mismatch. A contract that carried one series
+starting on the anniversary, at the default anniversary, with no supplied calendar and no bin
+count beside the hash would pass while the two sides disagreed on how many seasons three years
+hold, which is the whole thing it exists to prevent.
 
 The digest is defined byte-exactly, because a scheme that varies by platform pins nothing:
 

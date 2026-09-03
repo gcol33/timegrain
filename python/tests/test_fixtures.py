@@ -17,9 +17,11 @@ from timegrain import digest_array, window_matrix
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 
+SERIES_FILE = {"aligned": "series.csv", "offset": "series_offset.csv"}
 
-def read_series():
-    with (FIXTURES / "series.csv").open(newline="") as fh:
+
+def read_series(name):
+    with (FIXTURES / SERIES_FILE[name]).open(newline="") as fh:
         rows = list(csv.DictReader(fh))
     return {"id": [r["id"] for r in rows],
             "time": [r["time"].replace("Z", "") for r in rows],
@@ -31,19 +33,65 @@ def read_digests():
         return list(csv.DictReader(fh))
 
 
+def read_edges(name):
+    with (FIXTURES / "seasons.csv").open(newline="") as fh:
+        rows = [r["edge"].replace("Z", "") for r in csv.DictReader(fh) if r["series"] == name]
+    return np.asarray(rows, dtype="datetime64[s]")
+
+
+def binning(name, window):
+    if window != "astronomical":
+        return window
+    edges = read_edges(name)
+
+    def astronomical(when):
+        return edges[np.searchsorted(edges, when, side="right") - 1]
+
+    return astronomical
+
+
 @pytest.fixture(scope="module")
 def series():
-    return read_series()
+    return {name: read_series(name) for name in SERIES_FILE}
 
 
-@pytest.mark.parametrize("row", read_digests(),
-                         ids=lambda r: f"{r['window']}-{r['stat']}")
+@pytest.mark.parametrize(
+    "row", read_digests(),
+    ids=lambda r: f"{r['series']}-{r['window']}-{r['year_start']}-{r['partial']}-{r['stat']}")
 def test_digest_matches_the_r_side(series, row):
-    x = window_matrix(series, "id", "time", "value", window=row["window"],
-                      stats=row["stat"].split("+"))
+    x = window_matrix(series[row["series"]], "id", "time", "value",
+                      window=binning(row["series"], row["window"]),
+                      stats=row["stat"].split("+"), year_start=row["year_start"],
+                      partial=row["partial"])
+    # The shape is asserted before the digest, so a binning that puts the record into a different
+    # number of bins is reported as that rather than as an unexplained hash mismatch.
     assert x.values.shape[0] == int(row["n_unit"])
     assert x.values.shape[1] == int(row["n_bin"])
+    assert x.bins[0] == row["first_bin"]
+    assert x.bins[-1] == row["last_bin"]
+    assert int(x.bin_partial.sum()) == int(row["n_partial"])
     assert digest_array(x) == row["digest"]
+
+
+def test_the_fixtures_cover_a_record_that_starts_on_no_bin_boundary():
+    # A record beginning at midnight on the year_start anniversary puts every window in phase with
+    # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
+    # never makes one agree. The contract is only a contract if it also carries the other case.
+    rows = read_digests()
+    assert {r["series"] for r in rows} == {"aligned", "offset"}
+    offset = [r for r in rows if r["series"] == "offset"]
+    assert {r["window"] for r in offset} == {"hour", "halfday", "day", "week", "month", "season",
+                                             "year", "astronomical"}
+    assert sum(int(r["n_partial"]) for r in offset) > 0
+    assert {r["partial"] for r in rows} == {"keep", "drop"}
+    assert len({r["year_start"] for r in rows}) > 1
+
+
+def test_dropping_every_bin_is_an_error_rather_than_an_empty_representation(series):
+    with pytest.raises(ValueError, match="no whole year"):
+        window_matrix(series["offset"], "id", "time", "value", window="year", partial="drop")
+    with pytest.raises(ValueError, match="must be"):
+        window_matrix(series["offset"], "id", "time", "value", window="day", partial="sometimes")
 
 
 def test_the_digest_is_the_lf_terminated_twelve_place_form_and_nothing_else():

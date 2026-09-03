@@ -98,6 +98,7 @@ bind_channels <- function(...) {
   attr(out, "bin_start") <- attr(from, "bin_start")
   attr(out, "bin_end") <- attr(from, "bin_end")
   attr(out, "bin_n") <- attr(from, "bin_n")
+  attr(out, "bin_partial") <- attr(from, "bin_partial")
   class(out) <- c("timegrain_matrix", "array")
   out
 }

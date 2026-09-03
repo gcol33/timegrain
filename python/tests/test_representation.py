@@ -91,6 +91,56 @@ def test_seasons_are_three_calendar_months_from_the_year_start():
     assert [b[:10] for b in x.bins[:3]] == ["2021-09-01", "2021-12-01", "2022-03-01"]
 
 
+def test_a_bin_the_record_does_not_fill_is_reported_and_can_be_dropped():
+    # 1 September 2021 is a Wednesday, so three hydrological years from it fill every month, season
+    # and year of the calendar and neither the first nor the last week of it.
+    aligned = hourly(units=("a",), hours=26304, start="2021-09-01")
+    for w in ("hour", "halfday", "day", "month", "season", "year"):
+        x = window_matrix(aligned, "id", "time", "value", window=w)
+        assert not x.bin_partial.any(), w
+    week = window_matrix(aligned, "id", "time", "value", window="week")
+    assert np.flatnonzero(week.bin_partial).tolist() == [0, 156]
+    assert window_matrix(aligned, "id", "time", "value", window="week",
+                         partial="drop").values.shape[1] == 155
+
+    # A logger deployed on no boundary at all carries one at the start of every window that
+    # aggregates, and the bin it starts is the one holding fewer readings than its neighbours.
+    offset = hourly(units=("a",), hours=24 * 300, start="2021-10-17T05:00:00")
+    for w in ("halfday", "day", "week", "month", "season"):
+        p = window_matrix(offset, "id", "time", "value", window=w).bin_partial
+        assert p[0], w
+        assert not p[1:-1].any(), w
+    m = window_matrix(offset, "id", "time", "value", window="month")
+    assert m.bin_n[0, 0] < m.bin_n[0, 1]
+    dropped = window_matrix(offset, "id", "time", "value", window="month", partial="drop")
+    assert dropped.values.shape[1] == m.values.shape[1] - int(m.bin_partial.sum())
+    assert not dropped.bin_partial.any()
+    assert np.array_equal(dropped.values, m.values[:, ~m.bin_partial, :])
+
+
+def test_a_caller_supplied_calendar_owns_its_own_bin_lengths():
+    d = hourly(units=("a",), hours=24 * 200, start="2021-09-01")
+    # Cut at the equinox rather than on the first of a month, with the first edge at the record's
+    # own start: the leading bin is three weeks against a season's three months, and that is the
+    # calendar the caller asked for rather than a bin the record failed to fill.
+    edges = np.array(["2021-09-01", "2021-09-22", "2021-12-21", "2022-03-20"],
+                     dtype="datetime64[s]")
+
+    def astronomical(when):
+        return edges[np.searchsorted(edges, when, side="right") - 1]
+
+    x = window_matrix(d, "id", "time", "value", window=astronomical)
+    assert x.values.shape[1] == 3
+    assert not x.bin_partial.any()
+    assert x.bin_n[0, 0] < x.bin_n[0, 1]
+
+    # The same record on the named window counts three calendar months from the anniversary, so it
+    # is a different rule and a different number of bins, not a different implementation of one.
+    named = window_matrix(d, "id", "time", "value", window="season")
+    assert named.values.shape[1] == 3
+    assert [b[:10] for b in named.bins] == ["2021-09-01", "2021-12-01", "2022-03-01"]
+
+
 def test_the_hydrological_year_boundary_moves_with_year_start():
     t = np.datetime64("2021-08-25T00:00:00", "s") + np.arange(24 * 20) * np.timedelta64(1, "h")
     d = {"id": ["a"] * len(t), "time": list(t), "value": [1.0] * len(t)}

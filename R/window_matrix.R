@@ -18,6 +18,9 @@
 #' @param stats Statistics to compute per bin, one channel each, in the order given. See Details.
 #' @param year_start `"MM-DD"` boundary of the hydrological year, used by `"season"` and
 #'   `"year"`. Defaults to `"09-01"`.
+#' @param partial What to do with a bin the record does not cover for its whole calendar span,
+#'   which is what a record beginning or ending away from a bin boundary produces. `"keep"`, the
+#'   default, returns it alongside the full bins; `"drop"` removes it. See Partial bins.
 #'
 #' @details
 #' Seven statistics are available, and the distinction between an extreme reading, an extreme day
@@ -40,6 +43,31 @@
 #' Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 #' representation, because computing it over all units would leak held-out units into the input.
 #'
+#' @section Partial bins:
+#' A bin is partial when the record does not cover its whole calendar span. Which bins those are
+#' follows from where the record starts and stops against the calendar, not from the window alone:
+#' three years of hourly readings from 1 September carry no partial month and no partial season on
+#' a `"09-01"` boundary, but the same record carries a partial week at each end, because 1
+#' September is a Wednesday. A record from an arbitrary deployment date carries one at each end of
+#' almost every window.
+#'
+#' A bin is partial if its start precedes the first reading of the record, or if its calendar span
+#' runs past the last reading plus the record's own sampling interval, taken as the smallest gap
+#' between consecutive distinct reading instants. Only a bin at an end of the record can satisfy
+#' either, because every unit is required to span every bin in between. The verdict is returned as
+#' the `bin_partial` attribute whichever way `partial` is set, so a kept partial bin is labelled
+#' rather than silent.
+#'
+#' Keeping partial bins is the default because dropping them discards the record's ends: on a
+#' seasonal window that is up to three months of readings at each end. The cost of keeping them is
+#' that such a bin's mean is taken over fewer readings and its extremes over fewer days, so
+#' `cold_day` and `warm_day` there are drawn from a shorter draw and sit closer to the bin mean
+#' than a full bin's would. `bin_n` gives the count the bin was actually reduced from.
+#'
+#' A caller-supplied binning declares its own bins, so the package cannot know where the last one
+#' was meant to end and takes the record's end as its end. Such a final bin is never reported
+#' partial; its leading bin is judged as any other.
+#'
 #' @return A numeric array of shape `[unit, bin, channel]`, with dimnames giving the sorted unit
 #'   identifiers, the ISO-8601 start of each bin, and the statistic names. Attributes:
 #'   \itemize{
@@ -48,6 +76,8 @@
 #'     \item `year_start`: the boundary used.
 #'     \item `bin_start`, `bin_end`: the first and last reading instant assigned to each bin.
 #'     \item `bin_n`: a `[unit, bin]` matrix of how many readings fell in each bin.
+#'     \item `bin_partial`: a logical vector marking the bins the record does not cover for their
+#'       whole calendar span.
 #'   }
 #'   Naming more than one window returns a [timegrain_set()] of those arrays.
 #'
@@ -71,16 +101,18 @@ window_matrix <- function(data,
                           value,
                           window = "day",
                           stats = "mean",
-                          year_start = "09-01") {
+                          year_start = "09-01",
+                          partial = c("keep", "drop")) {
   id_col <- .resolve_column(substitute(id), data, parent.frame())
   time_col <- .resolve_column(substitute(time), data, parent.frame())
   value_col <- .resolve_column(substitute(value), data, parent.frame())
 
+  partial <- match.arg(partial)
   window <- .check_window(window)
   if (length(window) > 1L) {
     out <- lapply(window, function(w) {
       window_matrix(data, id = id_col, time = time_col, value = value_col,
-                    window = w, stats = stats, year_start = year_start)
+                    window = w, stats = stats, year_start = year_start, partial = partial)
     })
     return(timegrain_set(stats::setNames(out, window)))
   }
@@ -144,7 +176,33 @@ window_matrix <- function(data,
   attr(out, "bin_end") <- .POSIXct(
     .group_edge(as.numeric(when), bin_of, n_b, TRUE), tz = tz)
   attr(out, "bin_n") <- matrix(count, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
+  attr(out, "bin_partial") <- .bin_partial(when, bins, window, ys, tz)
   class(out) <- c("timegrain_matrix", class(out))
+  if (partial == "drop") .drop_partial(out) else out
+}
+
+# Keeping or dropping a partial bin is the caller's choice, so the array is built over every bin
+# the calendar produced and the unwanted ones are removed afterwards, which keeps one binning path
+# rather than one per setting.
+.drop_partial <- function(x) {
+  keep <- which(!attr(x, "bin_partial"))
+  if (!length(keep)) {
+    stop("dropping the partial bins leaves no bin: the record covers no whole ",
+         attr(x, "window"), ". Use `partial = \"keep\"` or a finer window.", call. = FALSE)
+  }
+  if (length(keep) == dim(x)[2L]) {
+    return(x)
+  }
+  out <- x[, keep, , drop = FALSE]
+  dimnames(out) <- list(dimnames(x)[[1L]], dimnames(x)[[2L]][keep], dimnames(x)[[3L]])
+  for (a in c("window", "stats", "year_start")) {
+    attr(out, a) <- attr(x, a)
+  }
+  attr(out, "bin_start") <- attr(x, "bin_start")[keep]
+  attr(out, "bin_end") <- attr(x, "bin_end")[keep]
+  attr(out, "bin_n") <- attr(x, "bin_n")[, keep, drop = FALSE]
+  attr(out, "bin_partial") <- attr(x, "bin_partial")[keep]
+  class(out) <- c("timegrain_matrix", "array")
   out
 }
 
@@ -359,6 +417,41 @@ print.timegrain_matrix <- function(x, ...) {
   }
   step <- if (window == "season") 3L else 12L
   .anniversary(.offset_months(when, ys, tz) %/% step * step, ys, tz)
+}
+
+# Which bins the record does not cover for their whole calendar span. The record covers from its
+# first reading to its last plus one sampling interval, and a bin is partial when its own span
+# reaches outside that. Only a bin at an end of the record can, because .check_grid() has already
+# required every unit to hold readings in every bin between them.
+.bin_partial <- function(when, bins, window, ys, tz) {
+  covered <- range(as.numeric(when))
+  covered[2L] <- covered[2L] + .sampling_step(when)
+  as.numeric(bins) < covered[1L] |
+    as.numeric(.bin_next(bins, window, ys, tz, covered[2L])) > covered[2L]
+}
+
+.sampling_step <- function(when) {
+  u <- sort(unique(as.numeric(when)))
+  if (length(u) < 2L) 0 else min(diff(u))
+}
+
+# Where each bin ends, which is where the next one on the same calendar starts. The four coarse
+# windows step by the calendar rather than by a count of seconds, so the successor is taken by
+# landing well inside the following bin and flooring that, which is exact whatever the month length
+# or the daylight-saving offset. A caller-supplied binning declares its own bins, so its successors
+# are read off the bins themselves and its last bin is taken to end with the record.
+.bin_next <- function(bins, window, ys, tz, covered_end) {
+  if (is.function(window)) {
+    return(c(bins[-1L], .POSIXct(covered_end, tz = tz)))
+  }
+  switch(window,
+         hour = bins + 3600,
+         halfday = bins + 43200,
+         day = .bin_of(bins + 36 * 3600, "day", ys, tz),
+         week = .bin_of(bins + 180 * 3600, "week", ys, tz),
+         month = .bin_of(bins + 40 * 86400, "month", ys, tz),
+         season = .anniversary(.offset_months(bins, ys, tz) + 3L, ys, tz),
+         year = .anniversary(.offset_months(bins, ys, tz) + 12L, ys, tz))
 }
 
 .offset_months <- function(when, ys, tz) {
