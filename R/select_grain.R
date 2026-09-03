@@ -170,6 +170,7 @@ print.timegrain_selection <- function(x, ...) {
 }
 
 #' @param object A selection.
+#' @param ... Ignored.
 #' @rdname select_grain
 #' @export
 summary.timegrain_selection <- function(object, ...) {

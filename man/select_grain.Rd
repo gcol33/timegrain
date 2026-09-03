@@ -49,6 +49,8 @@ so no two outer folds inherit the same inner partition.}
 \item{verbose}{Report each outer fold and what it selected as it runs.}
 
 \item{object}{A selection.}
+
+\item{...}{Ignored.}
 }
 \value{
 A \code{timegrain_selection}: a list carrying \code{selected}, one row per outer fold with the
