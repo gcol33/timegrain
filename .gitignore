@@ -22,3 +22,6 @@ dist/
 
 benchmark-results/
 benchmark-*.log
+_skbuild/
+.cmake/
+CMakeUserPresets.json

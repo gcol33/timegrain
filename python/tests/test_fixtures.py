@@ -17,7 +17,8 @@ from timegrain import digest_array, window_matrix
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 
-SERIES_FILE = {"aligned": "series.csv", "offset": "series_offset.csv"}
+SERIES_FILE = {"aligned": "series.csv", "offset": "series_offset.csv",
+               "zoned": "series_zoned.csv"}
 
 
 def read_series(name):
@@ -57,12 +58,15 @@ def series():
 
 @pytest.mark.parametrize(
     "row", read_digests(),
-    ids=lambda r: f"{r['series']}-{r['window']}-{r['year_start']}-{r['partial']}-{r['stat']}")
+    ids=lambda r: (f"{r['series']}-{r['window']}-{r['tz'].replace('/', '_')}"
+                   f"-{r['year_start']}-{r['partial']}-{r['stat']}"))
 def test_digest_matches_the_r_side(series, row):
+    # The instants are the same bytes on disk whichever calendar reads them; the zone is the clock
+    # laid over them, and a zone row asserts that both languages read that clock the same way.
     x = window_matrix(series[row["series"]], "id", "time", "value",
                       window=binning(row["series"], row["window"]),
                       stats=row["stat"].split("+"), year_start=row["year_start"],
-                      partial=row["partial"])
+                      partial=row["partial"], tz=row["tz"])
     # The shape is asserted before the digest, so a binning that puts the record into a different
     # number of bins is reported as that rather than as an unexplained hash mismatch.
     assert x.values.shape[0] == int(row["n_unit"])
@@ -78,13 +82,19 @@ def test_the_fixtures_cover_a_record_that_starts_on_no_bin_boundary():
     # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
     # never makes one agree. The contract is only a contract if it also carries the other case.
     rows = read_digests()
-    assert {r["series"] for r in rows} == {"aligned", "offset"}
+    assert {r["series"] for r in rows} == {"aligned", "offset", "zoned"}
     offset = [r for r in rows if r["series"] == "offset"]
     assert {r["window"] for r in offset} == {"hour", "halfday", "day", "week", "month", "season",
                                              "year", "astronomical"}
     assert sum(int(r["n_partial"]) for r in offset) > 0
     assert {r["partial"] for r in rows} == {"keep", "drop"}
     assert len({r["year_start"] for r in rows}) > 1
+
+    # A contract checked only in UTC verifies the calendar on the one zone where the question does
+    # not arise. Both a zone that moves its clock in the middle of the day and one that moves it at
+    # midnight are pinned.
+    assert {"UTC", "Europe/Vienna", "America/Sao_Paulo"} <= {r["tz"] for r in rows}
+    assert any(r["tz"] == "America/Sao_Paulo" and r["year_start"] == "11-04" for r in rows)
 
 
 def test_dropping_every_bin_is_an_error_rather_than_an_empty_representation(series):

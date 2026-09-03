@@ -78,9 +78,32 @@ extreme is the exposure a typical day of the bin brought. On alpine soil tempera
 day-level pair carries more predictive signal than the bin mean, and by more the coarser the
 bin.
 
+Whether a window is a day or coarser is decided from the bins rather than from the window's
+name, so a supplied calendar that cuts inside a day is refused for these four as well, naming
+the day it splits.
+
 Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 representation, because computing it over all units would leak held-out units into the input.
 }
+\section{Time zone}{
+
+Bins follow the calendar the series is carried in, which is the \code{tzone} attribute of \code{time};
+a column with none is read as UTC. The zone is resolved once, at the edge: below it the binning
+works in local time, where a day is 86400 seconds whatever the night did, so a zone that moves
+its clock at midnight has no midnight to lose. A bin start is a local time, so reporting it back
+as an instant needs a rule: one the clock skipped resolves to the instant the clock jumped to,
+one the clock repeated to the first of the two. Instants are read at whole seconds.
+}
+
+\section{Bins that do not tile the record}{
+
+Every unit must reach every bin, and consecutive bins must be one bin apart on the window's own
+calendar. A bin no unit reaches is never built, so a month missing from the whole record would
+otherwise pass as four adjacent monthly bins with one simply gone. Neither the \code{"hour"} window,
+whose bin is the reading itself, nor a supplied calendar, which declares its own bin lengths,
+is held to the second rule.
+}
+
 \section{Partial bins}{
 
 A bin is partial when the record does not cover its whole calendar span. Which bins those are

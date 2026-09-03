@@ -23,3 +23,7 @@
 ^benchmark-results$
 ^benchmark-.*\.log$
 ^tmp-probe$
+^pyproject\.toml$
+^CMakeLists\.txt$
+^tools$
+^\.pytest_cache$

@@ -32,7 +32,21 @@ tg.paired_contrast(lad, "week|cnn", "week|elasticnet")
 
 The mixed-model window contrast the R side offers as `window_contrasts()` has no counterpart here.
 
-The core needs numpy alone. A learner that needs a package declares it and stops without it.
+The binning and the reduction are not written here. They are `../src/tg_core.cpp`, the same
+implementation the R package compiles, reached through the `_core` extension that `../CMakeLists.txt`
+builds with nanobind. What is written here is the boundary: resolving the columns, resolving the
+zone, and putting the result into a `WindowMatrix`.
+
+At runtime the package needs numpy alone. A learner that needs a package declares it and stops
+without it.
+
+## The time zone
+
+`window_matrix` takes a `tz` argument. Left at `None` the instants are taken as already expressed
+in the calendar to bin by, which is what a zone-free `datetime64` says. Given a zone name they are
+read as UTC and binned by that zone's clock, which is what the R side does for a series carrying a
+`tzone`. The same instants and the same zone give the same answer in both languages, and
+`digests.csv` carries zone rows that pin it.
 
 ## The fold map crosses the language boundary; the fold builder does not
 
@@ -42,11 +56,16 @@ the other with `read_folds`. The map is an artifact, like the response and the r
 
 ## Two rules govern this directory
 
-- **The representation is implemented from the spec, not transcribed from the R source.** Reading
-  the R code and copying it reproduces its bugs and hides its assumptions. The spec is what both
-  sides are checked against.
+- **`tests/oracle.py` is implemented from the spec, not transcribed from the R source.** It is the
+  NumPy representation as it was written before the two languages shared a core, kept because
+  reading the R code and copying it would reproduce its bugs and hide its assumptions. Nothing
+  imports it outside the suite; it exists so the shared core is checked against an implementation
+  that shares none of its code.
 - **A digest mismatch is a bug, never a fixture to regenerate.** Regenerating fixtures happens on
   the R side, deliberately, in its own commit, and only when the spec changed with it.
+
+The project directory is the repository root, because a source distribution cannot reach above
+itself and the shared sources are not vendored into a second copy. Build and test from there:
 
 ```
 pip install -e ".[test,torch,sklearn]"

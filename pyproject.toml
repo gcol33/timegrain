@@ -1,0 +1,57 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "timegrain"
+version = "0.2.0"
+description = "Temporal grain selection for ecological prediction from sensor time series"
+readme = "python/README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Gilles Colling", email = "gilles.colling051@gmail.com" }]
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+torch = ["torch>=2.0"]
+sklearn = ["scikit-learn>=1.8"]
+test = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://gillescolling.com/timegrain/"
+Source = "https://github.com/gcol33/timegrain"
+Issues = "https://github.com/gcol33/timegrain/issues"
+
+[tool.scikit-build]
+minimum-version = "0.10"
+wheel.packages = ["python/timegrain"]
+sdist.include = [
+  "CMakeLists.txt",
+  "src/tg_core.cpp",
+  "src/tg_calendar.cpp",
+  "src/tg_core.h",
+  "python/tg_py.cpp",
+  "python/tests/**",
+  "inst/spec/**",
+  "LICENSE",
+]
+sdist.exclude = [
+  "R/",
+  "man/",
+  "tests/",
+  "vignettes/",
+  "inst/reproduce/",
+  "dev_notes/",
+  "docs/",
+  "src/cpp11.cpp",
+  "src/tg_r.cpp",
+  "DESCRIPTION",
+  "NAMESPACE",
+  "NEWS.md",
+  "CLAUDE.md",
+  "_pkgdown.yml",
+  ".Rbuildignore",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]

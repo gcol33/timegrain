@@ -40,8 +40,27 @@
 #' day-level pair carries more predictive signal than the bin mean, and by more the coarser the
 #' bin.
 #'
+#' Whether a window is a day or coarser is decided from the bins rather than from the window's
+#' name, so a supplied calendar that cuts inside a day is refused for these four as well, naming
+#' the day it splits.
+#'
 #' Nothing is standardised here. Scaling belongs to the fold it is computed on, never to the
 #' representation, because computing it over all units would leak held-out units into the input.
+#'
+#' @section Time zone:
+#' Bins follow the calendar the series is carried in, which is the `tzone` attribute of `time`;
+#' a column with none is read as UTC. The zone is resolved once, at the edge: below it the binning
+#' works in local time, where a day is 86400 seconds whatever the night did, so a zone that moves
+#' its clock at midnight has no midnight to lose. A bin start is a local time, so reporting it back
+#' as an instant needs a rule: one the clock skipped resolves to the instant the clock jumped to,
+#' one the clock repeated to the first of the two. Instants are read at whole seconds.
+#'
+#' @section Bins that do not tile the record:
+#' Every unit must reach every bin, and consecutive bins must be one bin apart on the window's own
+#' calendar. A bin no unit reaches is never built, so a month missing from the whole record would
+#' otherwise pass as four adjacent monthly bins with one simply gone. Neither the `"hour"` window,
+#' whose bin is the reading itself, nor a supplied calendar, which declares its own bin lengths,
+#' is held to the second rule.
 #'
 #' @section Partial bins:
 #' A bin is partial when the record does not cover its whole calendar span. Which bins those are
@@ -130,53 +149,34 @@ window_matrix <- function(data,
   tz <- attr(when, "tzone")
   if (is.null(tz) || !nzchar(tz)) tz <- "UTC"
 
-  .check_readings(unit, when, reading, id_col, time_col, value_col)
+  # Instants at second resolution, and the same instants read as a clock in the series' own zone.
+  # The zone is resolved here and nowhere below it: the core bins a calendar with no zone in it, so
+  # a day there is 86400 seconds of local time whatever the night did.
+  instant <- floor(as.numeric(when))
+  .check_readings(unit, when, instant, reading, id_col, time_col, value_col)
+  local <- .naive_seconds(instant, tz, time_col)
 
-  bin_start <- .bin_start(when, window, ys, tz)
   units <- sort(unique(unit))
-  bins <- sort(unique(bin_start))
+  supplied <- if (is.function(window)) .custom_bins(window, when, tz, time_col) else NULL
+
+  fit <- tg_reduce_(match(unit, units), reading, instant, local, supplied, units,
+                    if (is.function(window)) "custom" else window,
+                    ys$month, ys$day, stats, .sampling_step(instant))
+
+  bins <- .local_to_instant(fit$bin_start, tz)
   n_u <- length(units)
   n_b <- length(bins)
-  n_cell <- n_u * n_b
-
-  bin_of <- match(unclass(bin_start), unclass(bins))
-  cell <- (bin_of - 1L) * n_u + match(unit, units)
-  count <- tabulate(cell, nbins = n_cell)
-  .check_grid(count, units, bins, n_u)
-
-  out <- array(NA_real_,
+  out <- array(fit$values,
                dim = c(n_u, n_b, length(stats)),
                dimnames = list(units, format(bins, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), stats))
-
-  day <- if (any(stats %in% .day_level_stats())) {
-    .day_level(reading, unit, when, units, bins, ys, tz, n_cell)
-  } else {
-    NULL
-  }
-
-  for (k in seq_along(stats)) {
-    out[, , k] <- switch(
-      stats[k],
-      mean = matrix(.group_sum(reading, cell, n_cell) / count, nrow = n_u, ncol = n_b),
-      min = matrix(.group_edge(reading, cell, n_cell, FALSE), nrow = n_u, ncol = n_b),
-      max = matrix(.group_edge(reading, cell, n_cell, TRUE), nrow = n_u, ncol = n_b),
-      cold_day = matrix(.group_edge(day$mean, day$cell, n_cell, FALSE), nrow = n_u, ncol = n_b),
-      warm_day = matrix(.group_edge(day$mean, day$cell, n_cell, TRUE), nrow = n_u, ncol = n_b),
-      mean_daily_min = matrix(.group_sum(day$min, day$cell, n_cell) / day$n_day,
-                              nrow = n_u, ncol = n_b),
-      mean_daily_max = matrix(.group_sum(day$max, day$cell, n_cell) / day$n_day,
-                              nrow = n_u, ncol = n_b)
-    )
-  }
 
   attr(out, "window") <- if (is.function(window)) "custom" else window
   attr(out, "stats") <- stats
   attr(out, "year_start") <- year_start
   attr(out, "bin_start") <- bins
-  attr(out, "bin_end") <- .POSIXct(
-    .group_edge(as.numeric(when), bin_of, n_b, TRUE), tz = tz)
-  attr(out, "bin_n") <- matrix(count, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
-  attr(out, "bin_partial") <- .bin_partial(when, bins, window, ys, tz)
+  attr(out, "bin_end") <- .POSIXct(fit$bin_end, tz = tz)
+  attr(out, "bin_n") <- matrix(fit$bin_n, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
+  attr(out, "bin_partial") <- fit$bin_partial
   class(out) <- c("timegrain_matrix", class(out))
   if (partial == "drop") .drop_partial(out) else out
 }
@@ -299,7 +299,7 @@ print.timegrain_matrix <- function(x, ...) {
   list(month = parts[1L], day = parts[2L])
 }
 
-.check_readings <- function(unit, when, reading, id_col, time_col, value_col) {
+.check_readings <- function(unit, when, instant, reading, id_col, time_col, value_col) {
   missing <- c(id_col, time_col, value_col)[c(anyNA(unit), anyNA(when), anyNA(reading))]
   if (length(missing)) {
     stop("missing values in ", paste(sprintf("`%s`", missing), collapse = " and "),
@@ -307,14 +307,15 @@ print.timegrain_matrix <- function(x, ...) {
   }
   # Sort by (unit, time) and look at neighbours. Pasting the two into a key would be the obvious
   # way and builds one string per reading, which on a record of tens of millions of readings costs
-  # more memory than the readings themselves.
+  # more memory than the readings themselves. The instants are the whole seconds the calendar is
+  # read at, so two readings a fraction of a second apart are the same reading twice here.
   n <- length(unit)
   if (n < 2L) {
     return(invisible(TRUE))
   }
   code <- match(unit, sort(unique(unit)))
-  o <- order(code, when, method = "radix")
-  same <- code[o][-1L] == code[o][-n] & unclass(when)[o][-1L] == unclass(when)[o][-n]
+  o <- order(code, instant, method = "radix")
+  same <- code[o][-1L] == code[o][-n] & instant[o][-1L] == instant[o][-n]
   if (any(same)) {
     first <- o[which(same)[1L] + 1L]
     stop(sum(same), " duplicated (unit, time) pair", if (sum(same) > 1L) "s" else "",
@@ -323,147 +324,55 @@ print.timegrain_matrix <- function(x, ...) {
   invisible(TRUE)
 }
 
-.check_grid <- function(count, units, bins, n_u) {
-  empty <- which(count == 0L)
-  if (!length(empty)) {
-    return(invisible(TRUE))
+# The zone lives at this boundary and nowhere else. Reading an instant as a clock is defined for
+# every instant in every zone; it is the reverse direction, naming a local midnight and asking
+# which instant it was, that has no answer on the night a zone skips one.
+.naive_seconds <- function(instant, tz, column = "time") {
+  if (tz %in% c("UTC", "GMT")) {
+    return(instant)
   }
-  u <- units[((empty[1L] - 1L) %% n_u) + 1L]
-  b <- bins[((empty[1L] - 1L) %/% n_u) + 1L]
-  stop(length(empty), " (unit, bin) cell", if (length(empty) > 1L) "s" else "",
-       " hold no readings, first: unit ", u, " at ", format(b),
-       ". Every unit must span every bin; gaps are not padded.", call. = FALSE)
+  u <- unique(instant)
+  clock <- as.numeric(as.POSIXct(format(.POSIXct(u, tz = tz), "%Y-%m-%d %H:%M:%S"), tz = "UTC"))
+  bad <- sum(is.na(clock))
+  if (bad) {
+    stop("`", column, "` could not be read as a clock in \"", tz, "\" for ",
+         bad, " instant", if (bad > 1L) "s" else "", ".", call. = FALSE)
+  }
+  clock[match(instant, u)]
 }
 
-.group_sum <- function(values, cell, n_cell) {
-  s <- rowsum(values, cell, reorder = TRUE)
-  out <- numeric(n_cell)
-  out[sort(unique(cell))] <- as.vector(s)
-  out
+# The instant whose clock in `tz` reads each given local time. The offsets in force a day either
+# side bracket any transition, so one of the three candidates is it. A local time the clock skipped
+# has no instant at all, and the answer is then the instant the clock jumped to; a local time the
+# clock repeated has two, and the answer is the first of them.
+.local_to_instant <- function(local, tz) {
+  if (!length(local) || tz %in% c("UTC", "GMT")) {
+    return(.POSIXct(local, tz = tz))
+  }
+  probe <- lapply(c(-86400, 0, 86400), function(shift) {
+    at <- local + shift
+    local - (.naive_seconds(at, tz) - at)
+  })
+  candidate <- matrix(unlist(probe), ncol = length(probe))
+  reads <- matrix(unlist(lapply(probe, function(t) .naive_seconds(t, tz) == local)),
+                  ncol = length(probe))
+  out <- vapply(seq_along(local), function(i) {
+    if (any(reads[i, ])) min(candidate[i, reads[i, ]]) else max(candidate[i, ])
+  }, numeric(1))
+  .POSIXct(out, tz = tz)
 }
 
-.group_edge <- function(values, cell, n_cell, upper) {
-  o <- order(cell, values, method = "radix")
-  g <- cell[o]
-  keep <- !duplicated(g, fromLast = upper)
-  out <- rep(NA_real_, n_cell)
-  out[g[keep]] <- values[o][keep]
-  out
+# A supplied calendar returns instants, and the core reads a clock rather than an instant, so its
+# bins go through the same boundary as the readings.
+.custom_bins <- function(window, when, tz, column) {
+  out <- window(when)
+  if (!inherits(out, "POSIXct") || length(out) != length(when)) {
+    stop("a `window` function must return one POSIXct bin start per reading.", call. = FALSE)
+  }
+  .naive_seconds(floor(as.numeric(out)), tz, column)
 }
 
-# The day-level stage: reduce every (unit, calendar day) to its own mean, minimum and maximum, and
-# say which bin cell each of those days belongs to. The four day-level statistics are then a second
-# reduction over the days of a bin, which is what keeps an extreme day distinct from an extreme
-# reading.
-.day_level <- function(reading, unit, when, units, bins, ys, tz, n_cell) {
-  day_start <- .bin_start(when, "day", ys, tz)
-  n_u <- length(units)
-  days <- sort(unique(day_start))
-  dcell <- (match(unclass(day_start), unclass(days)) - 1L) * n_u + match(unit, units)
-  n_dcell <- n_u * length(days)
-
-  count <- tabulate(dcell, nbins = n_dcell)
-  present <- which(count > 0L)
-
-  day_unit <- ((present - 1L) %% n_u) + 1L
-  day_of <- ((present - 1L) %/% n_u) + 1L
-  bin_of <- findInterval(as.numeric(days[day_of]), as.numeric(bins))
-  cell <- (bin_of - 1L) * n_u + day_unit
-
-  list(cell = cell,
-       mean = .group_sum(reading, dcell, n_dcell)[present] / count[present],
-       min = .group_edge(reading, dcell, n_dcell, FALSE)[present],
-       max = .group_edge(reading, dcell, n_dcell, TRUE)[present],
-       n_day = tabulate(cell, nbins = n_cell))
-}
-
-# A record of many units shares its reading instants across them, and binning is a function of the
-# instant alone, so the calendar is read once per distinct instant rather than once per reading.
-# On three years of hourly readings from 894 units that is 26,304 calendar lookups instead of
-# 23,515,776, and the difference is minutes.
-.bin_start <- function(when, window, ys, tz) {
-  u <- unique(when)
-  if (length(u) == length(when)) {
-    return(.bin_of(when, window, ys, tz))
-  }
-  .bin_of(u, window, ys, tz)[match(unclass(when), unclass(u))]
-}
-
-.bin_of <- function(when, window, ys, tz) {
-  if (is.function(window)) {
-    out <- window(when)
-    if (!inherits(out, "POSIXct") || length(out) != length(when)) {
-      stop("a `window` function must return one POSIXct bin start per reading.", call. = FALSE)
-    }
-    return(out)
-  }
-  if (window == "hour") {
-    return(when)
-  }
-  if (window == "halfday") {
-    day <- as.POSIXct(trunc(when, units = "days"), tz = tz)
-    return(day + 43200 * (as.integer(format(when, "%H", tz = tz)) >= 12L))
-  }
-  if (window == "day") {
-    return(as.POSIXct(trunc(when, units = "days"), tz = tz))
-  }
-  if (window == "week") {
-    day <- as.Date(when, tz = tz)
-    monday <- day - (as.integer(format(day, "%u")) - 1L)
-    return(as.POSIXct(paste0(monday, " 00:00:00"), tz = tz))
-  }
-  if (window == "month") {
-    return(as.POSIXct(paste0(format(when, "%Y-%m", tz = tz), "-01 00:00:00"), tz = tz))
-  }
-  step <- if (window == "season") 3L else 12L
-  .anniversary(.offset_months(when, ys, tz) %/% step * step, ys, tz)
-}
-
-# Which bins the record does not cover for their whole calendar span. The record covers from its
-# first reading to its last plus one sampling interval, and a bin is partial when its own span
-# reaches outside that. Only a bin at an end of the record can, because .check_grid() has already
-# required every unit to hold readings in every bin between them.
-.bin_partial <- function(when, bins, window, ys, tz) {
-  covered <- range(as.numeric(when))
-  covered[2L] <- covered[2L] + .sampling_step(when)
-  as.numeric(bins) < covered[1L] |
-    as.numeric(.bin_next(bins, window, ys, tz, covered[2L])) > covered[2L]
-}
-
-.sampling_step <- function(when) {
-  u <- sort(unique(as.numeric(when)))
+.sampling_step <- function(instant) {
+  u <- sort(unique(instant))
   if (length(u) < 2L) 0 else min(diff(u))
-}
-
-# Where each bin ends, which is where the next one on the same calendar starts. The four coarse
-# windows step by the calendar rather than by a count of seconds, so the successor is taken by
-# landing well inside the following bin and flooring that, which is exact whatever the month length
-# or the daylight-saving offset. A caller-supplied binning declares its own bins, so its successors
-# are read off the bins themselves and its last bin is taken to end with the record.
-.bin_next <- function(bins, window, ys, tz, covered_end) {
-  if (is.function(window)) {
-    return(c(bins[-1L], .POSIXct(covered_end, tz = tz)))
-  }
-  switch(window,
-         hour = bins + 3600,
-         halfday = bins + 43200,
-         day = .bin_of(bins + 36 * 3600, "day", ys, tz),
-         week = .bin_of(bins + 180 * 3600, "week", ys, tz),
-         month = .bin_of(bins + 40 * 86400, "month", ys, tz),
-         season = .anniversary(.offset_months(bins, ys, tz) + 3L, ys, tz),
-         year = .anniversary(.offset_months(bins, ys, tz) + 12L, ys, tz))
-}
-
-.offset_months <- function(when, ys, tz) {
-  y <- as.integer(format(when, "%Y", tz = tz))
-  m <- as.integer(format(when, "%m", tz = tz))
-  d <- as.integer(format(when, "%d", tz = tz))
-  y * 12L + (m - 1L) - (ys$month - 1L) - as.integer(d < ys$day)
-}
-
-.anniversary <- function(offset, ys, tz) {
-  absolute <- offset + (ys$month - 1L)
-  as.POSIXct(sprintf("%04d-%02d-%02d 00:00:00",
-                     absolute %/% 12L, absolute %% 12L + 1L, ys$day),
-             tz = tz)
 }

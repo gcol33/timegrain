@@ -6,4 +6,5 @@
 #' multi-label head scored by the true skill statistic.
 #'
 #' @keywords internal
+#' @useDynLib timegrain, .registration = TRUE
 "_PACKAGE"

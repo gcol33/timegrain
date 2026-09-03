@@ -44,21 +44,30 @@ The R package sits at the repository root so every CRAN and pkgdown convention w
 `inst/spec/`, so the test that asserts its digests runs on an installed copy rather
 than only in the source tree.
 
+`pyproject.toml` and `CMakeLists.txt` sit at the root too, and are in `.Rbuildignore`. That is not
+tidiness: a Python source distribution cannot reach above its own project directory, so a
+`python/pyproject.toml` would have to carry a vendored copy of `src/` and a CI job asserting the
+copy still matched. The project directory is the repository, and there is one copy of the sources.
+
 ```
 timegrain/
+  src/                the shared core, compiled into both languages
+    tg_core.h tg_calendar.cpp tg_core.cpp
+    tg_r.cpp          the cpp11 wrapper; cpp11.cpp is generated
   R/                  R package source
-  tests/testthat/
+  tests/testthat/     including helper-oracle.R, the pure-R implementation
   man/ vignettes/
   DESCRIPTION NAMESPACE
+  CMakeLists.txt pyproject.toml
   inst/
     spec/             the contract both implementations obey
       representation.md
       fixtures/       small input + expected digests, read by both test suites
     reproduce/        the driver that runs the published grid from the Zenodo deposit
   python/             the Python twin
-    pyproject.toml
+    tg_py.cpp         the nanobind wrapper
     timegrain/
-    tests/
+    tests/            including oracle.py, the pure-NumPy implementation
 ```
 
 Same name on CRAN and PyPI (both verified free 2026-09-02).
@@ -122,8 +131,18 @@ solstices rather than on the first of a month, bin like any named window.
   or phenology response is one registration, never a fork of the fitting code. Same for learners:
   `mlp_learner()`, `cnn_learner()`, `rescnn_learner()` and any user-supplied fit/predict pair go
   through one interface.
-- **The representation layer depends on base R only.** Calendar binning, the statistics and the
-  array assembly fit well inside 200 lines; no package is added for them.
+- **The representation layer is one implementation, in C++, compiled into both languages.** The
+  calendar binning, the statistics, the array assembly and every guard live in `src/`, take naive
+  local seconds and know nothing of a zone, a locale or tzdata. Each language resolves the columns
+  and the zone above it and wraps the result below it, and that is all either holds. A calendar bug
+  fixed in one place is fixed in both, which is the whole reason it is there: the four it replaced
+  each existed twice.
+- **The pure-R and pure-NumPy implementations are kept as test oracles**, never reachable at
+  runtime. The NumPy one was written from the spec rather than from the R source, so it is the
+  evidence that the spec is complete; one shared binary would otherwise make the agreement between
+  the languages trivially true.
+- **No dependency for the representation.** `cpp11` is header-only and `LinkingTo`; nanobind is a
+  build dependency of the wheel. Nothing is added at runtime on either side.
 - **No primary-plus-fallback paths.** A learner that needs `torch` declares it and errors without
   it. Two code paths diverge.
 - **The scorable-cell mask is computed from the response and the fold map alone**, with no model
@@ -140,14 +159,16 @@ to do with neural networks.
 
 ## Status
 
-Version 0.1.0, 2026-09-02. Not on CRAN or PyPI yet.
+Version 0.2.0, 2026-09-03. Not on CRAN or PyPI yet.
 
 The build order is done on both sides: the representation and the fixtures, the fold map and the
 scorable-cell mask, the ladder and its plot, the learner registry, the torch learners, and above
 them the paired contrast, the mixed-model window contrast, the occlusion profile and the inflation
 of a self-selected threshold. The Python side carries the same except the mixed model, and
-reproduces every one of the 149 fixture digests from an implementation written against the spec
-rather than transcribed from the R source.
+reproduces every one of the 166 fixture digests, sixteen of which pin a zone.
+
+Since 0.2.0 both sides run on one C++ core (issue #10), and the implementations that used to be
+compared are kept as oracles the suites check the core against.
 
 `inst/reproduce/schrankogel.R` runs the published grid from the deposit and asserts its input at
 every step. Verified against the deposit on 2026-09-02, matching the paper exactly:

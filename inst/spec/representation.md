@@ -23,10 +23,38 @@ Requirements, each checked and each an error rather than a warning:
 Ordering of the input rows carries no meaning and is not relied on. The output is ordered by
 sorted unique id and by bin start.
 
+## The time zone
+
+Bin membership is decided from the calendar the series is carried in, so the zone has to be named
+before anything is binned. It is named once, at the edge of each implementation, and nothing below
+that edge knows a zone exists: the binning and the reduction see only *naive local seconds*, the
+count of seconds from 1970-01-01T00:00:00 on that calendar. A day there is 86400 of them whatever
+the night did, and a month is what the proleptic Gregorian calendar says.
+
+| | how the zone is named |
+|---|---|
+| R | the `tzone` attribute of the `POSIXct` column; unset means UTC |
+| Python | the `tz` argument; `None`, the default, means the instants already read as the calendar to bin by, which is what a zone-free `datetime64` says |
+
+The same instants and the same zone give the same answer in both languages, and the fixtures pin
+that rather than leaving it assumed.
+
+Reading an instant as a clock is defined for every instant in every zone. The reverse is not: on
+the night a zone moves its clock forward a local time exists on no instant, and on the night it
+moves back a local time exists on two. A bin start is a local time, so reporting it as an instant
+needs a rule, and the rule is that **a local time the clock skipped resolves to the instant the
+clock jumped to, and a local time the clock repeated resolves to the first of the two**. In
+`America/Sao_Paulo`, whose clock moved at midnight until 2019, the day beginning 4 November 2018
+therefore opens at 01:00 local rather than at a midnight that never happened, and holds 23 readings
+rather than 24.
+
+Instants are read at whole seconds. Two readings a fraction of a second apart are the same reading
+twice, and are reported as a duplicated `(id, time)` pair.
+
 ## Windows
 
-Bin membership is decided from the calendar in the series' own time zone, not from a running count
-of hours, so a bin is a real week or a real month rather than a drifting block of 168 or 730 hours.
+Bin membership is read from the calendar rather than from a running count of hours, so a bin is a
+real week or a real month rather than a drifting block of 168 or 730 hours.
 
 | window | bin |
 |---|---|
@@ -44,9 +72,20 @@ counted from that anniversary, so a record of three hydrological years beginning
 twelve of them and no partial one. Cutting seasons anywhere else, at the equinoxes and solstices
 for instance, is a different calendar and is passed as a function; see Custom bins.
 
-Bins are contiguous and cover the record with no gap and no overlap. What is asserted is that
-every `(id, bin)` cell holds at least one reading, which is what makes a bin the same span for
-every id and a record that stops early an error rather than a padded row.
+Bins are contiguous and cover the record with no gap and no overlap, and both halves of that are
+asserted:
+
+- every `(id, bin)` cell holds at least one reading, which is what makes a bin the same span for
+  every id and a record that stops early an error rather than a padded row;
+- consecutive bin starts are one bin apart on the window's own calendar. A bin no id reaches is
+  never built, so a February missing from every logger would otherwise give four "adjacent" monthly
+  bins with February simply gone, and a convolution would read January and March as neighbours.
+
+The second is not asserted for `hour`, where the bin is the reading itself and the bin sequence is
+the record's own sampling grid rather than a calendar, nor for a supplied calendar, which declares
+its own bin lengths and is contiguous by construction. It is asserted in local time, so a sequence
+stepping across a clock change is contiguous: the civil day a zone shortened is still one bin of
+one calendar day.
 
 ## Partial bins
 
@@ -86,6 +125,11 @@ channel order in the output is the order given by the caller.
 | `warm_day` | largest daily mean among the days in the bin | `day` and coarser |
 | `mean_daily_min` | mean over the bin's days of each day's smallest reading | `day` and coarser |
 | `mean_daily_max` | mean over the bin's days of each day's largest reading | `day` and coarser |
+
+"A day or coarser" is decided from the bins rather than from the window's name: a day-level
+statistic requires every calendar day of the record to lie entirely inside one bin. Naming `hour`
+or `halfday` is refused before any data is read; a supplied calendar that cuts inside a day is
+refused once the bins are in hand, naming the day it splits and the two bins it splits it between.
 
 The four day-level statistics reduce each calendar day first and then reduce again over the days of
 the bin. `cold_day` and `warm_day` take the extreme of the daily means; `mean_daily_min` and
@@ -142,7 +186,7 @@ Attributes carried on the array:
 | `window` | the window name |
 | `stats` | the statistic names, in channel order |
 | `year_start` | the `"MM-DD"` boundary used |
-| `bin_start` | the bin start instants |
+| `bin_start` | the bin start instants, resolved from local time as **The time zone** describes |
 | `bin_end` | the last reading instant assigned to each bin |
 | `bin_n` | a `[id, bin]` matrix of how many readings fell in each cell |
 | `bin_partial` | a logical vector marking the bins the record does not cover for their whole calendar span |
@@ -152,6 +196,19 @@ to the fold it is computed on, never to the representation, because computing it
 would leak the held-out units into the training input.
 
 ## What crosses the language boundary, and what does not
+
+The binning and the reduction are one implementation: `src/tg_core.cpp` and `src/tg_calendar.cpp`,
+compiled into the R package by R itself and into the Python extension by CMake. What each language
+holds above it is the boundary, which resolves the columns, resolves the zone and wraps the result.
+The two agree by construction rather than by two implementations being checked against each other
+after the fact.
+
+The digests did not stop meaning anything when that happened. The implementations they used to
+compare are kept as test oracles, `tests/testthat/helper-oracle.R` and `python/tests/oracle.py`,
+reachable from neither package at runtime and exercised only against the core on the fixtures and
+on random series. The NumPy one was written from this document rather than from the R source, which
+is what makes it evidence that the document is complete. One implementation in production, two in
+evidence.
 
 The representation is normative and is checked byte-exactly. Three things beside it are artifacts
 that both sides read rather than each side computing: the response matrix, the fold map, and the
@@ -165,19 +222,25 @@ not required to be.
 
 ## Fixtures
 
-Two series, because a record that starts on a bin boundary cannot tell two binning rules apart.
+Three series, because a record that starts on a bin boundary cannot tell two binning rules apart
+and a record in UTC cannot tell two readings of a zone apart.
 `spec/fixtures/series.csv` is a synthetic three-unit, 400-day hourly series beginning at midnight
 on the default anniversary, so every coarse window is in phase with it from the first reading.
 `series_offset.csv` is a two-unit, 200-day series beginning at 05:00 on 17 October, which is what
 a logger deployed when someone could walk to it gives, and puts every window out of phase.
-`seasons.csv` holds the equinox and solstice boundaries that make each series a caller-supplied
-calendar, which is the only path the manuscript's seasonal rung ever took.
+`series_zoned.csv` is a two-unit, 10-day series across 4 November 2018, the night
+`America/Sao_Paulo` moved its clock at midnight, which is the record that tells a calendar read by
+arithmetic apart from one read by writing a local midnight and parsing it back. `seasons.csv` holds
+the equinox and solstice boundaries that make each series a caller-supplied calendar, which is the
+only path the manuscript's seasonal rung ever took.
 
-`digests.csv` holds one row per series, window, `year_start`, `partial` setting and statistic,
-covering every window-by-statistic combination, each of the three-channel schemes
+`digests.csv` holds one row per series, window, time zone, `year_start`, `partial` setting and
+statistic, covering every window-by-statistic combination, each of the three-channel schemes
 (`min+mean+max`, `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the coarse
-windows at anniversaries other than the default, both `partial` settings, and the supplied
-calendar. Each row carries `n_unit`, `n_bin`, the first and last bin start, how many bins are
+windows at anniversaries other than the default, both `partial` settings, the supplied calendar,
+and the zone: every window of the aligned series read as a `Europe/Vienna` clock, which moves twice
+inside that record, and the short series read as an `America/Sao_Paulo` clock, which moves at
+midnight inside it, including a `year_start` landing on the night it moves. Each row carries `n_unit`, `n_bin`, the first and last bin start, how many bins are
 partial, and the digest.
 
 Both test suites read the series, rebuild every row and assert all of it. The shape is asserted

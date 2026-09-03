@@ -10,7 +10,8 @@ fixture_dir <- function() {
 }
 
 fixture_series <- function(dir, name) {
-  file <- if (name == "aligned") "series.csv" else "series_offset.csv"
+  file <- switch(name, aligned = "series.csv", offset = "series_offset.csv",
+                 zoned = "series_zoned.csv")
   s <- read.csv(file.path(dir, file), stringsAsFactors = FALSE)
   s$time <- as.POSIXct(s$time, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
   s
@@ -34,8 +35,12 @@ test_that("every representation matches the digest the Python side reads", {
 
   for (i in seq_len(nrow(expected))) {
     row <- expected[i, ]
-    label <- paste(row$series, row$window, row$year_start, row$partial, row$stat)
-    x <- window_matrix(series[[row$series]], id, time, value,
+    label <- paste(row$series, row$window, row$tz, row$year_start, row$partial, row$stat)
+    # The instants are the same bytes on disk whichever calendar reads them; the zone is the clock
+    # laid over them, and a zone row asserts that both languages read that clock the same way.
+    record <- series[[row$series]]
+    attr(record$time, "tzone") <- row$tz
+    x <- window_matrix(record, id, time, value,
                        window = fixture_binning(dir, row$series, row$window),
                        stats = strsplit(row$stat, "+", fixed = TRUE)[[1L]],
                        year_start = row$year_start, partial = row$partial)
@@ -68,10 +73,17 @@ test_that("the fixtures cover a record that starts on no bin boundary", {
   expect_true(all(c("keep", "drop") %in% expected$partial))
   expect_gt(length(unique(expected$year_start)), 1L)
 
+  # A contract checked only in UTC verifies the calendar on the one zone where the question does
+  # not arise. Both a zone that moves its clock in the middle of the day and one that moves it at
+  # midnight are pinned.
+  expect_true(all(c("UTC", "Europe/Vienna", "America/Sao_Paulo") %in% expected$tz))
+  expect_true(any(expected$tz == "America/Sao_Paulo" & expected$year_start == "11-04"))
+
   # Every window whose bin count the offset record splits differently from the aligned one is
   # pinned by a row of its own, so a change to either binning rule moves a digest here.
   aligned <- expected[expected$series == "aligned" & expected$stat == "mean" &
-                        expected$partial == "keep" & expected$year_start == "09-01", ]
+                        expected$partial == "keep" & expected$year_start == "09-01" &
+                        expected$tz == "UTC", ]
   expect_setequal(aligned$window,
                   c("hour", "halfday", "day", "week", "month", "season", "year", "astronomical"))
 })

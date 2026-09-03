@@ -1,0 +1,178 @@
+"""The representation as it was written in NumPy alone, before the two languages shared a core.
+
+Nothing imports this outside the suite and the package never reaches it at runtime. It is kept
+because it was written from ``inst/spec/representation.md`` rather than from the R source, and one
+shared binary would otherwise make the agreement between the two languages trivially true. One
+implementation in production, two in evidence.
+
+It reads the calendar off zone-free ``datetime64`` values, so it answers only for a series already
+expressed in the calendar to bin by; that is what the tests hand it.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+DAY_LEVEL_STATS = ("cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
+
+_HOUR = np.timedelta64(1, "h")
+_DAY = np.timedelta64(1, "D")
+
+
+def oracle_bin_start(when: np.ndarray, window, ys) -> np.ndarray:
+    if callable(window):
+        out = np.asarray(window(when), dtype="datetime64[s]")
+        if out.shape != when.shape:
+            raise ValueError("a window function must return one bin start per reading")
+        return out
+    if window == "hour":
+        return when
+    day = when.astype("datetime64[D]").astype("datetime64[s]")
+    if window == "halfday":
+        hour = (when.astype("datetime64[h]") - when.astype("datetime64[D]")).astype(np.int64)
+        return day + np.where(hour >= 12, 12, 0) * _HOUR
+    if window == "day":
+        return day
+    if window == "week":
+        days = when.astype("datetime64[D]")
+        # 1970-01-01 was a Thursday, so (days since the epoch + 3) is zero on a Monday.
+        weekday = (days.astype(np.int64) + 3) % 7
+        return (days - weekday * _DAY).astype("datetime64[s]")
+    if window == "month":
+        return when.astype("datetime64[M]").astype("datetime64[s]")
+    step = 3 if window == "season" else 12
+    return oracle_anniversary(oracle_offset_months(when, ys) // step * step, ys)
+
+
+def oracle_bin_partial(when: np.ndarray, bins: np.ndarray, window, ys) -> np.ndarray:
+    """Which bins the record does not cover for their whole calendar span. The record covers from
+    its first reading to its last plus one sampling interval, and a bin is partial when its own
+    span reaches outside that. Only a bin at an end of the record can, because _check_grid() has
+    already required every unit to hold readings in every bin between them."""
+    covered_start = when.min()
+    covered_end = when.max() + oracle_sampling_step(when)
+    return (bins < covered_start) | (oracle_bin_next(bins, window, ys, covered_end) > covered_end)
+
+
+def oracle_sampling_step(when: np.ndarray) -> np.timedelta64:
+    u = np.unique(when)
+    return np.diff(u).min() if len(u) > 1 else np.timedelta64(0, "s")
+
+
+def oracle_bin_next(bins: np.ndarray, window, ys, covered_end) -> np.ndarray:
+    """Where each bin ends, which is where the next one on the same calendar starts. The four
+    coarse windows step by the calendar rather than by a count of seconds, so the successor is
+    taken by landing well inside the following bin and flooring that, which is exact whatever the
+    month length. A caller-supplied binning declares its own bins, so its successors are read off
+    the bins themselves and its last bin is taken to end with the record."""
+    if callable(window):
+        return np.concatenate([bins[1:], np.asarray([covered_end], dtype="datetime64[s]")])
+    if window == "hour":
+        return bins + _HOUR
+    if window == "halfday":
+        return bins + 12 * _HOUR
+    if window in ("day", "week", "month"):
+        ahead = {"day": 36 * _HOUR, "week": 180 * _HOUR, "month": 40 * _DAY}[window]
+        return oracle_bin_start(bins + ahead, window, ys)
+    return oracle_anniversary(oracle_offset_months(bins, ys) + (3 if window == "season" else 12), ys)
+
+
+def oracle_offset_months(when: np.ndarray, ys) -> np.ndarray:
+    months = when.astype("datetime64[M]")
+    year = months.astype("datetime64[Y]").astype(int) + 1970
+    month = months.astype(int) % 12 + 1
+    day = (when.astype("datetime64[D]") - months).astype(np.int64) + 1
+    return year * 12 + (month - 1) - (ys[0] - 1) - (day < ys[1]).astype(np.int64)
+
+
+def oracle_anniversary(offset: np.ndarray, ys) -> np.ndarray:
+    absolute = offset + (ys[0] - 1)
+    month = (absolute - 1970 * 12).astype("datetime64[M]")
+    return (month.astype("datetime64[D]") + (ys[1] - 1) * _DAY).astype("datetime64[s]")
+
+
+def oracle_day_level(reading, unit_ix, when, bins, n_u, ys):
+    """Reduce every (unit, calendar day) to its own mean, minimum and maximum, and say which bin
+    cell each of those days falls in. The four day-level statistics are a second reduction over
+    those days, which is what keeps an extreme day distinct from an extreme reading."""
+    day_start = oracle_bin_start(when, "day", ys)
+    days, day_ix = np.unique(day_start, return_inverse=True)
+    dcell = day_ix * n_u + unit_ix
+    n_dcell = n_u * len(days)
+
+    count = np.bincount(dcell, minlength=n_dcell)
+    present = np.flatnonzero(count)
+    order = np.argsort(dcell, kind="stable")
+    starts = np.searchsorted(dcell[order], np.arange(n_dcell), side="left")
+    reading_sorted = reading[order]
+
+    mean = (np.bincount(dcell, weights=reading, minlength=n_dcell)[present]
+            / count[present])
+    low = np.minimum.reduceat(reading_sorted, starts)[present]
+    high = np.maximum.reduceat(reading_sorted, starts)[present]
+
+    day_unit = present % n_u
+    bin_of = np.searchsorted(bins, days[present // n_u], side="right") - 1
+    return {"cell": bin_of * n_u + day_unit, "mean": mean, "min": low, "max": high}
+
+
+def oracle_reduce(values, cell, n_cell, how):
+    order = np.argsort(cell, kind="stable")
+    starts = np.searchsorted(cell[order], np.arange(n_cell), side="left")
+    if how == "mean":
+        count = np.bincount(cell, minlength=n_cell)
+        return np.bincount(cell, weights=values, minlength=n_cell) / count
+    ufunc = np.minimum if how == "min" else np.maximum
+    return ufunc.reduceat(values[order], starts)
+
+
+def oracle_bin_extent(when, bin_ix, n_b):
+    order = np.argsort(bin_ix, kind="stable")
+    starts = np.searchsorted(bin_ix[order], np.arange(n_b), side="left")
+    seconds = when.astype("datetime64[s]").astype(np.int64)
+    return np.maximum.reduceat(seconds[order], starts).astype("datetime64[s]")
+
+
+def oracle_window_matrix(data, id, time, value, *, window="day", stats=("mean",),
+                         year_start="09-01"):
+    unit = np.asarray([str(v) for v in data[id]])
+    when = np.asarray(data[time], dtype="datetime64[s]")
+    reading = np.asarray(data[value], dtype=np.float64)
+    stats = [stats] if isinstance(stats, str) else list(stats)
+    ys = (int(year_start.split("-")[0]), int(year_start.split("-")[1]))
+
+    bin_start = oracle_bin_start(when, window, ys)
+    units, unit_ix = np.unique(unit, return_inverse=True)
+    bins, bin_ix = np.unique(bin_start, return_inverse=True)
+    n_u, n_b = len(units), len(bins)
+
+    cell = bin_ix * n_u + unit_ix
+    count = np.bincount(cell, minlength=n_u * n_b)
+    order = np.argsort(cell, kind="stable")
+    reading_sorted = reading[order]
+    starts = np.searchsorted(cell[order], np.arange(n_u * n_b), side="left")
+
+    day = oracle_day_level(reading, unit_ix, when, bins, n_u, ys)         if any(s in DAY_LEVEL_STATS for s in stats) else None
+
+    out = np.empty((n_u, n_b, len(stats)), dtype=np.float64)
+    for k, s in enumerate(stats):
+        if s == "mean":
+            flat = np.bincount(cell, weights=reading, minlength=n_u * n_b) / count
+        elif s == "min":
+            flat = np.minimum.reduceat(reading_sorted, starts)
+        elif s == "max":
+            flat = np.maximum.reduceat(reading_sorted, starts)
+        elif s == "cold_day":
+            flat = oracle_reduce(day["mean"], day["cell"], n_u * n_b, "min")
+        elif s == "warm_day":
+            flat = oracle_reduce(day["mean"], day["cell"], n_u * n_b, "max")
+        elif s == "mean_daily_min":
+            flat = oracle_reduce(day["min"], day["cell"], n_u * n_b, "mean")
+        else:
+            flat = oracle_reduce(day["max"], day["cell"], n_u * n_b, "mean")
+        out[:, :, k] = flat.reshape(n_b, n_u).T
+
+    return {"values": out, "units": units, "bin_start": bins,
+            "bin_end": oracle_bin_extent(when, bin_ix, n_b),
+            "bin_n": count.reshape(n_b, n_u).T,
+            "bin_partial": oracle_bin_partial(when, bins, window, ys)}

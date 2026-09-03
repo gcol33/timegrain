@@ -34,12 +34,17 @@ write_series <- function(series, file) {
   )
 }
 
+# The third is short and sits across 4 November 2018, the night America/Sao_Paulo moved its clock
+# at midnight and that local day began at 01:00. It is the record that tells a calendar read by
+# arithmetic apart from one read by writing a local midnight and parsing it back.
 SERIES <- list(
   aligned = make_series("2021-09-01 00:00:00", c("p01", "p02", "p03"), 400, 20260902L),
-  offset = make_series("2021-10-17 05:00:00", c("p01", "p02"), 200, 20260903L)
+  offset = make_series("2021-10-17 05:00:00", c("p01", "p02"), 200, 20260903L),
+  zoned = make_series("2018-11-01 00:00:00", c("p01", "p02"), 10, 20260904L)
 )
 write_series(SERIES$aligned, "series.csv")
 write_series(SERIES$offset, "series_offset.csv")
+write_series(SERIES$zoned, "series_zoned.csv")
 
 # A calendar the package does not carry, cut where the deposit cuts its seasons: at the equinoxes
 # and the solstices rather than on the first of a month. The first edge is the series' own first
@@ -73,13 +78,14 @@ coarse <- c("month", "season", "year")
 windows <- c("hour", "halfday", "day", "week", "month", "season", "year")
 
 rows <- list()
-digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep") {
+digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep", tz = "UTC") {
   series <- SERIES[[name]]
+  attr(series$time, "tzone") <- tz
   binning <- if (w == "astronomical") astronomical(name) else w
   x <- window_matrix(series, id, time, value, window = binning, stats = stats,
                      year_start = year_start, partial = partial)
   start <- attr(x, "bin_start")
-  data.frame(series = name, window = w, year_start = year_start, partial = partial,
+  data.frame(series = name, window = w, tz = tz, year_start = year_start, partial = partial,
              stat = paste(stats, collapse = "+"), n_unit = dim(x)[1], n_bin = dim(x)[2],
              first_bin = format(start[1], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
              last_bin = format(start[length(start)], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
@@ -88,7 +94,7 @@ digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep") {
 }
 add <- function(...) rows[[length(rows) + 1L]] <<- digest_row(...)
 
-for (name in names(SERIES)) {
+for (name in c("aligned", "offset")) {
   for (w in windows) {
     available <- if (w %in% fine) c("mean", "min", "max") else
       c("mean", "min", "max", "cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
@@ -122,6 +128,24 @@ for (name in names(SERIES)) {
     add(name, "astronomical", stats)
   }
 }
+
+# The zone. The instants are the same bytes on disk whichever calendar reads them, so a zone row
+# is the same series with a different clock over it, and the digest is what says the two languages
+# read that clock the same way. Europe/Vienna moves its clock twice inside the aligned record;
+# America/Sao_Paulo moves it at midnight inside the short one, which is the case that has no local
+# midnight to parse.
+for (w in windows) {
+  add("aligned", w, "mean", tz = "Europe/Vienna")
+}
+add("aligned", "week", c("cold_day", "mean", "warm_day"), tz = "Europe/Vienna")
+add("aligned", "day", c("min", "mean", "max"), tz = "Europe/Vienna")
+add("zoned", "day", "mean")
+for (w in c("hour", "halfday", "day", "week")) {
+  add("zoned", w, "mean", tz = "America/Sao_Paulo")
+}
+add("zoned", "day", c("min", "mean", "max"), tz = "America/Sao_Paulo")
+add("zoned", "day", c("cold_day", "mean", "warm_day"), tz = "America/Sao_Paulo")
+add("zoned", "year", "mean", year_start = "11-04", tz = "America/Sao_Paulo")
 
 write.csv(do.call(rbind, rows), file.path(out_dir, "digests.csv"),
           row.names = FALSE, quote = FALSE)

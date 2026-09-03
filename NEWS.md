@@ -1,3 +1,58 @@
+# timegrain 0.2.0
+
+The binning and the reduction are now one implementation, `src/tg_core.cpp` and
+`src/tg_calendar.cpp`, compiled into the R package by R itself and into the Python extension by
+CMake. The two languages agree by construction rather than by two implementations being checked
+against each other after the fact. What each side keeps above it is the boundary: resolving the
+columns, resolving the zone, and wrapping the result.
+
+Four bugs that existed twice, once per language, are closed by that (#1, #2, #4, #5), and a fifth
+on the Python side with them (#3).
+
+## The calendar
+
+* Bin starts are computed by proleptic Gregorian arithmetic on local time rather than by writing a
+  local midnight and parsing it back. A zone that moves its clock at midnight, such as
+  `America/Sao_Paulo` before 2019, no longer produces `NA` bin starts and a failure from inside the
+  reduction, and a `year_start` landing on such a night is an argument rather than an error (#1).
+* A bin start is a local time, so reporting it as an instant now has a stated rule: one the clock
+  skipped resolves to the instant the clock jumped to, one the clock repeated to the first of the
+  two.
+* `window_matrix()` in Python takes a `tz` argument. The same instants and the same zone now give
+  the same answer in both languages, and the fixtures pin it rather than leaving it assumed (#5).
+* Instants are read at whole seconds in both languages, so two readings a fraction of a second
+  apart are the same reading twice.
+
+## Guards
+
+* Consecutive bin starts must be one bin apart on the window's own calendar. A bin no unit reaches
+  is never built, so a month missing from the whole record used to pass as four adjacent monthly
+  bins with one gone, in both languages (#4). Not asserted for `hour`, whose bin is the reading
+  itself, nor for a supplied calendar, which declares its own bin lengths.
+* A day-level statistic requires every calendar day to lie inside one bin, decided from the bins
+  rather than from the window's name. A supplied calendar cutting inside a day used to give a
+  mostly-`NA` array in R and a numpy `IndexError` in Python (#2).
+* Python no longer rejects a unit called `nan` and no longer misses a genuinely missing id (#3).
+
+## Evidence
+
+* The pure-R and pure-NumPy implementations are kept as test oracles,
+  `tests/testthat/helper-oracle.R` and `python/tests/oracle.py`. Neither package reaches them at
+  runtime; both suites check them against the core on the fixtures and on random series. The NumPy
+  one was written from `inst/spec/representation.md` rather than from the R source, which is what
+  makes it evidence that the document is complete.
+* A third fixture series and a `tz` column in `digests.csv`: every window of the aligned series
+  read as a `Europe/Vienna` clock, and a short series across the night `America/Sao_Paulo` moved
+  its clock at midnight.
+
+## Build
+
+* `LinkingTo: cpp11`, and flat `.cpp` under `src/`, so R compiles the core with no `Makevars`.
+* `pyproject.toml` and `CMakeLists.txt` sit at the repository root rather than under `python/`,
+  because a Python source distribution cannot reach above its own project directory and the shared
+  sources must not be vendored into a second copy. The Python build is scikit-build-core and
+  nanobind; the wheel carries `python/timegrain` as `timegrain`.
+
 # timegrain 0.1.0
 
 First release. The package builds the representation, fits at every grain, and reports where
