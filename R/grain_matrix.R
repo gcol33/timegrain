@@ -2,17 +2,17 @@
 #'
 #' Bins each unit's readings by the calendar and summarises every bin by one or more statistics,
 #' returning the array a model is fitted on. The reduction is the choice the package exists to
-#' make explicit: `window` sets how coarse the record becomes, `stats` sets what survives the
+#' make explicit: `grain` sets how coarse the record becomes, `stats` sets what survives the
 #' reduction, and the two are not interchangeable.
 #'
 #' @param data A data frame of readings in long form, one row per reading.
 #' @param id Column identifying the unit carrying the sensor. A bare column name or a string.
 #' @param time Column of reading instants, `POSIXct`. A bare column name or a string.
 #' @param value Column of readings, numeric. A bare column name or a string.
-#' @param window One of `"hour"`, `"halfday"`, `"day"`, `"week"`, `"month"`, `"season"`,
-#'   `"year"`. The four coarse windows follow the calendar, so a bin is a real week or month
-#'   rather than a fixed block of hours. Naming several windows returns one representation per
-#'   window, a [climgrain_set()]. A function is called on the reading instants and must return
+#' @param grain One of `"native"`, `"halfday"`, `"day"`, `"week"`, `"month"`, `"season"`,
+#'   `"year"`. The four coarse grains follow the calendar, so a bin is a real week or month
+#'   rather than a fixed block of hours. Naming several grains returns one representation per
+#'   grain, a [timesift_set()]. A function is called on the reading instants and must return
 #'   the `POSIXct` start of each reading's bin, which is how a calendar the package does not
 #'   carry, such as astronomical seasons, is binned.
 #' @param stats Statistics to compute per bin, one channel each, in the order given. See Details.
@@ -40,7 +40,7 @@
 #' day-level pair carries more predictive signal than the bin mean, and by more the coarser the
 #' bin.
 #'
-#' Whether a window is a day or coarser is decided from the bins rather than from the window's
+#' Whether a grain is a day or coarser is decided from the bins rather than from the grain's
 #' name, so a supplied calendar that cuts inside a day is refused for these four as well, naming
 #' the day it splits.
 #'
@@ -56,19 +56,19 @@
 #' one the clock repeated to the first of the two. Instants are read at whole seconds.
 #'
 #' @section Bins that do not tile the record:
-#' Every unit must reach every bin, and consecutive bins must be one bin apart on the window's own
+#' Every unit must reach every bin, and consecutive bins must be one bin apart on the grain's own
 #' calendar. A bin no unit reaches is never built, so a month missing from the whole record would
-#' otherwise pass as four adjacent monthly bins with one simply gone. Neither the `"hour"` window,
+#' otherwise pass as four adjacent monthly bins with one simply gone. Neither the `"native"` grain,
 #' whose bin is the reading itself, nor a supplied calendar, which declares its own bin lengths,
 #' is held to the second rule.
 #'
 #' @section Partial bins:
 #' A bin is partial when the record does not cover its whole calendar span. Which bins those are
-#' follows from where the record starts and stops against the calendar, not from the window alone:
+#' follows from where the record starts and stops against the calendar, not from the grain alone:
 #' three years of hourly readings from 1 September carry no partial month and no partial season on
 #' a `"09-01"` boundary, but the same record carries a partial week at each end, because 1
 #' September is a Wednesday. A record from an arbitrary deployment date carries one at each end of
-#' almost every window.
+#' almost every grain.
 #'
 #' A bin is partial if its start precedes the first reading of the record, or if its calendar span
 #' runs past the last reading plus the record's own sampling interval, taken as the smallest gap
@@ -78,7 +78,7 @@
 #' rather than silent.
 #'
 #' Keeping partial bins is the default because dropping them discards the record's ends: on a
-#' seasonal window that is up to three months of readings at each end. The cost of keeping them is
+#' seasonal grain that is up to three months of readings at each end. The cost of keeping them is
 #' that such a bin's mean is taken over fewer readings and its extremes over fewer days, so
 #' `cold_day` and `warm_day` there are drawn from a shorter draw and sit closer to the bin mean
 #' than a full bin's would. `bin_n` gives the count the bin was actually reduced from.
@@ -90,7 +90,7 @@
 #' @return A numeric array of shape `[unit, bin, channel]`, with dimnames giving the sorted unit
 #'   identifiers, the ISO-8601 start of each bin, and the statistic names. Attributes:
 #'   \itemize{
-#'     \item `window`: the window name.
+#'     \item `grain`: the grain name.
 #'     \item `stats`: the statistic names in channel order.
 #'     \item `year_start`: the boundary used.
 #'     \item `bin_start`, `bin_end`: the first and last reading instant assigned to each bin.
@@ -98,27 +98,27 @@
 #'     \item `bin_partial`: a logical vector marking the bins the record does not cover for their
 #'       whole calendar span.
 #'   }
-#'   Naming more than one window returns a [climgrain_set()] of those arrays.
+#'   Naming more than one grain returns a [timesift_set()] of those arrays.
 #'
 #' @examples
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 40)
 #' d <- data.frame(plot = rep(c("a", "b"), each = length(t)),
 #'                 t = rep(t, 2),
 #'                 temp = c(sin(seq_along(t) / 24), cos(seq_along(t) / 24)))
-#' x <- window_matrix(d, plot, t, temp, window = "week",
+#' x <- grain_matrix(d, plot, t, temp, grain = "week",
 #'                    stats = c("cold_day", "mean", "warm_day"))
 #' dim(x)
 #' dimnames(x)[[3]]
 #'
-#' ladder <- window_matrix(d, plot, t, temp, window = c("day", "week"))
+#' ladder <- grain_matrix(d, plot, t, temp, grain = c("day", "week"))
 #' names(ladder)
 #'
 #' @export
-window_matrix <- function(data,
+grain_matrix <- function(data,
                           id,
                           time,
                           value,
-                          window = "day",
+                          grain = "day",
                           stats = "mean",
                           year_start = "09-01",
                           partial = c("keep", "drop")) {
@@ -127,16 +127,16 @@ window_matrix <- function(data,
   value_col <- .resolve_column(substitute(value), data, parent.frame())
 
   partial <- match.arg(partial)
-  window <- .check_window(window)
-  if (length(window) > 1L) {
-    out <- lapply(window, function(w) {
-      window_matrix(data, id = id_col, time = time_col, value = value_col,
-                    window = w, stats = stats, year_start = year_start, partial = partial)
+  grain <- .check_grain(grain)
+  if (length(grain) > 1L) {
+    out <- lapply(grain, function(w) {
+      grain_matrix(data, id = id_col, time = time_col, value = value_col,
+                    grain = w, stats = stats, year_start = year_start, partial = partial)
     })
-    return(climgrain_set(stats::setNames(out, window)))
+    return(timesift_set(stats::setNames(out, grain)))
   }
 
-  stats <- .check_stats(stats, window)
+  stats <- .check_stats(stats, grain)
   ys <- .parse_year_start(year_start)
 
   unit <- as.character(data[[id_col]])
@@ -162,10 +162,10 @@ window_matrix <- function(data,
   # differ between locales, and a response matrix built in one order against a
   # representation built in the other lines up row for row while naming different units.
   units <- sort(unique(unit), method = "radix")
-  supplied <- if (is.function(window)) .custom_bins(window, when, tz, time_col) else NULL
+  supplied <- if (is.function(grain)) .custom_bins(grain, when, tz, time_col) else NULL
 
-  fit <- cg_reduce_(match(unit, units), reading, instant, local, supplied, units,
-                    if (is.function(window)) "custom" else window,
+  fit <- ts_reduce_(match(unit, units), reading, instant, local, supplied, units,
+                    if (is.function(grain)) "custom" else grain,
                     ys$month, ys$day, stats, .sampling_step(instant))
 
   bins <- .local_to_instant(fit$bin_start, tz)
@@ -175,14 +175,14 @@ window_matrix <- function(data,
                dim = c(n_u, n_b, length(stats)),
                dimnames = list(units, format(bins, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), stats))
 
-  attr(out, "window") <- if (is.function(window)) "custom" else window
+  attr(out, "grain") <- if (is.function(grain)) "custom" else grain
   attr(out, "stats") <- stats
   attr(out, "year_start") <- year_start
   attr(out, "bin_start") <- bins
   attr(out, "bin_end") <- .POSIXct(fit$bin_end, tz = tz)
   attr(out, "bin_n") <- matrix(fit$bin_n, nrow = n_u, ncol = n_b, dimnames = dimnames(out)[1:2])
   attr(out, "bin_partial") <- fit$bin_partial
-  class(out) <- c("climgrain_matrix", class(out))
+  class(out) <- c("timesift_matrix", class(out))
   if (partial == "drop") .drop_partial(out) else out
 }
 
@@ -193,30 +193,30 @@ window_matrix <- function(data,
   keep <- which(!attr(x, "bin_partial"))
   if (!length(keep)) {
     stop("dropping the partial bins leaves no bin: the record covers no whole ",
-         attr(x, "window"), ". Use `partial = \"keep\"` or a finer window.", call. = FALSE)
+         attr(x, "grain"), ". Use `partial = \"keep\"` or a finer grain.", call. = FALSE)
   }
   if (length(keep) == dim(x)[2L]) {
     return(x)
   }
   out <- x[, keep, , drop = FALSE]
   dimnames(out) <- list(dimnames(x)[[1L]], dimnames(x)[[2L]][keep], dimnames(x)[[3L]])
-  for (a in c("window", "stats", "year_start")) {
+  for (a in c("grain", "stats", "year_start")) {
     attr(out, a) <- attr(x, a)
   }
   attr(out, "bin_start") <- attr(x, "bin_start")[keep]
   attr(out, "bin_end") <- attr(x, "bin_end")[keep]
   attr(out, "bin_n") <- attr(x, "bin_n")[, keep, drop = FALSE]
   attr(out, "bin_partial") <- attr(x, "bin_partial")[keep]
-  class(out) <- c("climgrain_matrix", "array")
+  class(out) <- c("timesift_matrix", "array")
   out
 }
 
 #' @export
-print.climgrain_matrix <- function(x, ...) {
+print.timesift_matrix <- function(x, ...) {
   d <- dim(x)
-  cat("<climgrain matrix>", .plural(d[1L], "unit"), "x", .plural(d[2L], "bin"),
+  cat("<timesift matrix>", .plural(d[1L], "unit"), "x", .plural(d[2L], "bin"),
       "x", .plural(d[3L], "channel"), "\n")
-  cat("window:", attr(x, "window"), "  stats:", paste(attr(x, "stats"), collapse = ", "), "\n")
+  cat("grain:", attr(x, "grain"), "  stats:", paste(attr(x, "stats"), collapse = ", "), "\n")
   span <- attr(x, "bin_start")
   if (!all(is.na(span))) {
     cat("from  :", format(min(span)), "to", format(max(span)), "\n")
@@ -228,8 +228,8 @@ print.climgrain_matrix <- function(x, ...) {
   paste0(n, " ", word, if (n == 1L) "" else "s")
 }
 
-.windows <- function() {
-  c("hour", "halfday", "day", "week", "month", "season", "year")
+.grains <- function() {
+  c("native", "halfday", "day", "week", "month", "season", "year")
 }
 
 .day_level_stats <- function() {
@@ -240,23 +240,23 @@ print.climgrain_matrix <- function(x, ...) {
   c("mean", "min", "max", .day_level_stats())
 }
 
-.check_window <- function(window) {
-  if (is.function(window)) {
-    return(window)
+.check_grain <- function(grain) {
+  if (is.function(grain)) {
+    return(grain)
   }
-  if (!is.character(window) || !length(window)) {
-    stop("`window` must be a window name, a vector of them, or a function.", call. = FALSE)
+  if (!is.character(grain) || !length(grain)) {
+    stop("`grain` must be a grain name, a vector of them, or a function.", call. = FALSE)
   }
-  bad <- setdiff(window, .windows())
+  bad <- setdiff(grain, .grains())
   if (length(bad)) {
-    stop("unknown window: ", paste(bad, collapse = ", "),
-         ". Available: ", paste(.windows(), collapse = ", "), ".", call. = FALSE)
+    stop("unknown grain: ", paste(bad, collapse = ", "),
+         ". Available: ", paste(.grains(), collapse = ", "), ".", call. = FALSE)
   }
-  if (anyDuplicated(window)) {
-    stop("`window` names a window twice: ",
-         paste(unique(window[duplicated(window)]), collapse = ", "), ".", call. = FALSE)
+  if (anyDuplicated(grain)) {
+    stop("`grain` names a grain twice: ",
+         paste(unique(grain[duplicated(grain)]), collapse = ", "), ".", call. = FALSE)
   }
-  window
+  grain
 }
 
 .resolve_column <- function(expr, data, envir) {
@@ -272,7 +272,7 @@ print.climgrain_matrix <- function(x, ...) {
   name
 }
 
-.check_stats <- function(stats, window) {
+.check_stats <- function(stats, grain) {
   known <- .known_stats()
   bad <- setdiff(stats, known)
   if (length(bad)) {
@@ -283,11 +283,11 @@ print.climgrain_matrix <- function(x, ...) {
     stop("`stats` names a statistic twice: ",
          paste(unique(stats[duplicated(stats)]), collapse = ", "), ".", call. = FALSE)
   }
-  if (is.character(window) && window %in% c("hour", "halfday") &&
+  if (is.character(grain) && grain %in% c("native", "halfday") &&
         any(stats %in% .day_level_stats())) {
-    stop("`", window, "` bins are shorter than a day, so ",
+    stop("`", grain, "` bins are shorter than a day, so ",
          paste(intersect(stats, .day_level_stats()), collapse = " and "),
-         " is not defined there. Use a window of `day` or coarser.", call. = FALSE)
+         " is not defined there. Use a grain of `day` or coarser.", call. = FALSE)
   }
   stats
 }
@@ -369,10 +369,10 @@ print.climgrain_matrix <- function(x, ...) {
 
 # A supplied calendar returns instants, and the core reads a clock rather than an instant, so its
 # bins go through the same boundary as the readings.
-.custom_bins <- function(window, when, tz, column) {
-  out <- window(when)
+.custom_bins <- function(grain, when, tz, column) {
+  out <- grain(when)
   if (!inherits(out, "POSIXct") || length(out) != length(when)) {
-    stop("a `window` function must return one POSIXct bin start per reading.", call. = FALSE)
+    stop("a `grain` function must return one POSIXct bin start per reading.", call. = FALSE)
   }
   .naive_seconds(floor(as.numeric(out)), tz, column)
 }

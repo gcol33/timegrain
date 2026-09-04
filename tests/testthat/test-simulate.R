@@ -33,12 +33,12 @@ test_that("prevalence and the driver's skill are set rather than emergent", {
   expect_equal(unname(got), rep(0.8, 4L), tolerance = 0.03)
 })
 
-test_that("the readings are a gapless grid every window can be built on", {
+test_that("the readings are a gapless grid every grain can be built on", {
   sim <- simulate_records(n = 12L, mechanism = "none", variables = 2L, days = 365L)
   expect_equal(nrow(sim$readings), 12L * 365L * 8L)
   for (w in c("halfday", "day", "week", "month", "season", "year")) {
-    expect_s3_class(window_matrix(sim$readings, unit, time, reading, window = w),
-                    "climgrain_matrix")
+    expect_s3_class(grain_matrix(sim$readings, unit, time, reading, grain = w),
+                    "timesift_matrix")
   }
 })
 
@@ -49,12 +49,12 @@ test_that("the mechanisms report the grain they are generated at", {
   expect_identical(simulate_records(n = 10L, mechanism = "season", days = 200L)$grain, "season")
 })
 
-# The oracle of the generator: apply the planted weights, projected onto a window's bins, to that
-# window's representation and take out what every bin shares, which removes the unit's constant
+# The oracle of the generator: apply the planted weights, projected onto a grain's bins, to that
+# grain's representation and take out what every bin shares, which removes the unit's constant
 # offset. Nothing is fitted, so what this measures is how much of the driver a grain can carry at
 # best rather than how much a learner found.
-oracle_recovery <- function(sim, window) {
-  m <- window_matrix(sim$readings, "unit", "time", "reading", window = window, stats = "mean",
+oracle_recovery <- function(sim, grain) {
+  m <- grain_matrix(sim$readings, "unit", "time", "reading", grain = grain, stats = "mean",
                      year_start = sim$design$year_start)
   bin <- findInterval(as.numeric(sort(unique(sim$readings$time))),
                       as.numeric(attr(m, "bin_start")))
@@ -82,7 +82,7 @@ test_that("the planted signal is recoverable at its own grain and lost at coarse
     expect_identical(sim$grain, case$grain)
     at_grain <- oracle_recovery(sim, case$grain)
     expect_gt(min(at_grain), 0.8)
-    # A window whose bins nest inside the generating one holds the same information, so it must not
+    # A grain whose bins nest inside the generating one holds the same information, so it must not
     # lose any: that is what makes the choice between them a question about variance, not about
     # what survived the reduction.
     expect_gt(min(oracle_recovery(sim, case$nesting)), min(at_grain) - 0.02)
@@ -105,7 +105,7 @@ test_that("the offset carries the response only when it is asked to", {
   tied <- simulate_records(n = 600L, mechanism = "event", variables = 3L, days = 120L,
                            offset_effect = 1, seed = 5L)
   at_year <- function(sim) {
-    m <- window_matrix(sim$readings, "unit", "time", "reading", window = "year", stats = "mean")
+    m <- grain_matrix(sim$readings, "unit", "time", "reading", grain = "year", stats = "mean")
     vapply(seq_len(ncol(sim$driver)),
            function(j) abs(stats::cor(m[, 1L, 1L], sim$driver[, j])), numeric(1L))
   }
@@ -117,12 +117,12 @@ test_that("a learner finds the planted grain end to end", {
   skip_if_not_installed("glmnet")
   sim <- simulate_records(n = 300L, mechanism = "event", variables = 4L, days = 120L,
                           auc = 0.9, sensor_sd = 0.05, seed = 13L)
-  x <- window_matrix(sim$readings, unit, time, reading, window = c("day", "year"), stats = "mean")
-  lad <- window_ladder(x, sim$y, elasticnet_learner(), folds = fold_map(sim$y, v = 3L),
+  x <- grain_matrix(sim$readings, unit, time, reading, grain = c("day", "year"), stats = "mean")
+  lad <- grain_ladder(x, sim$y, elasticnet_learner(), folds = fold_map(sim$y, v = 3L),
                        metric = "roc_auc", verbose = FALSE)
   g <- summary(lad)
-  expect_gt(g$score[g$window == "day"], 0.6)
-  expect_gt(g$score[g$window == "day"], g$score[g$window == "year"])
+  expect_gt(g$score[g$grain == "day"], 0.6)
+  expect_gt(g$score[g$grain == "day"], g$score[g$grain == "year"])
 })
 
 test_that("the generator refuses a design it cannot place", {

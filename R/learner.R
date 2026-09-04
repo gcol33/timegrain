@@ -14,7 +14,7 @@
 #'   than falling back to something else.
 #' @param params Settings carried with the learner and passed to `fit`.
 #'
-#' @return A `climgrain_learner`.
+#' @return A `timesift_learner`.
 #'
 #' @examples
 #' # The bin means of a unit, fed to one logistic regression per variable.
@@ -38,12 +38,12 @@ learner <- function(name, fit, predict, needs = character(), params = list()) {
     stop("a learner needs a `fit` and a `predict` function.", call. = FALSE)
   }
   structure(list(name = name, fit = fit, predict = predict, needs = needs, params = params),
-            class = "climgrain_learner")
+            class = "timesift_learner")
 }
 
 #' @export
-print.climgrain_learner <- function(x, ...) {
-  cat("<climgrain learner>", x$name, "\n")
+print.timesift_learner <- function(x, ...) {
+  cat("<timesift learner>", x$name, "\n")
   if (length(x$params)) {
     cat("settings:", paste(names(x$params), vapply(x$params, .describe, character(1L)),
                            sep = " = ", collapse = ", "), "\n")
@@ -60,7 +60,7 @@ print.climgrain_learner <- function(x, ...) {
 
 #' Register a learner
 #'
-#' Makes a learner available by name to [window_ladder()] and to [learners()]. The learners that
+#' Makes a learner available by name to [grain_ladder()] and to [learners()]. The learners that
 #' ship are registered the same way, so there is no list of names inside the fitting code.
 #'
 #' @param name Name the learner is asked for by.
@@ -87,12 +87,12 @@ learners <- function() .learners_reg$names()
 #' Fit one learner at one grain
 #'
 #' @param learner A [learner()], or the name of a registered one.
-#' @param x A [window_matrix()] result.
+#' @param x A [grain_matrix()] result.
 #' @param y The response for the same units.
 #' @param response Name of the registered response head. `"presence_absence"` ships.
 #' @param ... Passed to the learner's `fit`.
 #'
-#' @return A `climgrain_fit`, which [stats::predict()] takes a new representation.
+#' @return A `timesift_fit`, which [stats::predict()] takes a new representation.
 #'
 #' @examples
 #' set.seed(1)
@@ -100,7 +100,7 @@ learners <- function() .learners_reg$names()
 #' units <- sprintf("p%02d", 1:40)
 #' d <- data.frame(plot = rep(units, each = length(t)), t = rep(t, length(units)),
 #'                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
-#' x <- window_matrix(d, plot, t, temp, window = "month")
+#' x <- grain_matrix(d, plot, t, temp, grain = "month")
 #' y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
 #' fit <- fit_learner(elasticnet_learner(), x, y)
 #' dim(stats::predict(fit, x))
@@ -118,16 +118,16 @@ fit_learner <- function(learner, x, y, response = "presence_absence", ...) {
   carried <- learner$params[setdiff(names(learner$params), names(given))]
   model <- do.call(learner$fit, c(list(x = x, y = y), carried, given))
   structure(list(learner = learner, model = model, response = response,
-                 variables = colnames(y), window = attr(x, "window"),
+                 variables = colnames(y), grain = attr(x, "grain"),
                  stats = attr(x, "stats")),
-            class = "climgrain_fit")
+            class = "timesift_fit")
 }
 
-#' @param object A `climgrain_fit`.
+#' @param object A `timesift_fit`.
 #' @param newdata A representation of the same channels for the units to predict.
 #' @rdname fit_learner
 #' @export
-predict.climgrain_fit <- function(object, newdata, ...) {
+predict.timesift_fit <- function(object, newdata, ...) {
   p <- object$learner$predict(object$model, newdata)
   p <- as.matrix(p)
   if (nrow(p) != dim(newdata)[1L]) {
@@ -139,15 +139,15 @@ predict.climgrain_fit <- function(object, newdata, ...) {
 }
 
 #' @export
-print.climgrain_fit <- function(x, ...) {
-  cat("<climgrain fit>", x$learner$name, "at the", x$window, "window\n")
+print.timesift_fit <- function(x, ...) {
+  cat("<timesift fit>", x$learner$name, "at the", x$grain, "grain\n")
   cat("channels:", paste(x$stats, collapse = ", "), "\n")
   cat("response:", x$response, "on", .plural(length(x$variables), "variable"), "\n")
   invisible(x)
 }
 
 .as_learner <- function(learner) {
-  if (inherits(learner, "climgrain_learner")) {
+  if (inherits(learner, "timesift_learner")) {
     return(learner)
   }
   if (is.character(learner) && length(learner) == 1L) {

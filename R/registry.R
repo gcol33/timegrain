@@ -36,7 +36,7 @@
 #' Register a metric
 #'
 #' A metric scores one held-out cell: the observed response of the units in a fold and a model's
-#' predictions for them. Registering one makes it available to [window_ladder()] by name, with no
+#' predictions for them. Registering one makes it available to [grain_ladder()] by name, with no
 #' change to the fitting code.
 #'
 #' @param name Name the metric is asked for by.

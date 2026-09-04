@@ -17,13 +17,13 @@ bin_occlusion(
 )
 }
 \arguments{
-\item{ladder}{A \code{\link[=window_ladder]{window_ladder()}} result fitted with \code{keep_fits = TRUE}.}
+\item{ladder}{A \code{\link[=grain_ladder]{grain_ladder()}} result fitted with \code{keep_fits = TRUE}.}
 
 \item{x}{The representation set the ladder was fitted on.}
 
 \item{y}{The response it was fitted to.}
 
-\item{arm}{The arm to read, as \code{"window|learner"} or \code{"learner"}.}
+\item{arm}{The arm to read, as \code{"grain|learner"} or \code{"learner"}.}
 
 \item{over}{\code{"bin"} to hold each bin back in turn, \code{"channel"} for each channel.}
 
@@ -45,7 +45,7 @@ folds and the score with and without the part.
 \description{
 Holds one bin of the record back at a time, rescores the held-out units, and records the fall in
 score as that bin's weight. Nothing is refitted: the models kept by
-\code{window_ladder(keep_fits = TRUE)} are the ones read, so the profile describes the models that
+\code{grain_ladder(keep_fits = TRUE)} are the ones read, so the profile describes the models that
 produced the reported scores rather than a fresh set of them.
 }
 \details{
@@ -56,7 +56,7 @@ mean removes all between-unit variation while keeping the shape of the year. Rep
 by each unit's own mean over the record keeps how warm a unit is and removes only that bin's
 departure from it.
 
-Read with \code{over = "channel"} the same machinery asks what each statistic of a window carries,
+Read with \code{over = "channel"} the same machinery asks what each statistic of a grain carries,
 holding one channel back across the whole record instead of one bin across all channels.
 }
 \examples{
@@ -70,8 +70,8 @@ d <- data.frame(
                            numeric(length(t)))))
 y <- matrix(rbinom(80, 1, plogis(c(warmth, -warmth))), nrow = 40,
             dimnames = list(units, c("sp1", "sp2")))
-x <- window_matrix(d, plot, t, temp, window = "month")
-lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
+x <- grain_matrix(d, plot, t, temp, grain = "month")
+lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
                      keep_fits = TRUE, verbose = FALSE)
 head(bin_occlusion(lad, x, y, "month|elasticnet", permutations = 3))
 

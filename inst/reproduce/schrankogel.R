@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Reproduce the Schrankogel grid with climgrain.
+# Reproduce the Schrankogel grid with timesift.
 #
 #   Rscript schrankogel.R <deposit_dir> <out_dir> [options]
 #
@@ -9,8 +9,8 @@
 #
 # Options, each --name=value:
 #   --stages    which stages to run, comma-separated: contract, representation, baseline,
-#               networks, contrasts, windows, inflation. Default all but networks.
-#   --windows   which windows the network grid covers. Default day,week,month,season,year.
+#               networks, contrasts, grains, inflation. Default all but networks.
+#   --grains   which grains the network grid covers. Default day,week,month,season,year.
 #   --learners  which encoders the network grid covers, plus `ensemble` for the
 #               convolutional-plus-residual set averaged before scoring. Default cnn.
 #   --baseline  which aggregated-feature arms to fit: elastic_net, stepwise, or both. Default
@@ -19,12 +19,12 @@
 #   --folds     a CSV of logger_ID and fold to use instead of building one.
 #   --epochs    epoch budget per network fit. Default 60, the budget the study used.
 #
-# The four fine windows are affordable on a processor; the hourly rung is 26,304 steps per plot
+# The four fine grains are affordable on a processor; the hourly rung is 26,304 steps per plot
 # and wants a graphics processor, as it had in the study. Nothing here caps the data: a stage
 # either runs over all 894 plots and all 101 species or it does not run.
 
 suppressMessages({
-  library(climgrain)
+  library(timesift)
 })
 
 # ---- arguments -------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ split_opt <- function(name, default) {
 }
 
 stages <- split_opt("stages", "contract,representation,baseline,contrasts,inflation")
-grid_windows <- split_opt("windows", "day,week,month,season,year")
+grid_grains <- split_opt("grains", "day,week,month,season,year")
 grid_learners <- split_opt("learners", "cnn")
 baseline_arms <- split_opt("baseline", "elastic_net")
 epochs <- as.integer(pick("epochs", "60"))
@@ -129,27 +129,27 @@ astronomical_seasons <- function(path) {
   function(when) edges[findInterval(as.numeric(when), as.numeric(edges))]
 }
 
-BINNING <- list(hour = "hour", halfday = "halfday", day = "day", week = "week", month = "month",
+BINNING <- list(native = "native", halfday = "halfday", day = "day", week = "week", month = "month",
                 season = astronomical_seasons(file.path(deposit, "seasons.csv")), year = "year")
-EXPECTED_BINS <- c(hour = 26304L, halfday = 2192L, day = 1096L, week = 157L, month = 36L,
+EXPECTED_BINS <- c(native = 26304L, halfday = 2192L, day = 1096L, week = 157L, month = 36L,
                    season = 13L, year = 3L)
 
-build <- function(window, stats) {
-  x <- window_matrix(readings, logger_ID, date, temp, window = BINNING[[window]], stats = stats)
-  assert_equal(paste(window, "bins"), dim(x)[2L], EXPECTED_BINS[[window]])
+build <- function(grain, stats) {
+  x <- grain_matrix(readings, logger_ID, date, temp, grain = BINNING[[grain]], stats = stats)
+  assert_equal(paste(grain, "bins"), dim(x)[2L], EXPECTED_BINS[[grain]])
   x
 }
 
 if ("representation" %in% stages) {
-  say("building the representation at every window")
+  say("building the representation at every grain")
   shape <- lapply(names(BINNING), function(w) {
     x <- build(w, "mean")
-    data.frame(window = w, bins = dim(x)[2L], readings_per_bin = mean(attr(x, "bin_n")),
+    data.frame(grain = w, bins = dim(x)[2L], readings_per_bin = mean(attr(x, "bin_n")),
                numbers_per_plot = dim(x)[2L], stringsAsFactors = FALSE)
   })
   shape <- do.call(rbind, shape)
   # The reported reading is three channels of whole days, so a week of it is three numbers.
-  shape$numbers_per_plot_reported <- ifelse(shape$window %in% c("hour", "halfday"), NA_integer_,
+  shape$numbers_per_plot_reported <- ifelse(shape$grain %in% c("native", "halfday"), NA_integer_,
                                             3L * shape$bins)
   write_out(shape, "representation.csv")
 }
@@ -169,7 +169,7 @@ if ("baseline" %in% stages) {
   arms <- list(
     elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5L, squares = TRUE, seed = CV_SEED),
     stepwise = stepwise_learner(max_terms = 3L, degree = 2L))[baseline_arms]
-  baseline <- window_ladder(features, y, arms, folds = folds)
+  baseline <- grain_ladder(features, y, arms, folds = folds)
   write_out(baseline, "baseline.csv")
   print(summary(baseline))
 }
@@ -192,19 +192,19 @@ if ("networks" %in% stages) {
                    rescnn = rescnn_learner(epochs = epochs),
                    ensemble = ensemble_learner(members))[grid_learners]
   for (statistic in c("mean", "extremeday")) {
-    windows <- if (statistic == "mean") grid_windows else
-      intersect(grid_windows, c("week", "month", "season", "year"))
-    if (!length(windows)) {
+    grains <- if (statistic == "mean") grid_grains else
+      intersect(grid_grains, c("week", "month", "season", "year"))
+    if (!length(grains)) {
       next
     }
     stats_used <- if (statistic == "mean") "mean" else REPORTED_STATS
-    say("network grid on the ", statistic, " reading: ", paste(windows, collapse = ", "))
-    set <- climgrain_set(stats::setNames(
-      lapply(windows, function(w) {
+    say("network grid on the ", statistic, " reading: ", paste(grains, collapse = ", "))
+    set <- timesift_set(stats::setNames(
+      lapply(grains, function(w) {
         x <- build(w, stats_used)
         bind_channels(x, calendar_channels(x))
-      }), windows))
-    grid <- window_ladder(set, y, encoders, folds = folds, keep_fits = FALSE)
+      }), grains))
+    grid <- grain_ladder(set, y, encoders, folds = folds, keep_fits = FALSE)
     write_out(grid, paste0("networks_", statistic, ".csv"))
     print(summary(grid))
   }
@@ -218,29 +218,29 @@ if ("contrasts" %in% stages) {
     say("contrasts need at least two result files in ", out_dir, "; skipping")
   } else {
     ladder <- do.call(rbind, lapply(parts, utils::read.csv, stringsAsFactors = FALSE))
-    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
-    arms <- unique(paste(ladder$window, ladder$learner, sep = "|"))
+    arms <- unique(paste(ladder$grain, ladder$learner, sep = "|"))
     pairs <- utils::combn(arms, 2L, simplify = FALSE)
     out <- do.call(rbind, lapply(pairs, function(p) paired_contrast(ladder, p[1L], p[2L])))
     write_out(out[order(-out$diff), ], "contrasts.csv")
   }
 }
 
-# ---- each window against its architecture's best ----------------------------------------------
+# ---- each grain against its architecture's best ----------------------------------------------
 
-if ("windows" %in% stages) {
+if ("grains" %in% stages) {
   parts <- list.files(out_dir, pattern = "^networks_mean", full.names = TRUE)
   if (!length(parts)) {
-    say("the window contrast needs networks_mean.csv in ", out_dir, "; skipping")
+    say("the grain contrast needs networks_mean.csv in ", out_dir, "; skipping")
   } else {
     ladder <- utils::read.csv(parts[1L], stringsAsFactors = FALSE)
-    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
     out <- do.call(rbind, lapply(unique(ladder$learner), function(l)
-      window_contrasts(ladder, learner = l)))
+      grain_contrasts(ladder, learner = l)))
     out$p_bh <- stats::p.adjust(out$p_value, method = "BH")
-    write_out(out, "window_contrasts.csv")
+    write_out(out, "grain_contrasts.csv")
     print(out)
   }
 }
@@ -258,11 +258,11 @@ if ("inflation" %in% stages) {
   levels_read <- list.files(out_dir, pattern = "^(baseline|networks_)", full.names = TRUE)
   if (length(levels_read)) {
     ladder <- do.call(rbind, lapply(levels_read, utils::read.csv, stringsAsFactors = FALSE))
-    ladder <- structure(ladder, class = c("climgrain_ladder", "data.frame"),
+    ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
                         metric = "tss", response = "presence_absence")
     reported <- summary(ladder)
     back <- implied_skill(y, folds, observed = reported$score, replicates = 500L, seed = CV_SEED)
-    write_out(cbind(reported[c("learner", "window")], back), "implied_skill.csv")
+    write_out(cbind(reported[c("learner", "grain")], back), "implied_skill.csv")
   }
 }
 

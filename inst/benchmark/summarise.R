@@ -61,10 +61,10 @@ per_cell <- lapply(split(rows, rows$cell_id), function(d) {
   chosen <- .pick(d, "nested", "selected")
   by_rep <- vapply(reps, function(r) {
     pick <- chosen$candidate[chosen$replicate == r]
-    window <- sub("[.].*$", "", pick)
+    grain <- sub("[.].*$", "", pick)
     c(exact = mean(pick == paste0(true_grain, ".mean")),
-      window = mean(window == true_grain),
-      adequate = mean(window %in% adequate))
+      grain = mean(grain == true_grain),
+      adequate = mean(grain %in% adequate))
   }, numeric(3L))
 
   nested_rep <- .pick(d, "nested", "reported")$value[order(.pick(d, "nested", "reported")$replicate)]
@@ -88,7 +88,7 @@ per_cell <- lapply(split(rows, rows$cell_id), function(d) {
     mechanism = d$mechanism[1L], n_unit = d$n_unit[1L], replicates = length(reps),
     true_grain = true_grain,
     select_exact = mean(by_rep["exact", ]), select_exact_mc = .margin(by_rep["exact", ]),
-    select_window = mean(by_rep["window", ]), select_window_mc = .margin(by_rep["window", ]),
+    select_grain = mean(by_rep["grain", ]), select_grain_mc = .margin(by_rep["grain", ]),
     select_adequate = mean(by_rep["adequate", ]),
     select_adequate_mc = .margin(by_rep["adequate", ]),
     nested_reported = mean(nested_rep), nested_true = mean(nested_true),

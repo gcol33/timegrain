@@ -8,11 +8,11 @@ import numpy as np
 
 from .learners import Learner
 from .registry import METRICS, get_learner
-from .representation import WindowMatrix
+from .representation import GrainMatrix
 from .response import Response, align_folds
 
 
-def feature_matrix(m, units=None, features=None, label: str = "features") -> WindowMatrix:
+def feature_matrix(m, units=None, features=None, label: str = "features") -> GrainMatrix:
     """Bring an already-reduced feature table into a ladder as a one-channel representation.
 
     It carries no time axis, because it has none: the reduction already happened, elsewhere, and
@@ -24,8 +24,8 @@ def feature_matrix(m, units=None, features=None, label: str = "features") -> Win
     units = tuple(units) if units is not None else tuple(str(i) for i in range(n_u))
     features = tuple(features) if features is not None else tuple(f"f{j}" for j in range(n_f))
     empty = np.full(n_f, np.datetime64("NaT"), dtype="datetime64[s]")
-    return WindowMatrix(values=m.reshape(n_u, n_f, 1), units=units, bins=features,
-                        stats=(label,), window=label, year_start="", bin_start=empty,
+    return GrainMatrix(values=m.reshape(n_u, n_f, 1), units=units, bins=features,
+                        stats=(label,), grain=label, year_start="", bin_start=empty,
                         bin_end=empty, bin_n=np.zeros((n_u, n_f), dtype=np.int64),
                         bin_partial=np.zeros(n_f, dtype=bool))
 
@@ -62,22 +62,22 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
                   permutations: int = 20, seed: int = 1):
     """Hold one bin of the record back at a time and record the fall in score as its weight.
 
-    Nothing is refitted: the models kept by ``window_ladder(keep_fits=True)`` are the ones read.
+    Nothing is refitted: the models kept by ``grain_ladder(keep_fits=True)`` are the ones read.
     What a held-back bin is replaced by decides what the weight means, so the substitute is part of
     the answer: ``permute`` keeps the observed readings and cuts only the link between a reading
     and its unit, ``fold_mean`` removes all between-unit variation, ``unit_mean`` keeps how warm a
     unit is and removes only that bin's departure from it.
     """
     if not ladder.fits:
-        raise ValueError("this ladder kept no fits; refit with window_ladder(..., keep_fits=True)")
+        raise ValueError("this ladder kept no fits; refit with grain_ladder(..., keep_fits=True)")
     if over not in ("bin", "channel"):
         raise ValueError(f"`over` must be 'bin' or 'channel', got {over!r}")
     if substitute not in ("permute", "fold_mean", "unit_mean"):
         raise ValueError(f"unknown substitute {substitute!r}")
 
-    window, learner = arm.split("|", 1) if "|" in arm else (None, arm)
-    label = f"{window}|{learner}"
-    m = x if isinstance(x, WindowMatrix) else dict(x)[window]
+    grain, learner = arm.split("|", 1) if "|" in arm else (None, arm)
+    label = f"{grain}|{learner}"
+    m = x if isinstance(x, GrainMatrix) else dict(x)[grain]
     y = y.align(m.units).check_presence_absence()
     f = align_folds(ladder.folds, m.units)
     score = metric if callable(metric) else METRICS.get(metric)
@@ -114,7 +114,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     return {"part": list(labels), "variable": list(y.variables), "weight": weight}
 
 
-def _occlude(m: WindowMatrix, sub: WindowMatrix, train, i, over, substitute, rng) -> WindowMatrix:
+def _occlude(m: GrainMatrix, sub: GrainMatrix, train, i, over, substitute, rng) -> GrainMatrix:
     values = sub.values.copy()
     n = values.shape[0]
     if over == "channel":

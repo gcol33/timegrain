@@ -29,8 +29,8 @@
 #'   the file's own rows in the file's own order.
 #'
 #' @return The writers return `file`, invisibly. `read_folds()` returns a named integer vector of
-#'   class `climgrain_folds`, `read_response()` a numeric matrix with the units in its row names,
-#'   and `read_cells()` a `climgrain_cells` data frame.
+#'   class `timesift_folds`, `read_response()` a numeric matrix with the units in its row names,
+#'   and `read_cells()` a `timesift_cells` data frame.
 #'
 #' @examples
 #' set.seed(1)
@@ -74,7 +74,7 @@ read_folds <- function(file, units = NULL) {
   if (!is.null(units)) {
     out <- out[.align_units(names(out), units, "fold map")]
   }
-  structure(out, v = length(unique(out)), class = "climgrain_folds")
+  structure(out, v = length(unique(out)), class = "timesift_folds")
 }
 
 #' @rdname artifacts
@@ -133,7 +133,7 @@ read_cells <- function(file) {
   }
   out$scorable <- .as_logical(d$scorable, file)
   rownames(out) <- NULL
-  structure(out[.cell_columns], class = c("climgrain_cells", "data.frame"))
+  structure(out[.cell_columns], class = c("timesift_cells", "data.frame"))
 }
 
 .cell_columns <- c("variable", "fold", "n_occ", "pres_train", "abs_train", "pres_test",

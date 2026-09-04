@@ -3,9 +3,9 @@ requires = ["scikit-build-core>=0.10", "nanobind>=2.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "climgrain"
-version = "0.3.0"
-description = "Temporal climate resolution for ecological prediction"
+name = "timesift"
+version = "0.1.0"
+description = "Learn predictive representations of time-varying data"
 readme = "python/README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -20,19 +20,19 @@ sklearn = ["scikit-learn>=1.3"]
 test = ["pytest>=8.0"]
 
 [project.urls]
-Homepage = "https://gillescolling.com/climgrain/"
-Source = "https://github.com/gcol33/climgrain"
-Issues = "https://github.com/gcol33/climgrain/issues"
+Homepage = "https://gillescolling.com/timesift/"
+Source = "https://github.com/gcol33/timesift"
+Issues = "https://github.com/gcol33/timesift/issues"
 
 [tool.scikit-build]
 minimum-version = "0.10"
-wheel.packages = ["python/climgrain"]
+wheel.packages = ["python/timesift"]
 sdist.include = [
   "CMakeLists.txt",
-  "src/cg_core.cpp",
-  "src/cg_calendar.cpp",
-  "src/cg_core.h",
-  "python/cg_py.cpp",
+  "src/ts_core.cpp",
+  "src/ts_calendar.cpp",
+  "src/ts_core.h",
+  "python/ts_py.cpp",
   "python/tests/**",
   "inst/spec/**",
   "LICENSE",
@@ -48,7 +48,7 @@ sdist.exclude = [
   "dev_notes/",
   "docs/",
   "src/cpp11.cpp",
-  "src/cg_r.cpp",
+  "src/ts_r.cpp",
   "DESCRIPTION",
   "NAMESPACE",
   "NEWS.md",

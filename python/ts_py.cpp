@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "cg_core.h"
+#include "ts_core.h"
 
 namespace nb = nanobind;
 
@@ -29,23 +29,23 @@ nb::ndarray<nb::numpy, T> give(std::vector<T>&& from) {
   return nb::ndarray<nb::numpy, T>(held->data(), 1, shape, owner);
 }
 
-std::vector<climgrain::Stat> parse_stats(const std::vector<std::string>& names) {
-  std::vector<climgrain::Stat> out;
+std::vector<timesift::Stat> parse_stats(const std::vector<std::string>& names) {
+  std::vector<timesift::Stat> out;
   out.reserve(names.size());
-  for (const std::string& name : names) out.push_back(climgrain::stat_from_name(name));
+  for (const std::string& name : names) out.push_back(timesift::stat_from_name(name));
   return out;
 }
 
 }  // namespace
 
 NB_MODULE(_core, m) {
-  m.doc() = "The binning and the reduction, shared with the R package as src/cg_core.cpp.";
+  m.doc() = "The binning and the reduction, shared with the R package as src/ts_core.cpp.";
 
   nb::register_exception_translator(
       [](const std::exception_ptr& p, void*) {
         try {
           std::rethrow_exception(p);
-        } catch (const climgrain::Error& e) {
+        } catch (const timesift::Error& e) {
           PyErr_SetString(PyExc_ValueError, e.what());
         }
       });
@@ -53,13 +53,13 @@ NB_MODULE(_core, m) {
   m.def("reduce",
         [](ConstI32 unit, ConstF64 value, ConstI64 when, ConstI64 local,
            std::optional<ConstI64> custom, const std::vector<std::string>& unit_names,
-           const std::string& window, int year_month, int year_day,
+           const std::string& grain, int year_month, int year_day,
            const std::vector<std::string>& stats, std::int64_t sampling_step) {
           std::vector<const char*> names;
           names.reserve(unit_names.size());
           for (const std::string& s : unit_names) names.push_back(s.c_str());
 
-          climgrain::Request req;
+          timesift::Request req;
           req.unit = unit.data();
           req.value = value.data();
           req.when = when.data();
@@ -68,36 +68,36 @@ NB_MODULE(_core, m) {
           req.unit_name = names.empty() ? nullptr : names.data();
           req.n = value.size();
           req.n_unit = unit_names.size();
-          req.window = climgrain::window_from_name(window);
-          req.year_start = climgrain::YearStart{year_month, year_day};
+          req.grain = timesift::grain_from_name(grain);
+          req.year_start = timesift::YearStart{year_month, year_day};
           req.sampling_step = sampling_step;
           req.stats = parse_stats(stats);
 
-          climgrain::Result out = climgrain::reduce(req);
+          timesift::Result out = timesift::reduce(req);
           std::vector<std::uint8_t> partial = std::move(out.bin_partial);
           return nb::make_tuple(give(std::move(out.values)), give(std::move(out.bin_start)),
                                 give(std::move(out.bin_end)), give(std::move(out.bin_n)),
                                 give(std::move(partial)));
         },
         nb::arg("unit"), nb::arg("value"), nb::arg("when"), nb::arg("local"), nb::arg("custom"),
-        nb::arg("unit_names"), nb::arg("window"), nb::arg("year_month"), nb::arg("year_day"),
+        nb::arg("unit_names"), nb::arg("grain"), nb::arg("year_month"), nb::arg("year_day"),
         nb::arg("stats"), nb::arg("sampling_step"));
 
   m.def("bin_starts",
-        [](ConstI64 local, const std::string& window, int year_month, int year_day) {
-          std::vector<climgrain::seconds> out(local.size());
-          climgrain::bin_starts(local.data(), local.size(), climgrain::window_from_name(window),
-                                climgrain::YearStart{year_month, year_day}, out.data());
+        [](ConstI64 local, const std::string& grain, int year_month, int year_day) {
+          std::vector<timesift::seconds> out(local.size());
+          timesift::bin_starts(local.data(), local.size(), timesift::grain_from_name(grain),
+                                timesift::YearStart{year_month, year_day}, out.data());
           return give(std::move(out));
         },
-        nb::arg("local"), nb::arg("window"), nb::arg("year_month"), nb::arg("year_day"));
+        nb::arg("local"), nb::arg("grain"), nb::arg("year_month"), nb::arg("year_day"));
 
   m.def("bin_nexts",
-        [](ConstI64 bins, const std::string& window, int year_month, int year_day) {
-          std::vector<climgrain::seconds> out(bins.size());
-          climgrain::bin_nexts(bins.data(), bins.size(), climgrain::window_from_name(window),
-                               climgrain::YearStart{year_month, year_day}, out.data());
+        [](ConstI64 bins, const std::string& grain, int year_month, int year_day) {
+          std::vector<timesift::seconds> out(bins.size());
+          timesift::bin_nexts(bins.data(), bins.size(), timesift::grain_from_name(grain),
+                               timesift::YearStart{year_month, year_day}, out.data());
           return give(std::move(out));
         },
-        nb::arg("bins"), nb::arg("window"), nb::arg("year_month"), nb::arg("year_day"));
+        nb::arg("bins"), nb::arg("grain"), nb::arg("year_month"), nb::arg("year_day"));
 }

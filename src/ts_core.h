@@ -1,5 +1,5 @@
-#ifndef CLIMGRAIN_CG_CORE_H
-#define CLIMGRAIN_CG_CORE_H
+#ifndef TIMESIFT_TS_CORE_H
+#define TIMESIFT_TS_CORE_H
 
 #include <cstddef>
 #include <cstdint>
@@ -14,11 +14,11 @@
 // them whatever the zone did that night, a month is what the Gregorian calendar says, and no
 // tzdata, no locale and no parse is reachable from here. The caller resolves the zone on the way
 // in and puts it back on the way out.
-namespace climgrain {
+namespace timesift {
 
 using seconds = std::int64_t;
 
-enum class Window { hour, halfday, day, week, month, season, year, custom };
+enum class Grain { native, halfday, day, week, month, season, year, custom };
 enum class Stat { mean, min, max, cold_day, warm_day, mean_daily_min, mean_daily_max };
 
 struct YearStart {
@@ -30,9 +30,9 @@ struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
-Window window_from_name(const std::string& name);
+Grain grain_from_name(const std::string& name);
 Stat stat_from_name(const std::string& name);
-const char* window_name(Window w);
+const char* grain_name(Grain w);
 const char* stat_name(Stat s);
 bool is_day_level(Stat s);
 
@@ -55,15 +55,15 @@ void civil_from_days(std::int64_t z, std::int64_t& y, unsigned& m, unsigned& d) 
 std::string iso8601(seconds t);
 
 // The start of the bin each instant falls in, and the start of the bin that follows a given one on
-// the same calendar. Neither is defined for Window::custom, whose bins the caller declares.
-void bin_starts(const seconds* when, std::size_t n, Window w, YearStart ys, seconds* out);
-void bin_nexts(const seconds* bin_start, std::size_t n, Window w, YearStart ys, seconds* out);
+// the same calendar. Neither is defined for Grain::custom, whose bins the caller declares.
+void bin_starts(const seconds* when, std::size_t n, Grain w, YearStart ys, seconds* out);
+void bin_nexts(const seconds* bin_start, std::size_t n, Grain w, YearStart ys, seconds* out);
 
-// Bin membership is a function of the slot an instant falls in at the window's own granularity:
-// the hour for `hour`, the half day for `halfday`, the calendar day for everything coarser. The
+// Bin membership is a function of the slot an instant falls in at the grain's own granularity:
+// the reading for `native`, the half day for `halfday`, the calendar day for everything coarser. The
 // reduction reads the calendar once per slot of the record rather than once per reading.
-seconds window_granularity(Window w);
-seconds slot_bin_start(std::int64_t slot, Window w, YearStart ys) noexcept;
+seconds grain_granularity(Grain w);
+seconds slot_bin_start(std::int64_t slot, Grain w, YearStart ys) noexcept;
 
 struct Request {
   const std::int32_t* unit = nullptr;   // 0-based unit index, one per reading
@@ -74,7 +74,7 @@ struct Request {
   const char* const* unit_name = nullptr;  // n_unit names, for the guards; may be null
   std::size_t n = 0;
   std::size_t n_unit = 0;
-  Window window = Window::day;
+  Grain grain = Grain::day;
   YearStart year_start{9, 1};
   seconds sampling_step = 0;
   std::vector<Stat> stats;
@@ -92,6 +92,6 @@ struct Result {
 // and for a bin shorter than a calendar day under a day-level statistic.
 Result reduce(const Request& req);
 
-}  // namespace climgrain
+}  // namespace timesift
 
-#endif  // CLIMGRAIN_CG_CORE_H
+#endif  // TIMESIFT_TS_CORE_H

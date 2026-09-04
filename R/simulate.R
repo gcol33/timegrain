@@ -8,13 +8,13 @@
 #' @section What the true grain is:
 #' The response is driven by `g_ij = sum_t w_j(t) * a_i(t)`, a weighted mean of unit `i`'s latent
 #' *anomaly*: the record with the seasonal cycle every unit shares and the unit's own constant
-#' offset taken out, since neither of those is temporally located and a window of any width reports
-#' both. The weights `w_j` are constant within the bins of one window and zero outside
-#' a short stretch of them, so `g` is exactly a linear combination of that window's bin means. The
-#' true grain of a mechanism is the **coarsest window of [window_matrix()] at which `g` is still an
-#' exact linear functional of the representation**: at that window and at every window whose bins
-#' nest inside it, no information about `g` has been averaged away, and at any coarser window some
-#' has. Finer windows keep the information but spread it over more coefficients, so they lose to
+#' offset taken out, since neither of those is temporally located and a grain of any width reports
+#' both. The weights `w_j` are constant within the bins of one grain and zero outside
+#' a short stretch of them, so `g` is exactly a linear combination of that grain's bin means. The
+#' true grain of a mechanism is the **coarsest grain of [grain_matrix()] at which `g` is still an
+#' exact linear functional of the representation**: at that grain and at every grain whose bins
+#' nest inside it, no information about `g` has been averaged away, and at any coarser grain some
+#' has. Finer grains keep the information but spread it over more coefficients, so they lose to
 #' the true grain by variance rather than by bias, which is the tension the selection has to
 #' resolve.
 #'
@@ -57,33 +57,33 @@
 #' @param anomaly_sd Marginal standard deviation of each unit's AR(1) anomaly.
 #' @param anomaly_days Correlation time of that anomaly, in days.
 #' @param offset_effect Weight the unit-level offset enters the driver with. At the default `0`
-#'   the driver reads the unit's *anomaly* alone, so a window coarse enough to average the anomaly
-#'   away loses the signal. At `1` the offset carries the response as well, and since every window
+#'   the driver reads the unit's *anomaly* alone, so a grain coarse enough to average the anomaly
+#'   away loses the signal. At `1` the offset carries the response as well, and since every grain
 #'   however coarse reports the offset, every grain is then equally good: that is the
 #'   grain-invariant control, not a temporal mechanism.
 #' @param sensor_sd Standard deviation of the measurement noise added to the latent record. The
 #'   response is generated from the latent record; the readings returned carry this noise.
-#' @param year_start `"MM-DD"` boundary of the hydrological year, passed to [window_matrix()] when
+#' @param year_start `"MM-DD"` boundary of the hydrological year, passed to [grain_matrix()] when
 #'   the mechanism's bins are located. Use the same value when representing the readings.
 #' @param seed Seed of the design: the weights and the link coefficients. Two calls with the same
 #'   `seed` and different `draw` share a design and draw independent units, which is what lets a
 #'   held-out deployment sample be drawn from the same population as a training sample.
 #' @param draw Seed of the unit draw. Also names the units, so two draws never collide.
 #'
-#' @return A `climgrain_simulation`: a list with `readings`, the long table [window_matrix()] takes;
+#' @return A `timesift_simulation`: a list with `readings`, the long table [grain_matrix()] takes;
 #'   `y`, the `[unit, variable]` 0/1 response; `driver`, the standardised driver `z` behind it;
 #'   `grain`, the true grain or `NA`; `weights`, the `[reading, variable]` weights defining the
 #'   driver; `link`, the solved `b0` and `b1`; and `design`, the settings the draw is reproducible
 #'   from.
 #'
-#' @seealso [select_grain()], which this exists to test, and [window_matrix()], whose calendar the
+#' @seealso [select_grain()], which this exists to test, and [grain_matrix()], whose calendar the
 #'   weights are defined on.
 #'
 #' @examples
 #' sim <- simulate_records(n = 40L, mechanism = "event", variables = 2L, days = 60L)
 #' sim
 #' sim$grain
-#' x <- window_matrix(sim$readings, unit, time, reading, window = c("day", "month"))
+#' x <- grain_matrix(sim$readings, unit, time, reading, grain = c("day", "month"))
 #' dim(x$day)
 #'
 #' @export
@@ -167,13 +167,13 @@ simulate_records <- function(n = 300L,
                   sensor_sd = sensor_sd, year_start = year_start,
                   seed = seed, draw = draw, bins = design$bins, anchor = design$anchor)
   )
-  structure(out, class = "climgrain_simulation")
+  structure(out, class = "timesift_simulation")
 }
 
 #' @export
-print.climgrain_simulation <- function(x, ...) {
+print.timesift_simulation <- function(x, ...) {
   d <- x$design
-  cat("<climgrain simulation>", d$mechanism, "over", .plural(d$n, "unit"), "x",
+  cat("<timesift simulation>", d$mechanism, "over", .plural(d$n, "unit"), "x",
       .plural(nrow(x$weights), "reading"), "\n")
   cat("true grain:", if (is.na(x$grain)) "none, the response does not read the record"
       else paste0(x$grain, " (", d$bins, " bins), stat mean"), "\n")
@@ -250,14 +250,14 @@ print.climgrain_simulation <- function(x, ...) {
   ok[as.integer(round(seq(1L, length(ok), length.out = variables)))]
 }
 
-# The bin boundaries the weights are defined on come from window_matrix() itself, on a two-unit
+# The bin boundaries the weights are defined on come from grain_matrix() itself, on a two-unit
 # record over the same instants, so a mechanism is anchored to the calendar the representation will
 # be built on rather than to a second copy of the binning rule.
 .bin_edges <- function(when, grain, year_start) {
   probe <- data.frame(unit = rep(c("a", "b"), each = length(when)),
                       time = rep(when, times = 2L),
                       reading = 0, stringsAsFactors = FALSE)
-  m <- window_matrix(probe, "unit", "time", "reading", window = grain, stats = "mean",
+  m <- grain_matrix(probe, "unit", "time", "reading", grain = grain, stats = "mean",
                      year_start = year_start)
   list(start = attr(m, "bin_start"), partial = attr(m, "bin_partial"))
 }

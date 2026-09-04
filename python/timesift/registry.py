@@ -74,7 +74,7 @@ def register_metric(name: str, fn: Callable, overwrite: bool = False):
 
     ``y`` and ``p`` are the observed values of the units in one fold and a model's predictions for
     them, both the same length. It returns one number, or a value that is not finite where the cell
-    defines none. Registering one makes it available to ``window_ladder`` by name, with no change
+    defines none. Registering one makes it available to ``grain_ladder`` by name, with no change
     to the fitting code.
     """
     if not callable(fn):

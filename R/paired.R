@@ -11,9 +11,9 @@
 #' bias on the same cell, and it cancels in the difference. That is why the levels a ladder reports
 #' are upper bounds while the differences between arms are read at face value.
 #'
-#' @param ladder A [window_ladder()] result.
-#' @param a,b The two arms, each given as `"learner"` or `"window|learner"`. Naming a learner alone
-#'   takes its best window.
+#' @param ladder A [grain_ladder()] result.
+#' @param a,b The two arms, each given as `"learner"` or `"grain|learner"`. Naming a learner alone
+#'   takes its best grain.
 #'
 #' @return A one-row data frame: the mean per-variable difference, a 95 percent interval from its
 #'   standard error across variables, the number of variables the difference favours, the paired
@@ -30,8 +30,8 @@
 #'                            numeric(length(t)))))
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
-#' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-#' lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+#' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
+#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
 #' paired_contrast(lad, "week|elasticnet", "month|elasticnet")
 #'
 #' @export
@@ -64,12 +64,12 @@ paired_contrast <- function(ladder, a, b) {
 }
 
 .arm_rows <- function(ladder, arm) {
-  if (!inherits(ladder, "climgrain_ladder")) {
-    stop("expected a window_ladder() result, got ", class(ladder)[1L], ".", call. = FALSE)
+  if (!inherits(ladder, "timesift_ladder")) {
+    stop("expected a grain_ladder() result, got ", class(ladder)[1L], ".", call. = FALSE)
   }
   parts <- strsplit(arm, "|", fixed = TRUE)[[1L]]
   if (length(parts) == 2L) {
-    window <- parts[1L]
+    grain <- parts[1L]
     learner <- parts[2L]
   } else {
     learner <- parts[1L]
@@ -78,13 +78,13 @@ paired_contrast <- function(ladder, a, b) {
     if (!nrow(s)) {
       stop("no learner called \"", learner, "\" in this ladder.", call. = FALSE)
     }
-    window <- s$window[which.max(s$score)]
+    grain <- s$grain[which.max(s$score)]
   }
-  rows <- ladder[ladder$window == window & ladder$learner == learner, , drop = FALSE]
+  rows <- ladder[ladder$grain == grain & ladder$learner == learner, , drop = FALSE]
   if (!nrow(rows)) {
-    stop("no arm \"", window, "|", learner, "\" in this ladder.", call. = FALSE)
+    stop("no arm \"", grain, "|", learner, "\" in this ladder.", call. = FALSE)
   }
-  structure(rows, label = paste(window, learner, sep = "|"))
+  structure(rows, label = paste(grain, learner, sep = "|"))
 }
 
 #' How much a self-selected threshold inflates the reported level
@@ -96,7 +96,7 @@ paired_contrast <- function(ladder, a, b) {
 #'
 #' Predictions are simulated under a normal model in which the population skill is exactly `skill`,
 #' at the cell sizes and presence counts of the response and fold map supplied, and the level is
-#' read back exactly as [window_ladder()] reports it. The gap between what comes back and the truth
+#' read back exactly as [grain_ladder()] reports it. The gap between what comes back and the truth
 #' planted is the inflation.
 #'
 #' It cancels in the paired differences [paired_contrast()] takes, since both arms carry it on the

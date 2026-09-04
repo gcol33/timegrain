@@ -31,7 +31,7 @@ fixed budget.
 
 Each candidate enters as an orthogonal polynomial, so a term can be non-monotone in the reading
 the way a niche optimum is. Selection happens inside whichever units the learner is handed, so
-under `window_ladder` it is redone in every fold. Reported beside a penalised fit it also
+under `grain_ladder` it is redone in every fold. Reported beside a penalised fit it also
 prices discrete selection: choosing a handful of columns out of hundreds is high variance, and
 that variance is a cost of the selector rather than of the features.
 
@@ -146,7 +146,7 @@ Error, naming the install, unless what the learner needs is importable.
 ## `flatten()`
 
 ```python
-flatten(x: WindowMatrix)
+flatten(x: GrainMatrix)
 ```
 
 `[unit, bin, channel]` to `[unit, bin * channel]` in the array's own order.

@@ -10,16 +10,16 @@ from ._stats import norm_ppf, wilcoxon_p
 from .learners import fit_learner
 from .metrics import tss
 from .registry import METRICS, RESPONSES, get_learner
-from .representation import climgrain_set
+from .representation import timesift_set
 from .response import (Folds, Response, align_folds, as_response, fold_map,
                        scorable_cells)
 
 
 @dataclass
 class Ladder:
-    """One score per ``(window, learner, variable, fold)`` cell, and what produced it."""
+    """One score per ``(grain, learner, variable, fold)`` cell, and what produced it."""
 
-    window: np.ndarray
+    grain: np.ndarray
     learner: np.ndarray
     variable: np.ndarray
     fold: np.ndarray
@@ -32,21 +32,21 @@ class Ladder:
     fits: dict
 
     def arm(self, name: str):
-        """A mask over the rows of one window-and-learner arm, named `window/learner`."""
-        window, learner = _split_arm(self, name)
-        return (self.window == window) & (self.learner == learner)
+        """A mask over the rows of one grain-and-learner arm, named `grain/learner`."""
+        grain, learner = _split_arm(self, name)
+        return (self.grain == grain) & (self.learner == learner)
 
     def summary(self):
         """The across-variable mean of the per-variable score, one row per arm."""
         rows = []
-        for w in _ordered(self.window):
+        for w in _ordered(self.grain):
             for ln in _ordered(self.learner):
-                hit = (self.window == w) & (self.learner == ln) & ~np.isnan(self.score)
+                hit = (self.grain == w) & (self.learner == ln) & ~np.isnan(self.score)
                 if not hit.any():
                     continue
                 per_variable = [self.score[hit & (self.variable == v)].mean()
                                 for v in np.unique(self.variable[hit])]
-                rows.append(dict(learner=ln, window=w, score=float(np.mean(per_variable)),
+                rows.append(dict(learner=ln, grain=w, score=float(np.mean(per_variable)),
                                  n_variable=len(per_variable)))
         for ln in {r["learner"] for r in rows}:
             same = [r for r in rows if r["learner"] == ln]
@@ -56,18 +56,18 @@ class Ladder:
         return rows
 
     def __repr__(self) -> str:  # pragma: no cover - display only
-        lines = [f"<climgrain ladder> {len(set(self.window))} windows x "
+        lines = [f"<timesift ladder> {len(set(self.grain))} grains x "
                  f"{len(set(self.learner))} learners",
                  f"metric: {self.metric} on {int(self.scorable.sum())} scorable cells"]
         for r in self.summary():
-            lines.append(f"  {r['learner']:<10} {r['window']:<10} {r['score']:.4f}"
+            lines.append(f"  {r['learner']:<10} {r['grain']:<10} {r['score']:.4f}"
                          f"{'  <- best' if r['best'] else ''}")
         return "\n".join(lines)
 
 
-def window_ladder(x, y, learners, folds=None, response: str = "presence_absence", metric=None,
+def grain_ladder(x, y, learners, folds=None, response: str = "presence_absence", metric=None,
                   keep_fits: bool = False, verbose: bool = True) -> Ladder:
-    """Cross-validate every learner at every window, on one fold map and one mask of cells.
+    """Cross-validate every learner at every grain, on one fold map and one mask of cells.
 
     Every arm sees identical splits and is restricted to identical cells, so the arms' means share
     a denominator and any two of them can be compared with ``paired_contrast``.
@@ -75,8 +75,8 @@ def window_ladder(x, y, learners, folds=None, response: str = "presence_absence"
     ``folds`` left at ``None`` builds one with the defaults of ``fold_map``. Where both languages
     must see the same splits, build it once and read it in the other with ``read_folds``.
     """
-    windows = climgrain_set(x)
-    units = windows.units
+    grains = timesift_set(x)
+    units = grains.units
     spec = RESPONSES.get(response)
     y = spec["prepare"](as_response(y)).align(units)
     if folds is None:
@@ -87,13 +87,13 @@ def window_ladder(x, y, learners, folds=None, response: str = "presence_absence"
     learners = learner_dict(learners)
     levels = np.unique(f)
 
-    window, learner, variable, fold, value, ok = [], [], [], [], [], []
+    grain, learner, variable, fold, value, ok = [], [], [], [], [], []
     predictions, fits = {}, {}
-    for w, m in windows.items():
+    for w, m in grains.items():
         for name, ln in learners.items():
             arm = f"{w}|{name}"
             if verbose:
-                print(f"fitting {name} at the {w} window")
+                print(f"fitting {name} at the {w} grain")
             p = np.full(y.values.shape, np.nan)
             column = {v: j for j, v in enumerate(y.variables)}
             row = {u: i for i, u in enumerate(units)}
@@ -113,30 +113,30 @@ def window_ladder(x, y, learners, folds=None, response: str = "presence_absence"
                     fits[f"{arm}|{k}"] = fit
             predictions[arm] = p
             scored = score_arm(w, name, y, p, f, levels, cells, score)
-            for key, into in (("window", window), ("learner", learner), ("variable", variable),
+            for key, into in (("grain", grain), ("learner", learner), ("variable", variable),
                               ("fold", fold), ("score", value), ("scorable", ok)):
                 into.extend(scored[key])
 
-    return ladder_from_rows(dict(window=window, learner=learner, variable=variable, fold=fold,
+    return ladder_from_rows(dict(grain=grain, learner=learner, variable=variable, fold=fold,
                                  score=value, scorable=ok),
                             predictions=predictions, cells=cells,
                             folds=Folds(fold=f, units=units), metric=metric or spec["metric"],
                             fits=fits)
 
 
-def score_arm(window, learner, y: Response, p: np.ndarray, f: np.ndarray, levels,
+def score_arm(grain, learner, y: Response, p: np.ndarray, f: np.ndarray, levels,
               cells, score) -> dict:
     """One arm's cells: which of them a score is defined on, and the score of each.
 
     A ladder and a selection both read a level off this, so the two report the same quantity
     computed the same way rather than each computing it.
     """
-    rows = dict(window=[], learner=[], variable=[], fold=[], score=[], scorable=[])
+    rows = dict(grain=[], learner=[], variable=[], fold=[], score=[], scorable=[])
     for k in levels:
         take = f == k
         for j, v in enumerate(y.variables):
             ok = cells.is_scorable(v, int(k))
-            rows["window"].append(window)
+            rows["grain"].append(grain)
             rows["learner"].append(learner)
             rows["variable"].append(v)
             rows["fold"].append(int(k))
@@ -147,7 +147,7 @@ def score_arm(window, learner, y: Response, p: np.ndarray, f: np.ndarray, levels
 
 def ladder_from_rows(rows: dict, predictions: dict, cells, folds: Folds, metric: str,
                      fits: dict) -> Ladder:
-    return Ladder(window=np.asarray(rows["window"]), learner=np.asarray(rows["learner"]),
+    return Ladder(grain=np.asarray(rows["grain"]), learner=np.asarray(rows["learner"]),
                   variable=np.asarray(rows["variable"]), fold=np.asarray(rows["fold"]),
                   score=np.asarray(rows["score"], dtype=float),
                   scorable=np.asarray(rows["scorable"]), predictions=predictions, cells=cells,
@@ -159,7 +159,7 @@ def concat_ladders(a: Ladder, b: Ladder) -> Ladder:
     if a.metric != b.metric:
         raise ValueError(f"one table is scored by {a.metric} and the other by {b.metric}")
     return Ladder(
-        window=np.concatenate([a.window, b.window]),
+        grain=np.concatenate([a.grain, b.grain]),
         learner=np.concatenate([a.learner, b.learner]),
         variable=np.concatenate([a.variable, b.variable]),
         fold=np.concatenate([a.fold, b.fold]),
@@ -178,7 +178,7 @@ def per_variable(ladder: Ladder) -> dict:
     """
     keep = ~np.isnan(ladder.score)
     out = {}
-    for w, ln, v, value in zip(ladder.window[keep], ladder.learner[keep], ladder.variable[keep],
+    for w, ln, v, value in zip(ladder.grain[keep], ladder.learner[keep], ladder.variable[keep],
                                ladder.score[keep]):
         out.setdefault((str(w), str(ln), str(v)), []).append(float(value))
     return {k: float(np.mean(v)) for k, v in out.items()}
@@ -296,21 +296,21 @@ def learner_dict(learners):
 
 def _split_arm(ladder: Ladder, name: str):
     if "|" in name:
-        window, learner = name.split("|", 1)
+        grain, learner = name.split("|", 1)
     else:
         learner = name
         rows = [r for r in ladder.summary() if r["learner"] == learner]
         if not rows:
             raise KeyError(f'no learner called "{learner}" in this ladder')
-        window = max(rows, key=lambda r: r["score"])["window"]
-    if not ((ladder.window == window) & (ladder.learner == learner)).any():
-        raise KeyError(f'no arm "{window}|{learner}" in this ladder')
-    return window, learner
+        grain = max(rows, key=lambda r: r["score"])["grain"]
+    if not ((ladder.grain == grain) & (ladder.learner == learner)).any():
+        raise KeyError(f'no arm "{grain}|{learner}" in this ladder')
+    return grain, learner
 
 
 def _label(ladder: Ladder, name: str) -> str:
-    window, learner = _split_arm(ladder, name)
-    return f"{window}|{learner}"
+    grain, learner = _split_arm(ladder, name)
+    return f"{grain}|{learner}"
 
 
 def _ordered(values):

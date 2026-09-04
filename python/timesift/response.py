@@ -2,7 +2,7 @@
 
 The fold map is an artifact rather than an algorithm: it is built once and read by everything that
 scores, in either language, so that every arm sees identical splits and any two of them can be
-compared cell by cell. ``fold_map`` builds one; ``climgrain.read_folds`` reads one somebody else
+compared cell by cell. ``fold_map`` builds one; ``timesift.read_folds`` reads one somebody else
 built, from the file format ``inst/spec/representation.md`` defines.
 """
 
@@ -77,7 +77,7 @@ class Cells:
         by_variable = {v: False for v in self.variable}
         for v, ok in zip(self.variable, self.scorable):
             by_variable[v] = by_variable[v] or bool(ok)
-        return (f"<climgrain cells> {len(self.variable)} cells over {len(by_variable)} variables\n"
+        return (f"<timesift cells> {len(self.variable)} cells over {len(by_variable)} variables\n"
                 f"scorable: {int(self.scorable.sum())} "
                 f"({100 * self.scorable.mean():.1f}%); variables with at least one scorable fold: "
                 f"{sum(by_variable.values())} of {len(by_variable)}")
@@ -147,7 +147,7 @@ class Folds:
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         counts = np.bincount(self.fold)[1:]
-        return (f"<climgrain folds> {len(self.fold)} units in {self.v} folds\n"
+        return (f"<timesift folds> {len(self.fold)} units in {self.v} folds\n"
                 + "  ".join(f"{k + 1}: {n}" for k, n in enumerate(counts)))
 
 

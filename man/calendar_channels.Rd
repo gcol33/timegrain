@@ -7,7 +7,7 @@
 calendar_channels(x)
 }
 \arguments{
-\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result.}
+\item{x}{A \code{\link[=grain_matrix]{grain_matrix()}} result.}
 }
 \value{
 An array of the same units and bins with two channels, \code{year_sin} and \code{year_cos},
@@ -26,7 +26,7 @@ hand-built thermal feature: whatever a model does with them it could have done w
 \examples{
 t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 400)
 d <- data.frame(plot = "a", t = t, temp = sin(seq_along(t) / 500))
-x <- window_matrix(d, plot, t, temp, window = "month")
+x <- grain_matrix(d, plot, t, temp, grain = "month")
 round(calendar_channels(x)[1, 1:4, ], 3)
 
 }

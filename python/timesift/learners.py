@@ -14,7 +14,7 @@ from typing import Callable
 import numpy as np
 
 from .registry import get_learner
-from .representation import WindowMatrix
+from .representation import GrainMatrix
 
 
 @dataclass
@@ -47,7 +47,7 @@ class Fit:
     variables: tuple[str, ...]
     response: str = "presence_absence"
 
-    def predict(self, x: WindowMatrix) -> np.ndarray:
+    def predict(self, x: GrainMatrix) -> np.ndarray:
         """Predictions for a representation, as a `[unit, variable]` matrix."""
         p = np.asarray(self.learner.predict(self.model, x), dtype=np.float64)
         if p.shape[0] != x.values.shape[0]:
@@ -56,7 +56,7 @@ class Fit:
         return p
 
 
-def fit_learner(learner, x: WindowMatrix, y, response: str = "presence_absence",
+def fit_learner(learner, x: GrainMatrix, y, response: str = "presence_absence",
                 **kwargs) -> Fit:
     """Fit one learner at one grain, under one registered response head."""
     from .registry import RESPONSES
@@ -68,7 +68,7 @@ def fit_learner(learner, x: WindowMatrix, y, response: str = "presence_absence",
     return Fit(learner=learner, model=model, variables=y.variables, response=response)
 
 
-def flatten(x: WindowMatrix) -> np.ndarray:
+def flatten(x: GrainMatrix) -> np.ndarray:
     """``[unit, bin, channel]`` to ``[unit, bin * channel]`` in the array's own order."""
     n_u = x.values.shape[0]
     return x.values.reshape(n_u, -1, order="F")
@@ -199,7 +199,7 @@ def _torch_learner(name, module_fn, arch, cfg) -> Learner:
                    predict=_torch_predict)
 
 
-def _torch_fit(x: WindowMatrix, y: np.ndarray, module_fn, arch, cfg):
+def _torch_fit(x: GrainMatrix, y: np.ndarray, module_fn, arch, cfg):
     torch = _torch()
     device = cfg["device"] or ("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -298,7 +298,7 @@ def _refresh_batchnorm(net, xt, fit_idx, batch_size, device):
     return net
 
 
-def _torch_predict(model, x: WindowMatrix) -> np.ndarray:
+def _torch_predict(model, x: GrainMatrix) -> np.ndarray:
     torch = _torch()
     if tuple(x.stats) != tuple(model["channels"]) or x.values.shape[1] != model["bins"]:
         raise ValueError("the representation predicted on has different channels or bins from "
@@ -352,7 +352,7 @@ def rescnn_learner(channels=(32, 64, 128, 256), blocks_per_stage=2, kernel=7,
                                     pos_weight_cap, swa, swa_start, seed, device))
 
 
-def _design(x: WindowMatrix, squares: bool) -> np.ndarray:
+def _design(x: GrainMatrix, squares: bool) -> np.ndarray:
     m = flatten(x)
     return np.hstack([m, m ** 2]) if squares else m
 
@@ -405,7 +405,7 @@ def stepwise_learner(max_terms=3, degree=2) -> Learner:
 
     Each candidate enters as an orthogonal polynomial, so a term can be non-monotone in the reading
     the way a niche optimum is. Selection happens inside whichever units the learner is handed, so
-    under :func:`window_ladder` it is redone in every fold. Reported beside a penalised fit it also
+    under :func:`grain_ladder` it is redone in every fold. Reported beside a penalised fit it also
     prices discrete selection: choosing a handful of columns out of hundreds is high variance, and
     that variance is a cost of the selector rather than of the features.
     """

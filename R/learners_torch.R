@@ -39,7 +39,7 @@
 #'   The schedule anneals to `swa_start` of the epoch budget and is then held flat while the
 #'   remaining epochs' weights are averaged, and the batch-normalisation statistics are recomputed
 #'   for the average. Early stopping is off while an average is being accumulated, so the
-#'   averaging window always runs.
+#'   averaging grain always runs.
 #' @param swa_start Share of the epoch budget after which averaging begins.
 #' @param seed Seed for initialisation, batching and the inner validation split.
 #' @param device `"cuda"`, `"cpu"`, or `NULL` to take a graphics processor where there is one.
@@ -202,7 +202,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   net$eval()
   structure(list(net = net, scaler = scaler, device = device, channels = dimnames(x)[[3L]],
                  bins = dim(x)[2L], batch_size = cfg$batch_size),
-            class = "climgrain_torch")
+            class = "timesift_torch")
 }
 
 .torch_predict <- function(model, x) {
@@ -310,7 +310,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
 .pool_module <- function() {
   torch <- .torch()
   torch$nn_module(
-    "climgrain_lensafe_pool",
+    "timesift_lensafe_pool",
     initialize = function(kernel = 2L) {
       self$kernel <- kernel
       self$pool <- torch$nn_max_pool1d(kernel)
@@ -328,7 +328,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
 .mlp_module <- function(in_ch, in_len, n_out, arch) {
   torch <- .torch()
   torch$nn_module(
-    "climgrain_mlp",
+    "timesift_mlp",
     initialize = function() {
       layers <- list(torch$nn_flatten())
       prev <- in_ch * in_len
@@ -350,7 +350,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   torch <- .torch()
   pool <- .pool_module()
   torch$nn_module(
-    "climgrain_cnn",
+    "timesift_cnn",
     initialize = function() {
       layers <- list()
       prev <- in_ch
@@ -373,7 +373,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   pool <- .pool_module()
 
   se <- torch$nn_module(
-    "climgrain_se",
+    "timesift_se",
     initialize = function(c, r = 8L) {
       h <- max(c %/% r, 4L)
       self$fc <- torch$nn_sequential(torch$nn_linear(c, h), torch$nn_gelu(),
@@ -383,7 +383,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   )
 
   block <- torch$nn_module(
-    "climgrain_resblock",
+    "timesift_resblock",
     initialize = function(c, kernel, dilation, dropout) {
       pad <- (kernel %/% 2L) * dilation
       self$conv <- torch$nn_sequential(
@@ -397,7 +397,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
   )
 
   torch$nn_module(
-    "climgrain_rescnn",
+    "timesift_rescnn",
     initialize = function() {
       self$stem <- torch$nn_sequential(
         torch$nn_conv1d(in_ch, arch$channels[1L], arch$kernel, padding = arch$kernel %/% 2L),

@@ -6,9 +6,9 @@ fixture_series <- function(dir, name) {
   s
 }
 
-fixture_binning <- function(dir, name, window) {
-  if (window != "astronomical") {
-    return(window)
+fixture_binning <- function(dir, name, grain) {
+  if (grain != "astronomical") {
+    return(grain)
   }
   edges <- read.csv(file.path(dir, "seasons.csv"), stringsAsFactors = FALSE)
   edges <- as.POSIXct(edges$edge[edges$series == name], format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
@@ -24,13 +24,13 @@ test_that("every representation matches the digest the Python side reads", {
 
   for (i in seq_len(nrow(expected))) {
     row <- expected[i, ]
-    label <- paste(row$series, row$window, row$tz, row$year_start, row$partial, row$stat)
+    label <- paste(row$series, row$grain, row$tz, row$year_start, row$partial, row$stat)
     # The instants are the same bytes on disk whichever calendar reads them; the zone is the clock
     # laid over them, and a zone row asserts that both languages read that clock the same way.
     record <- series[[row$series]]
     attr(record$time, "tzone") <- row$tz
-    x <- window_matrix(record, id, time, value,
-                       window = fixture_binning(dir, row$series, row$window),
+    x <- grain_matrix(record, id, time, value,
+                       grain = fixture_binning(dir, row$series, row$grain),
                        stats = strsplit(row$stat, "+", fixed = TRUE)[[1L]],
                        year_start = row$year_start, partial = row$partial)
     start <- attr(x, "bin_start")
@@ -55,13 +55,13 @@ test_that("the fixtures cover a record that starts on no bin boundary", {
   skip_if(is.null(dir), "fixtures are not in the built package")
   expected <- read.csv(file.path(dir, "digests.csv"), stringsAsFactors = FALSE)
 
-  # A record beginning at midnight on the year_start anniversary puts every window in phase with
+  # A record beginning at midnight on the year_start anniversary puts every grain in phase with
   # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
   # never makes one agree. The contract is only a contract if it also carries the other case.
   expect_true(all(c("aligned", "offset", "zoned", "order") %in% expected$series))
   offset <- expected[expected$series == "offset", ]
-  expect_true(all(c("hour", "halfday", "day", "week", "month", "season", "year", "astronomical")
-                  %in% offset$window))
+  expect_true(all(c("native", "halfday", "day", "week", "month", "season", "year", "astronomical")
+                  %in% offset$grain))
   expect_gt(sum(offset$n_partial), 0)
   expect_true(all(c("keep", "drop") %in% expected$partial))
   expect_gt(length(unique(expected$year_start)), 1L)
@@ -72,21 +72,21 @@ test_that("the fixtures cover a record that starts on no bin boundary", {
   expect_true(all(c("UTC", "Europe/Vienna", "America/Sao_Paulo") %in% expected$tz))
   expect_true(any(expected$tz == "America/Sao_Paulo" & expected$year_start == "11-04"))
 
-  # Every window whose bin count the offset record splits differently from the aligned one is
+  # Every grain whose bin count the offset record splits differently from the aligned one is
   # pinned by a row of its own, so a change to either binning rule moves a digest here.
   aligned <- expected[expected$series == "aligned" & expected$stat == "mean" &
                         expected$partial == "keep" & expected$year_start == "09-01" &
                         expected$tz == "UTC", ]
-  expect_setequal(aligned$window,
-                  c("hour", "halfday", "day", "week", "month", "season", "year", "astronomical"))
+  expect_setequal(aligned$grain,
+                  c("native", "halfday", "day", "week", "month", "season", "year", "astronomical"))
 })
 
 test_that("dropping every bin is an error rather than an empty representation", {
   t <- seq(as.POSIXct("2021-10-17 05:00:00", tz = "UTC"), by = "hour", length.out = 24 * 40)
   d <- data.frame(plot = "a", t = t, temp = sin(seq_along(t) / 24), stringsAsFactors = FALSE)
-  expect_error(window_matrix(d, plot, t, temp, window = "year", partial = "drop"),
+  expect_error(grain_matrix(d, plot, t, temp, grain = "year", partial = "drop"),
                "no whole year")
-  expect_error(window_matrix(d, plot, t, temp, window = "day", partial = "sometimes"),
+  expect_error(grain_matrix(d, plot, t, temp, grain = "day", partial = "sometimes"),
                "'arg' should be one of")
 })
 
@@ -109,13 +109,13 @@ test_that("the row order is C collation and not the session's", {
   # These five ids are the case that made the two languages disagree: an English locale orders
   # them _x a1 A1 P10 P9, C collation orders them A1 P10 P9 _x a1, and NumPy gives the second.
   # The representation must give the second whatever LC_COLLATE the session runs in.
-  x <- window_matrix(record, id, time, value, window = "day")
+  x <- grain_matrix(record, id, time, value, grain = "day")
   expect_identical(dimnames(x)[[1L]], c("A1", "P10", "P9", "_x", "a1"))
 
   # The input row order carries no meaning: the ids arrive in a third order again.
   expect_identical(unique(record$id), c("a1", "P9", "_x", "A1", "P10"))
   shuffled <- record[order(record$value), , drop = FALSE]
-  expect_identical(digest_array(window_matrix(shuffled, id, time, value, window = "day")),
+  expect_identical(digest_array(grain_matrix(shuffled, id, time, value, grain = "day")),
                    digest_array(x))
 })
 

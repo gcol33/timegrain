@@ -2,7 +2,7 @@
 #'
 #' Holds one bin of the record back at a time, rescores the held-out units, and records the fall in
 #' score as that bin's weight. Nothing is refitted: the models kept by
-#' `window_ladder(keep_fits = TRUE)` are the ones read, so the profile describes the models that
+#' `grain_ladder(keep_fits = TRUE)` are the ones read, so the profile describes the models that
 #' produced the reported scores rather than a fresh set of them.
 #'
 #' A model has to be shown something in place of a held-back bin, and what it is shown decides what
@@ -12,13 +12,13 @@
 #' by each unit's own mean over the record keeps how warm a unit is and removes only that bin's
 #' departure from it.
 #'
-#' Read with `over = "channel"` the same machinery asks what each statistic of a window carries,
+#' Read with `over = "channel"` the same machinery asks what each statistic of a grain carries,
 #' holding one channel back across the whole record instead of one bin across all channels.
 #'
-#' @param ladder A [window_ladder()] result fitted with `keep_fits = TRUE`.
+#' @param ladder A [grain_ladder()] result fitted with `keep_fits = TRUE`.
 #' @param x The representation set the ladder was fitted on.
 #' @param y The response it was fitted to.
-#' @param arm The arm to read, as `"window|learner"` or `"learner"`.
+#' @param arm The arm to read, as `"grain|learner"` or `"learner"`.
 #' @param over `"bin"` to hold each bin back in turn, `"channel"` for each channel.
 #' @param substitute What a held-back part is replaced by: `"permute"`, `"fold_mean"` or
 #'   `"unit_mean"`.
@@ -42,8 +42,8 @@
 #'                            numeric(length(t)))))
 #' y <- matrix(rbinom(80, 1, plogis(c(warmth, -warmth))), nrow = 40,
 #'             dimnames = list(units, c("sp1", "sp2")))
-#' x <- window_matrix(d, plot, t, temp, window = "month")
-#' lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
+#' x <- grain_matrix(d, plot, t, temp, grain = "month")
+#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
 #'                      keep_fits = TRUE, verbose = FALSE)
 #' head(bin_occlusion(lad, x, y, "month|elasticnet", permutations = 3))
 #'
@@ -55,16 +55,16 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
   substitute <- match.arg(substitute)
   fits <- attr(ladder, "fits")
   if (is.null(fits)) {
-    stop("this ladder kept no fits. Refit with window_ladder(..., keep_fits = TRUE).",
+    stop("this ladder kept no fits. Refit with grain_ladder(..., keep_fits = TRUE).",
          call. = FALSE)
   }
   rows <- .arm_rows(ladder, arm)
   label <- attr(rows, "label")
-  window <- strsplit(label, "|", fixed = TRUE)[[1L]][1L]
+  grain <- strsplit(label, "|", fixed = TRUE)[[1L]][1L]
   set <- .as_set(x)
-  m <- set[[window]]
+  m <- set[[grain]]
   if (is.null(m)) {
-    stop("the representation carries no \"", window, "\" window.", call. = FALSE)
+    stop("the representation carries no \"", grain, "\" grain.", call. = FALSE)
   }
   units <- dimnames(m)[[1L]]
   y <- .align_response(.responses_reg$get(attr(ladder, "response"))$prepare(y), units)
@@ -113,7 +113,7 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
   agg <- agg[order(agg$part, agg$variable, method = "radix"), ]
   agg$part <- as.character(agg$part)
   rownames(agg) <- NULL
-  structure(agg, class = c("climgrain_occlusion", "data.frame"), arm = label, over = over,
+  structure(agg, class = c("timesift_occlusion", "data.frame"), arm = label, over = over,
             substitute = substitute, metric = metric)
 }
 
@@ -159,8 +159,8 @@ bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
 }
 
 #' @export
-print.climgrain_occlusion <- function(x, ...) {
-  cat("<climgrain occlusion>", attr(x, "arm"), "read by", attr(x, "metric"), "\n")
+print.timesift_occlusion <- function(x, ...) {
+  cat("<timesift occlusion>", attr(x, "arm"), "read by", attr(x, "metric"), "\n")
   cat("held back:", attr(x, "over"), "; substitute:", attr(x, "substitute"), "\n")
   w <- stats::aggregate(list(weight = x$weight), x["part"], mean)
   w <- w[order(-w$weight), ]

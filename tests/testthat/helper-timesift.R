@@ -1,7 +1,7 @@
 # The contract's fixtures, read from the installed package where there is one and from the
 # source tree otherwise, so the suite asserts them on an installed copy too.
 fixture_dir <- function() {
-  installed <- system.file("spec", "fixtures", package = "climgrain")
+  installed <- system.file("spec", "fixtures", package = "timesift")
   candidates <- c(installed, "../../inst/spec/fixtures", "inst/spec/fixtures")
   for (p in candidates) {
     if (nzchar(p) && file.exists(file.path(p, "digests.csv"))) {
@@ -50,7 +50,7 @@ brute_tss <- function(y, p) {
 # for three lines; test_that() runs its block in a function, so on.exit() there is the whole
 # lifetime.
 temp_dir <- function() {
-  dir <- tempfile("climgrain")
+  dir <- tempfile("timesift")
   dir.create(dir)
   dir
 }

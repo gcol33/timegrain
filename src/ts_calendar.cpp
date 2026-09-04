@@ -1,9 +1,9 @@
-#include "cg_core.h"
+#include "ts_core.h"
 
 #include <algorithm>
 #include <cstdio>
 
-namespace climgrain {
+namespace timesift {
 
 namespace {
 
@@ -11,13 +11,13 @@ constexpr seconds kDay = 86400;
 
 struct NameMap {
   const char* name;
-  Window window;
+  Grain grain;
 };
 
-const NameMap kWindows[] = {
-  {"hour", Window::hour}, {"halfday", Window::halfday}, {"day", Window::day},
-  {"week", Window::week}, {"month", Window::month}, {"season", Window::season},
-  {"year", Window::year}, {"custom", Window::custom}
+const NameMap kGrains[] = {
+  {"native", Grain::native}, {"halfday", Grain::halfday}, {"day", Grain::day},
+  {"week", Grain::week}, {"month", Grain::month}, {"season", Grain::season},
+  {"year", Grain::year}, {"custom", Grain::custom}
 };
 
 struct StatMap {
@@ -88,16 +88,16 @@ std::string iso8601(seconds t) {
   return std::string(buffer);
 }
 
-Window window_from_name(const std::string& name) {
-  for (const NameMap& entry : kWindows) {
-    if (name == entry.name) return entry.window;
+Grain grain_from_name(const std::string& name) {
+  for (const NameMap& entry : kGrains) {
+    if (name == entry.name) return entry.grain;
   }
-  throw Error("unknown window: " + name + ".");
+  throw Error("unknown grain: " + name + ".");
 }
 
-const char* window_name(Window w) {
-  for (const NameMap& entry : kWindows) {
-    if (w == entry.window) return entry.name;
+const char* grain_name(Grain w) {
+  for (const NameMap& entry : kGrains) {
+    if (w == entry.grain) return entry.name;
   }
   return "unknown";
 }
@@ -121,74 +121,76 @@ bool is_day_level(Stat s) {
          s == Stat::mean_daily_min || s == Stat::mean_daily_max;
 }
 
-// The granularity a window's bin boundaries land on. Bin membership is a function of this slot
+// The granularity a grain's bin boundaries land on. Bin membership is a function of this slot
 // alone, which is what lets the calendar be read once per slot of the record rather than once per
 // reading: three years hourly is 26,304 slots against 23.5 million readings.
-seconds window_granularity(Window w) {
+seconds grain_granularity(Grain w) {
   switch (w) {
-    case Window::hour: return 1;
-    case Window::halfday: return 43200;
+    case Grain::native: return 1;
+    case Grain::halfday: return 43200;
     default: return kDay;
   }
 }
 
-// The start of the bin holding a whole slot, given the slot index at the window's granularity.
-seconds slot_bin_start(std::int64_t slot, Window w, YearStart ys) noexcept {
+// The start of the bin holding a whole slot, given the slot index at the grain's granularity.
+seconds slot_bin_start(std::int64_t slot, Grain w, YearStart ys) noexcept {
   switch (w) {
-    case Window::hour:
-      // The `hour` window is the record unreduced: a reading is its own bin.
+    case Grain::native:
+      // The `native` grain is the record unreduced: a reading is its own bin.
       return slot;
-    case Window::halfday:
+    case Grain::halfday:
       return slot * 43200;
-    case Window::day:
+    case Grain::day:
       return slot * kDay;
-    case Window::week:
+    case Grain::week:
       // 1970-01-01 was a Thursday, so the slot index plus three is zero on a Monday.
       return (slot - floor_mod(slot + 3, 7)) * kDay;
-    case Window::month: {
+    case Grain::month: {
       std::int64_t y;
       unsigned m, d;
       civil_from_days(slot, y, m, d);
       return days_from_civil(y, m, 1) * kDay;
     }
-    case Window::season:
+    case Grain::season:
       return anniversary(floor_div(offset_months(slot, ys), 3) * 3, ys);
-    case Window::year:
+    case Grain::year:
       return anniversary(floor_div(offset_months(slot, ys), 12) * 12, ys);
     default:
       return slot * kDay;
   }
 }
 
-void bin_starts(const seconds* when, std::size_t n, Window w, YearStart ys, seconds* out) {
-  if (w == Window::custom) {
+void bin_starts(const seconds* when, std::size_t n, Grain w, YearStart ys, seconds* out) {
+  if (w == Grain::custom) {
     throw Error("a supplied calendar declares its own bins; bin_starts() does not apply.");
   }
-  const seconds g = window_granularity(w);
+  const seconds g = grain_granularity(w);
   for (std::size_t i = 0; i < n; ++i) {
     out[i] = slot_bin_start(floor_div(when[i], g), w, ys);
   }
 }
 
-void bin_nexts(const seconds* bin_start, std::size_t n, Window w, YearStart ys, seconds* out) {
+void bin_nexts(const seconds* bin_start, std::size_t n, Grain w, YearStart ys, seconds* out) {
   for (std::size_t i = 0; i < n; ++i) {
     const seconds t = bin_start[i];
     switch (w) {
-      case Window::hour: out[i] = t + 3600; break;
-      case Window::halfday: out[i] = t + 43200; break;
-      case Window::day: out[i] = t + kDay; break;
-      case Window::week: out[i] = t + 7 * kDay; break;
-      case Window::month: {
+      case Grain::native:
+        throw Error("the native grain's bin is the reading itself; "
+                    "bin_nexts() does not apply.");
+      case Grain::halfday: out[i] = t + 43200; break;
+      case Grain::day: out[i] = t + kDay; break;
+      case Grain::week: out[i] = t + 7 * kDay; break;
+      case Grain::month: {
         std::int64_t y;
         unsigned m, d;
         civil_from_days(floor_div(t, kDay), y, m, d);
         out[i] = days_from_civil(m == 12 ? y + 1 : y, m == 12 ? 1 : m + 1, 1) * kDay;
         break;
       }
-      case Window::season:
+      case Grain::season:
         out[i] = anniversary(offset_months(floor_div(t, kDay), ys) + 3, ys);
         break;
-      case Window::year:
+      case Grain::year:
         out[i] = anniversary(offset_months(floor_div(t, kDay), ys) + 12, ys);
         break;
       default:
@@ -197,4 +199,4 @@ void bin_nexts(const seconds* bin_start, std::size_t n, Window w, YearStart ys, 
   }
 }
 
-}  // namespace climgrain
+}  // namespace timesift

@@ -1,4 +1,4 @@
-test_that("the core reproduces the pure-R oracle on every window and statistic", {
+test_that("the core reproduces the pure-R oracle on every grain and statistic", {
   set.seed(20260903)
   starts <- c("2019-09-01", "2020-02-17 05:00:00", "2021-06-11 13:00:00")
   schemes <- list(c("min", "mean", "max"),
@@ -10,14 +10,14 @@ test_that("the core reproduces the pure-R oracle on every window and statistic",
     d <- data.frame(id = rep(c("p1", "p2", "p3"), each = length(t)),
                     t = rep(t, 3),
                     v = rnorm(3 * length(t), sd = 5))
-    for (w in c("hour", "halfday", "day", "week", "month", "season", "year")) {
+    for (w in c("native", "halfday", "day", "week", "month", "season", "year")) {
       for (scheme in schemes) {
-        if (w %in% c("hour", "halfday") &&
+        if (w %in% c("native", "halfday") &&
               any(scheme %in% c("cold_day", "warm_day", "mean_daily_min", "mean_daily_max"))) {
           next
         }
-        x <- window_matrix(d, id, t, v, window = w, stats = scheme)
-        o <- oracle_window_matrix(d, "id", "t", "v", window = w, stats = scheme)
+        x <- grain_matrix(d, id, t, v, grain = w, stats = scheme)
+        o <- oracle_grain_matrix(d, "id", "t", "v", grain = w, stats = scheme)
         expect_identical(as.vector(unclass(x)), as.vector(o$values),
                          info = paste(start, w, paste(scheme, collapse = "+")))
         expect_identical(dimnames(x), dimnames(o$values))
@@ -37,9 +37,9 @@ test_that("the core reproduces the oracle at anniversaries other than the defaul
                   v = rnorm(2 * length(t)))
   for (ys in c("01-01", "03-01", "09-01", "12-28")) {
     for (w in c("season", "year")) {
-      x <- window_matrix(d, id, t, v, window = w, stats = c("cold_day", "mean", "warm_day"),
+      x <- grain_matrix(d, id, t, v, grain = w, stats = c("cold_day", "mean", "warm_day"),
                          year_start = ys)
-      o <- oracle_window_matrix(d, "id", "t", "v", window = w,
+      o <- oracle_grain_matrix(d, "id", "t", "v", grain = w,
                                 stats = c("cold_day", "mean", "warm_day"), year_start = ys)
       expect_identical(as.vector(unclass(x)), as.vector(o$values), info = paste(w, ys))
       expect_identical(dimnames(x)[[2]], dimnames(o$values)[[2]])
@@ -55,8 +55,8 @@ test_that("the core reproduces the oracle under a supplied calendar", {
   ten_days <- function(when) {
     .POSIXct(floor(as.numeric(when) / (10 * 86400)) * 10 * 86400, tz = "UTC")
   }
-  x <- window_matrix(d, id, t, v, window = ten_days, stats = c("cold_day", "mean", "warm_day"))
-  o <- oracle_window_matrix(d, "id", "t", "v", window = ten_days,
+  x <- grain_matrix(d, id, t, v, grain = ten_days, stats = c("cold_day", "mean", "warm_day"))
+  o <- oracle_grain_matrix(d, "id", "t", "v", grain = ten_days,
                             stats = c("cold_day", "mean", "warm_day"))
   expect_identical(as.vector(unclass(x)), as.vector(o$values))
   expect_identical(attr(x, "bin_partial"), o$bin_partial)
@@ -65,12 +65,12 @@ test_that("the core reproduces the oracle under a supplied calendar", {
 test_that("the core's calendar agrees with the oracle's, instant by instant", {
   t <- seq(as.POSIXct("2018-01-01", tz = "UTC"), by = "97 min", length.out = 20000)
   ys <- list(month = 9L, day = 1L)
-  for (w in c("hour", "halfday", "day", "week", "month", "season", "year")) {
-    expect_equal(cg_bin_starts_(as.numeric(t), w, 9L, 1L),
+  for (w in c("native", "halfday", "day", "week", "month", "season", "year")) {
+    expect_equal(ts_bin_starts_(as.numeric(t), w, 9L, 1L),
                  as.numeric(oracle_bin_start(t, w, ys, "UTC")), info = w)
   }
   bins <- unique(oracle_bin_start(t, "month", ys, "UTC"))
-  expect_equal(cg_bin_nexts_(as.numeric(bins), "month", 9L, 1L),
+  expect_equal(ts_bin_nexts_(as.numeric(bins), "month", 9L, 1L),
                as.numeric(oracle_bin_next(bins, "month", ys, "UTC", max(as.numeric(t)))))
 })
 
@@ -81,18 +81,18 @@ test_that("a gap the whole record shares is an error, not four adjacent bins", {
                   v = rnorm(2 * length(t)))
 
   gap <- d[format(d$t, "%Y-%m") != "2022-02", ]
-  expect_error(window_matrix(gap, id, t, v, window = "month", stats = "mean"),
+  expect_error(grain_matrix(gap, id, t, v, grain = "month", stats = "mean"),
                "month bins are not contiguous")
-  expect_error(window_matrix(gap, id, t, v, window = "day", stats = "mean"),
+  expect_error(grain_matrix(gap, id, t, v, grain = "day", stats = "mean"),
                "day bins are not contiguous")
 
   # The record's own ends are not a gap: a partial bin at either end is reported, not rejected.
-  expect_silent(window_matrix(d, id, t, v, window = "month", stats = "mean"))
+  expect_silent(grain_matrix(d, id, t, v, grain = "month", stats = "mean"))
 
-  # At the `hour` window the bin is the reading itself, so the calendar cannot say what a bin
+  # At the `native` grain the bin is the reading itself, so the calendar cannot say what a bin
   # between two others would have been and none is asserted.
   sparse <- d[as.integer(format(d$t, "%H")) %% 3L == 0L, ]
-  expect_silent(window_matrix(sparse, id, t, v, window = "hour", stats = "mean"))
+  expect_silent(grain_matrix(sparse, id, t, v, grain = "native", stats = "mean"))
 })
 
 test_that("a day-level statistic needs bins of a day or coarser, whoever supplied them", {
@@ -102,15 +102,15 @@ test_that("a day-level statistic needs bins of a day or coarser, whoever supplie
                   v = rnorm(2 * length(t)))
   six <- function(when) .POSIXct(floor(as.numeric(when) / 21600) * 21600, tz = "UTC")
 
-  expect_error(window_matrix(d, id, t, v, window = six, stats = c("cold_day", "warm_day")),
+  expect_error(grain_matrix(d, id, t, v, grain = six, stats = c("cold_day", "warm_day")),
                "need bins of a calendar day or coarser")
-  expect_error(window_matrix(d, id, t, v, window = six, stats = "mean_daily_min"),
+  expect_error(grain_matrix(d, id, t, v, grain = six, stats = "mean_daily_min"),
                "mean_daily_min needs bins of a calendar day or coarser")
-  expect_silent(window_matrix(d, id, t, v, window = six, stats = c("min", "mean", "max")))
+  expect_silent(grain_matrix(d, id, t, v, grain = six, stats = c("min", "mean", "max")))
 
   # A calendar that cuts on the day boundary is fine however unusual its bin lengths are.
   ten <- function(when) .POSIXct(floor(as.numeric(when) / (10 * 86400)) * 10 * 86400, tz = "UTC")
-  expect_silent(window_matrix(d, id, t, v, window = ten, stats = c("cold_day", "warm_day")))
+  expect_silent(grain_matrix(d, id, t, v, grain = ten, stats = c("cold_day", "warm_day")))
 })
 
 test_that("a zone whose local midnight does not exist bins without an NA", {
@@ -120,15 +120,15 @@ test_that("a zone whose local midnight does not exist bins without an NA", {
   d <- data.frame(id = rep(c("a", "b"), each = length(t)), t = rep(t, 2),
                   v = rnorm(2 * length(t)))
 
-  for (w in c("hour", "halfday", "day", "week", "month")) {
-    x <- window_matrix(d, id, t, v, window = w, stats = "mean")
+  for (w in c("native", "halfday", "day", "week", "month")) {
+    x <- grain_matrix(d, id, t, v, grain = w, stats = "mean")
     expect_false(anyNA(x), info = w)
     expect_false(anyNA(attr(x, "bin_start")), info = w)
   }
 
   # 4 November 2018 is 23 hours long in Sao Paulo, and the day it opens is the instant the clock
   # jumped to rather than a midnight that never happened.
-  x <- window_matrix(d, id, t, v, window = "day", stats = "mean")
+  x <- grain_matrix(d, id, t, v, grain = "day", stats = "mean")
   n <- attr(x, "bin_n")["a", ]
   expect_identical(unname(n[format(attr(x, "bin_start"), "%Y-%m-%d") == "2018-11-04"]), 23L)
   expect_identical(format(attr(x, "bin_start"), "%H:%M:%S"),
@@ -136,7 +136,7 @@ test_that("a zone whose local midnight does not exist bins without an NA", {
                      "00:00:00", "00:00:00", "00:00:00", "00:00:00"))
 
   # A year boundary landing on that date is an argument, not an error.
-  expect_silent(window_matrix(d, id, t, v, window = "year", year_start = "11-04", stats = "mean"))
+  expect_silent(grain_matrix(d, id, t, v, grain = "year", year_start = "11-04", stats = "mean"))
 })
 
 test_that("a series carried in a zone bins by that zone's calendar", {
@@ -144,11 +144,11 @@ test_that("a series carried in a zone bins by that zone's calendar", {
   t <- seq(as.POSIXct("2021-12-20", tz = "UTC"), by = "hour", length.out = 24 * 40)
   v <- rnorm(2 * length(t))
   d <- data.frame(id = rep(c("a", "b"), each = length(t)), t = rep(t, 2), v = v)
-  utc <- window_matrix(d, id, t, v, window = "day", stats = c("min", "mean", "max"))
+  utc <- grain_matrix(d, id, t, v, grain = "day", stats = c("min", "mean", "max"))
 
   attr(t, "tzone") <- "Europe/Vienna"
   d$t <- rep(t, 2)
-  vienna <- window_matrix(d, id, t, v, window = "day", stats = c("min", "mean", "max"))
+  vienna <- grain_matrix(d, id, t, v, grain = "day", stats = c("min", "mean", "max"))
 
   expect_identical(dim(utc)[2L], 40L)
   expect_identical(dim(vienna)[2L], 41L)
@@ -160,7 +160,7 @@ test_that("a series carried in a zone bins by that zone's calendar", {
     id = d$id,
     t = as.POSIXct(format(d$t, "%Y-%m-%d %H:%M:%S", tz = "Europe/Vienna"), tz = "UTC"),
     v = d$v)
-  naive <- window_matrix(relabelled, id, t, v, window = "day", stats = c("min", "mean", "max"))
+  naive <- grain_matrix(relabelled, id, t, v, grain = "day", stats = c("min", "mean", "max"))
   expect_identical(as.vector(unclass(vienna)), as.vector(unclass(naive)))
   expect_identical(as.vector(attr(vienna, "bin_n")), as.vector(attr(naive, "bin_n")))
 })
@@ -168,6 +168,6 @@ test_that("a series carried in a zone bins by that zone's calendar", {
 test_that("readings a fraction of a second apart are the same reading twice", {
   t <- as.POSIXct(c(0, 0.25, 1, 2), origin = "1970-01-01", tz = "UTC")
   d <- data.frame(id = "a", t = t, v = c(1, 2, 3, 4))
-  expect_error(window_matrix(d, id, t, v, window = "hour", stats = "mean"),
+  expect_error(grain_matrix(d, id, t, v, grain = "native", stats = "mean"),
                "duplicated \\(unit, time\\) pair")
 })

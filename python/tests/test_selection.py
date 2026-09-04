@@ -5,19 +5,19 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from climgrain import (Learner, Response, fold_map, metrics, paired_contrast, select_grain,
-                       tss_inflation, window_ladder, window_matrix)
-from climgrain.ladder import per_variable
-from climgrain.learners import _logistic
-from climgrain.selection import SELECTED_ARM, _inner_splitter
+from timesift import (Learner, Response, fold_map, metrics, paired_contrast, select_grain,
+                       tss_inflation, grain_ladder, grain_matrix)
+from timesift.ladder import per_variable
+from timesift.learners import _logistic
+from timesift.selection import SELECTED_ARM, _inner_splitter
 
 
 def linear_learner(offset: float = 0.0, reduce: str = "mean") -> Learner:
     """A logistic fit on one number per unit, taken from the first channel over the bins.
 
     Fast, and what it reads depends on the grain: the mean over bins is the same number at every
-    window, while the coldest bin is the coldest day at one window and the coldest month at
-    another. A selector searching windows therefore has a real choice to get right or wrong.
+    grain, while the coldest bin is the coldest day at one grain and the coldest month at
+    another. A selector searching grains therefore has a real choice to get right or wrong.
     """
     take = {"mean": lambda v: v.mean(axis=1), "coldest": lambda v: v.min(axis=1)}[reduce]
 
@@ -44,7 +44,7 @@ def linear_learner(offset: float = 0.0, reduce: str = "mean") -> Learner:
 def fixture(n_unit=56, days=90, noise=6.0, v=4, seed=31):
     """A record carrying a per-unit level, and four responses generated from it.
 
-    Every window carries that level equally well, so this is the fixture for what a selection
+    Every grain carries that level equally well, so this is the fixture for what a selection
     reports and refuses rather than for which grain it picks.
     """
     rng = np.random.default_rng(seed)
@@ -56,7 +56,7 @@ def fixture(n_unit=56, days=90, noise=6.0, v=4, seed=31):
                 "time": list(t) * n_unit, "value": list(value)}
     sign = np.resize([1, -1], 4)
     y = rng.binomial(1, 1 / (1 + np.exp(-3 * np.outer(warmth, sign)))).astype(float)
-    x = window_matrix(readings, "id", "time", "value", window=["day", "week", "month"])
+    x = grain_matrix(readings, "id", "time", "value", grain=["day", "week", "month"])
     response = Response(y, tuple(units), tuple(f"sp{j}" for j in range(4)))
     return x, response, fold_map(response, v=v, seed=6)
 
@@ -64,7 +64,7 @@ def fixture(n_unit=56, days=90, noise=6.0, v=4, seed=31):
 def planted_at_month(n_unit=80, days=150, noise=6.0, v=5, seed=41):
     """A response generated from the coldest month of each unit's own record.
 
-    The monthly window carries that number exactly; the daily window carries the coldest single
+    The monthly grain carries that number exactly; the daily grain carries the coldest single
     day, which is the same quantity read through the noise of one day rather than of a month. So
     the grain the response was generated at is recoverable and the others are worse.
     """
@@ -74,7 +74,7 @@ def planted_at_month(n_unit=80, days=150, noise=6.0, v=5, seed=41):
     value = np.concatenate([rng.normal(w * 1.5, noise, len(t)) for w in rng.normal(size=n_unit)])
     readings = {"id": [u for u in units for _ in range(len(t))],
                 "time": list(t) * n_unit, "value": list(value)}
-    x = window_matrix(readings, "id", "time", "value", window=["day", "week", "month"])
+    x = grain_matrix(readings, "id", "time", "value", grain=["day", "week", "month"])
     coldest = x["month"].values[:, :, 0].min(axis=1)
     z = (coldest - coldest.mean()) / coldest.std()
     sign = np.resize([1, -1], 4)
@@ -89,8 +89,8 @@ def test_a_selection_reports_one_winner_per_outer_fold_from_the_set_it_searched(
     assert len(sel.selected) == 4
     assert {r["fold"] for r in sel.selected} == set(int(k) for k in np.unique(folds.fold))
     assert len(sel.candidates) == 3
-    searched = {(c["window"], c["learner"]) for c in sel.candidates}
-    assert all((r["window"], r["learner"]) in searched for r in sel.selected)
+    searched = {(c["grain"], c["learner"]) for c in sel.candidates}
+    assert all((r["grain"], r["learner"]) in searched for r in sel.selected)
     assert len(sel.inner) == 3 * 4
 
 
@@ -134,19 +134,19 @@ def test_no_outer_test_unit_reaches_the_selector_or_the_refit_of_its_own_fold():
 
 def test_a_folds_held_out_predictions_are_those_of_the_candidate_it_selected():
     x, y, folds = fixture()
-    lad = window_ladder(x, y, linear_learner(), folds=folds, verbose=False)
+    lad = grain_ladder(x, y, linear_learner(), folds=folds, verbose=False)
     sel = select_grain(x, y, linear_learner(), folds=folds, inner=3, verbose=False)
     p = sel.scores.predictions[SELECTED_ARM]
-    # The refit is the ladder's own fit on the same units at the same window, so every cell of the
+    # The refit is the ladder's own fit on the same units at the same grain, so every cell of the
     # selected procedure is a cell of the ladder rather than a number from a second fitting path.
     for row in sel.selected:
         held = folds.fold == row["fold"]
-        assert np.allclose(p[held], lad.predictions[f"{row['window']}|linear"][held])
+        assert np.allclose(p[held], lad.predictions[f"{row['grain']}|linear"][held])
 
 
 def test_the_contrast_against_a_ladder_runs_through_paired_contrast_on_matched_cells():
     x, y, folds = fixture()
-    lad = window_ladder(x, y, linear_learner(), folds=folds, verbose=False)
+    lad = grain_ladder(x, y, linear_learner(), folds=folds, verbose=False)
     sel = select_grain(x, y, linear_learner(), folds=folds, inner=3, compare=lad, verbose=False)
     assert [r["b"] for r in sel.contrast] == ["day|linear", "week|linear", "month|linear"]
     assert all(r["a"] == SELECTED_ARM for r in sel.contrast)
@@ -157,10 +157,10 @@ def test_the_contrast_against_a_ladder_runs_through_paired_contrast_on_matched_c
 
 def test_a_comparator_scored_by_another_metric_is_refused():
     x, y, folds = fixture()
-    lad = window_ladder(x, y, linear_learner(), folds=folds, metric="roc_auc", verbose=False)
+    lad = grain_ladder(x, y, linear_learner(), folds=folds, metric="roc_auc", verbose=False)
     with pytest.raises(ValueError, match="scored by roc_auc and the selection by tss"):
         select_grain(x, y, linear_learner(), folds=folds, inner=3, compare=lad, verbose=False)
-    with pytest.raises(ValueError, match="window_ladder"):
+    with pytest.raises(ValueError, match="grain_ladder"):
         select_grain(x, y, linear_learner(), folds=folds, inner=3, compare="week|linear",
                      verbose=False)
 
@@ -190,7 +190,7 @@ def test_the_grain_the_response_was_generated_at_is_selected_above_chance():
     x, y, folds = planted_at_month()
     sel = select_grain(x, y, linear_learner(reduce="coldest"), folds=folds, inner=4,
                        verbose=False)
-    picked = [r["window"] for r in sel.selected]
+    picked = [r["grain"] for r in sel.selected]
     # Chance over three candidates is a third of the five outer folds; the planted grain has to
     # beat that rather than merely appear.
     assert picked.count("month") >= 4
@@ -199,13 +199,13 @@ def test_the_grain_the_response_was_generated_at_is_selected_above_chance():
 def test_the_nested_estimate_stays_under_what_choosing_on_the_held_out_units_would_have_paid():
     x, y, folds = planted_at_month()
     learner = linear_learner(reduce="coldest")
-    lad = window_ladder(x, y, learner, folds=folds, verbose=False)
+    lad = grain_ladder(x, y, learner, folds=folds, verbose=False)
     sel = select_grain(x, y, learner, folds=folds, inner=4, compare=lad, verbose=False)
 
-    # The bound is the oracle: the same candidates, the same fits, but the window for each cell
+    # The bound is the oracle: the same candidates, the same fits, but the grain for each cell
     # picked with the held-out score itself. Selection inside the training data cannot beat that.
     oracle = {}
-    for w, ln, v, k, value in zip(lad.window, lad.learner, lad.variable, lad.fold, lad.score):
+    for w, ln, v, k, value in zip(lad.grain, lad.learner, lad.variable, lad.fold, lad.score):
         if np.isnan(value):
             continue
         oracle[(str(v), int(k))] = max(oracle.get((str(v), int(k)), -np.inf), float(value))
@@ -233,6 +233,6 @@ def test_with_no_signal_at_any_grain_the_procedure_scores_at_the_designs_own_flo
 
 def test_a_contrast_needs_both_arms_to_have_scored_a_shared_cell():
     x, y, folds = fixture()
-    lad = window_ladder(x, y, linear_learner(), folds=folds, verbose=False)
+    lad = grain_ladder(x, y, linear_learner(), folds=folds, verbose=False)
     with pytest.raises(KeyError, match="no arm"):
         paired_contrast(lad, SELECTED_ARM, "week|linear")

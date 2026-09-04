@@ -1,7 +1,7 @@
 """Choose the grain inside the training data, and score the whole procedure.
 
-``window_ladder`` fits every candidate against one fold map and reports the grid, so reading the
-best window off it and quoting that window's score quotes a number the held-out units helped
+``grain_ladder`` fits every candidate against one fold map and reports the grid, so reading the
+best grain off it and quoting that grain's score quotes a number the held-out units helped
 choose. This does the choosing inside the training data instead.
 """
 
@@ -12,10 +12,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from .ladder import (Ladder, concat_ladders, ladder_from_rows, learner_dict, mean_se,
-                     paired_contrast, per_variable, score_arm, window_ladder)
+                     paired_contrast, per_variable, score_arm, grain_ladder)
 from .learners import fit_learner
 from .registry import METRICS, RESPONSES, metrics
-from .representation import ClimgrainSet, climgrain_set
+from .representation import TimesiftSet, timesift_set
 from .response import Folds, align_folds, as_response, fold_map
 
 # The selected procedure is one arm like any other, so it carries an arm label of the ladder's own
@@ -40,9 +40,9 @@ class Selection:
     def __repr__(self) -> str:  # pragma: no cover - display only
         picked: dict[str, int] = {}
         for row in self.selected:
-            arm = f"{row['window']}|{row['learner']}"
+            arm = f"{row['grain']}|{row['learner']}"
             picked[arm] = picked.get(arm, 0) + 1
-        lines = [f"<climgrain selection> {len(self.candidates)} candidates over "
+        lines = [f"<timesift selection> {len(self.candidates)} candidates over "
                  f"{len(self.selected)} outer folds",
                  "selected: " + ", ".join(f"{a} x{n}" for a, n in picked.items())]
         for row in self.estimate:
@@ -70,8 +70,8 @@ def select_grain(x, y, learners, folds=None, inner=5, response: str = "presence_
     The cost is the ladder's, multiplied by the number of inner folds: ``v_outer * (v_inner *
     candidates + 1)`` fits.
     """
-    windows = climgrain_set(x)
-    units = windows.units
+    grains = timesift_set(x)
+    units = grains.units
     spec = RESPONSES.get(response)
     y = spec["prepare"](as_response(y)).align(units)
     if folds is None:
@@ -82,13 +82,13 @@ def select_grain(x, y, learners, folds=None, inner=5, response: str = "presence_
     score = METRICS.get(metric)
     split = _inner_splitter(inner)
     _check_compare(compare, metric)
-    # The candidate set keeps the order its windows and its learners were declared in, so which
+    # The candidate set keeps the order its grains and its learners were declared in, so which
     # candidate an exact tie on the inner score falls to does not depend on how the names sort.
     learners = learner_dict(learners)
-    candidates = [dict(window=w, learner=ln) for w in windows for ln in learners]
+    candidates = [dict(grain=w, learner=ln) for w in grains for ln in learners]
     if len(candidates) < 2:
         raise ValueError("selection needs at least two candidates; "
-                         "got one window and one learner")
+                         "got one grain and one learner")
 
     levels = np.unique(f)
     p = np.full(y.values.shape, np.nan)
@@ -104,7 +104,7 @@ def select_grain(x, y, learners, folds=None, inner=5, response: str = "presence_
 
         # The selector sees the outer training units and nothing else: the inner map is drawn on
         # them, and the representation it searches over is cut to them before any fitting happens.
-        lad = window_ladder(_subset(windows, train), y_train, learners,
+        lad = grain_ladder(_subset(grains, train), y_train, learners,
                             folds=split(y_train, seed + i), response=response, metric=metric,
                             verbose=False)
         grid = _join_candidates(candidates, lad.summary(), int(k))
@@ -113,19 +113,19 @@ def select_grain(x, y, learners, folds=None, inner=5, response: str = "presence_
                              "the inner folds or drop the variables that cannot be scored.")
         won = _first_best(grid)
 
-        fit = fit_learner(learners[won["learner"]], windows[won["window"]].take_units(train),
+        fit = fit_learner(learners[won["learner"]], grains[won["grain"]].take_units(train),
                           y_train, response=response)
-        held = windows[won["window"]].take_units(test)
+        held = grains[won["grain"]].take_units(test)
         predicted = fit.predict(held)
         for a, unit in enumerate(held.units):
             for b, variable in enumerate(fit.variables):
                 p[row[unit], column[variable]] = predicted[a, b]
 
-        chosen.append(dict(fold=int(k), window=won["window"], learner=won["learner"],
+        chosen.append(dict(fold=int(k), grain=won["grain"], learner=won["learner"],
                            inner_score=won["score"], n_train=len(train), n_test=len(test)))
         inner_rows.extend(grid)
         if verbose:
-            print(f"fold {k} of {len(levels)} selected {won['window']}|{won['learner']} "
+            print(f"fold {k} of {len(levels)} selected {won['grain']}|{won['learner']} "
                   f"at {metric} {won['score']:.3f}")
 
     scores = ladder_from_rows(
@@ -140,8 +140,8 @@ def select_grain(x, y, learners, folds=None, inner=5, response: str = "presence_
                      metric=metric, response=response)
 
 
-def _subset(windows: ClimgrainSet, index) -> ClimgrainSet:
-    return climgrain_set({w: m.take_units(index) for w, m in windows.items()})
+def _subset(grains: TimesiftSet, index) -> TimesiftSet:
+    return timesift_set({w: m.take_units(index) for w, m in grains.items()})
 
 
 def _join_candidates(candidates: list[dict], summary: list[dict], fold: int) -> list[dict]:
@@ -150,11 +150,11 @@ def _join_candidates(candidates: list[dict], summary: list[dict], fold: int) -> 
     A candidate nothing was scorable for carries no score rather than being dropped, so a fold
     where one grain could not be read is visible instead of quietly narrowing the search.
     """
-    found = {(r["window"], r["learner"]): r for r in summary}
+    found = {(r["grain"], r["learner"]): r for r in summary}
     out = []
     for candidate in candidates:
-        hit = found.get((candidate["window"], candidate["learner"]))
-        out.append(dict(fold=fold, window=candidate["window"], learner=candidate["learner"],
+        hit = found.get((candidate["grain"], candidate["learner"]))
+        out.append(dict(fold=fold, grain=candidate["grain"], learner=candidate["learner"],
                         score=hit["score"] if hit else float("nan"),
                         n_variable=hit["n_variable"] if hit else 0))
     return out
@@ -199,7 +199,7 @@ def _check_compare(compare, metric) -> None:
     if compare is None:
         return
     if not isinstance(compare, Ladder):
-        raise ValueError(f"`compare` is a window_ladder() result, got "
+        raise ValueError(f"`compare` is a grain_ladder() result, got "
                          f"{type(compare).__name__}")
     if compare.metric != metric:
         raise ValueError(f"`compare` is scored by {compare.metric} and the selection by {metric}. "
@@ -216,7 +216,7 @@ def _selection_contrast(scores: Ladder, compare: Ladder | None):
         return None
     both = concat_ladders(scores, compare)
     seen = []
-    for w, ln in zip(compare.window, compare.learner):
+    for w, ln in zip(compare.grain, compare.learner):
         arm = f"{w}|{ln}"
         if arm not in seen:
             seen.append(arm)

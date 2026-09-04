@@ -1,17 +1,17 @@
 #' Choose the grain inside the training data, and score the whole procedure
 #'
-#' [window_ladder()] fits every candidate against one fold map and reports the grid, so reading the
-#' best window off it and quoting that window's score quotes a number the held-out units helped
+#' [grain_ladder()] fits every candidate against one fold map and reports the grid, so reading the
+#' best grain off it and quoting that grain's score quotes a number the held-out units helped
 #' choose. This does the choosing inside the training data instead. Within each outer fold the
 #' training units are split again, every candidate is fitted on part of them and scored on the rest,
 #' the best is refitted on the whole outer training set, and the outer test fold is predicted once.
 #' The estimate that comes back is therefore of the procedure including its choice of grain, which
 #' is what an ecologist applying it to a new site would run.
 #'
-#' A candidate is a `(window, learner)` pair: the windows are the elements of the representation set,
-#' which is where a grain and the statistic its windows are summarised by are both named, and the
+#' A candidate is a `(grain, learner)` pair: the grains are the elements of the representation set,
+#' which is where a grain and the statistic its grains are summarised by are both named, and the
 #' learners are the ones passed. Both are registry entries or objects built by [learner()], so a new
-#' grain, a new window summary or a new candidate model widens the search with no change here.
+#' grain, a new grain summary or a new candidate model widens the search with no change here.
 #'
 #' What the estimate is of: the expected held-out score of the whole pipeline, selection included,
 #' on units drawn as these were. What it is not: the score of the winning grain. That is higher, by
@@ -22,11 +22,11 @@
 #' The cost is the ladder's, multiplied by the number of inner folds: `v_outer * (v_inner *
 #' candidates + 1)` fits. With a neural learner that is where an overnight run goes.
 #'
-#' @param x A [window_matrix()] result, a [climgrain_set()], or a named list of representations.
+#' @param x A [grain_matrix()] result, a [timesift_set()], or a named list of representations.
 #'   Its names are the grains being chosen between.
 #' @param y The response for the same units.
-#' @param learners A learner, a list of them, or names of registered ones, as [window_ladder()]
-#'   takes. Named alongside the windows they form the candidate set.
+#' @param learners A learner, a list of them, or names of registered ones, as [grain_ladder()]
+#'   takes. Named alongside the grains they form the candidate set.
 #' @param folds The outer fold map, from [fold_map()] or any named integer vector. Built with the
 #'   defaults of [fold_map()] when not given.
 #' @param inner Number of inner folds the selection is made on, or a function of the outer training
@@ -34,21 +34,21 @@
 #' @param response Name of the registered response head.
 #' @param metric Name of the registered metric the selection is made on, or `NULL` for the
 #'   response's own. The estimate is reported under every registered metric whichever this is.
-#' @param compare A [window_ladder()] result on the same units, response and outer fold map, whose
+#' @param compare A [grain_ladder()] result on the same units, response and outer fold map, whose
 #'   arms the selected procedure is contrasted against cell by cell. `NULL` for no contrast.
 #' @param seed Seed for the inner splits. Each outer fold splits under `seed` plus its own number,
 #'   so no two outer folds inherit the same inner partition.
 #' @param verbose Report each outer fold and what it selected as it runs.
 #'
-#' @return A `climgrain_selection`: a list carrying `selected`, one row per outer fold with the
+#' @return A `timesift_selection`: a list carrying `selected`, one row per outer fold with the
 #'   candidate it chose and the inner score it chose on; `estimate`, the nested score under every
 #'   registered metric with its standard error across variables; `contrast`, one
 #'   [paired_contrast()] row against each arm of `compare`, or `NULL`; `candidates`, the set that
 #'   was searched; and `scores`, the per-cell rows of the selected procedure under the selection
-#'   metric, in the layout [window_ladder()] returns. The held-out prediction of every unit is in
+#'   metric, in the layout [grain_ladder()] returns. The held-out prediction of every unit is in
 #'   the `predictions` attribute and the scorable-cell mask in `cells`.
 #'
-#' @seealso [window_ladder()] for the grid this selects from, and [paired_contrast()] for the
+#' @seealso [grain_ladder()] for the grid this selects from, and [paired_contrast()] for the
 #'   comparison the `contrast` element holds.
 #'
 #' @examples
@@ -62,7 +62,7 @@
 #'                            numeric(length(t)))))
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
-#' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
+#' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
 #' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' sel
@@ -86,10 +86,10 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
   learners <- .learner_list(learners)
   inner_split <- .inner_splitter(inner)
   .check_compare(compare, metric)
-  candidates <- expand.grid(window = names(set), learner = names(learners),
+  candidates <- expand.grid(grain = names(set), learner = names(learners),
                             KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   if (nrow(candidates) < 2L) {
-    stop("selection needs at least two candidates; got one window and one learner.", call. = FALSE)
+    stop("selection needs at least two candidates; got one grain and one learner.", call. = FALSE)
   }
 
   levels <- sort(unique(f))
@@ -106,7 +106,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
 
     # The selector sees the outer training units and nothing else: the inner map is drawn on them,
     # and the representation it searches over is cut to them before any fitting happens.
-    lad <- window_ladder(.subset_set(set, train), y_train, learners,
+    lad <- grain_ladder(.subset_set(set, train), y_train, learners,
                          folds = inner_split(y_train, seed + i), response = response,
                          metric = metric, verbose = FALSE)
     grid <- .join_candidates(candidates, summary(lad), k)
@@ -116,24 +116,24 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
     }
     won <- which.max(ifelse(is.finite(grid$score), grid$score, -Inf))
 
-    fit <- fit_learner(learners[[grid$learner[won]]], .subset_units(set[[grid$window[won]]], train),
+    fit <- fit_learner(learners[[grid$learner[won]]], .subset_units(set[[grid$grain[won]]], train),
                        y_train, response = response)
-    held_out <- stats::predict(fit, .subset_units(set[[grid$window[won]]], test))
+    held_out <- stats::predict(fit, .subset_units(set[[grid$grain[won]]], test))
     p[rownames(held_out), colnames(held_out)] <- held_out
 
-    chosen[[i]] <- data.frame(fold = k, window = grid$window[won], learner = grid$learner[won],
+    chosen[[i]] <- data.frame(fold = k, grain = grid$grain[won], learner = grid$learner[won],
                               inner_score = grid$score[won], n_train = length(train),
                               n_test = length(test), stringsAsFactors = FALSE)
-    inner_scores[[i]] <- grid[c("fold", "window", "learner", "score", "n_variable")]
+    inner_scores[[i]] <- grid[c("fold", "grain", "learner", "score", "n_variable")]
     if (verbose) {
       message(sprintf("fold %s of %d selected %s|%s at %s %.3f", k, length(levels),
-                      grid$window[won], grid$learner[won], metric, grid$score[won]))
+                      grid$grain[won], grid$learner[won], metric, grid$score[won]))
     }
   }
 
   selected <- do.call(rbind, chosen)
   scores <- .score_arm(.selected_label, "selected", y, p, f, levels, cells, score)
-  scores <- structure(scores, class = c("climgrain_ladder", "data.frame"),
+  scores <- structure(scores, class = c("timesift_ladder", "data.frame"),
                       predictions = stats::setNames(list(p), .selected_arm),
                       cells = cells, folds = stats::setNames(f, units),
                       metric = metric, response = response)
@@ -146,7 +146,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
     scores = scores,
     inner = do.call(rbind, inner_scores)
   )
-  structure(out, class = "climgrain_selection", metric = metric, response = response,
+  structure(out, class = "timesift_selection", metric = metric, response = response,
             folds = stats::setNames(f, units), cells = cells,
             predictions = stats::setNames(list(p), .selected_arm))
 }
@@ -157,8 +157,8 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
 .selected_arm <- "selected|selected"
 
 #' @export
-print.climgrain_selection <- function(x, ...) {
-  cat("<climgrain selection>", .plural(nrow(x$selected), "outer fold"), "over",
+print.timesift_selection <- function(x, ...) {
+  cat("<timesift selection>", .plural(nrow(x$selected), "outer fold"), "over",
       .plural(nrow(x$candidates), "candidate"), "\n")
   est <- x$estimate[x$estimate$metric == attr(x, "metric"), , drop = FALSE]
   cat(sprintf("%s: %.3f (se %.3f) for the procedure, selection included\n",
@@ -171,14 +171,14 @@ print.climgrain_selection <- function(x, ...) {
 #' @param ... Ignored.
 #' @rdname select_grain
 #' @export
-summary.climgrain_selection <- function(object, ...) {
+summary.timesift_selection <- function(object, ...) {
   out <- object$candidates
-  key <- paste(out$window, out$learner)
-  picked <- paste(object$selected$window, object$selected$learner)
+  key <- paste(out$grain, out$learner)
+  picked <- paste(object$selected$grain, object$selected$learner)
   out$n_selected <- as.integer(table(factor(picked, levels = key)))
   out$share <- out$n_selected / nrow(object$selected)
   inner <- object$inner
-  mean_inner <- tapply(inner$score, paste(inner$window, inner$learner), mean, na.rm = TRUE)
+  mean_inner <- tapply(inner$score, paste(inner$grain, inner$learner), mean, na.rm = TRUE)
   out$inner_score <- as.numeric(mean_inner[key])
   out <- out[order(-out$n_selected, -out$inner_score), ]
   rownames(out) <- NULL
@@ -209,15 +209,15 @@ summary.climgrain_selection <- function(object, ...) {
 #'                            numeric(length(t)))))
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
-#' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
+#' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
 #' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' plot(sel)
 #'
 #' @export
-plot.climgrain_selection <- function(x, col = NULL, ...) {
+plot.timesift_selection <- function(x, col = NULL, ...) {
   inner <- x$inner
-  label <- paste(x$candidates$window, x$candidates$learner, sep = "|")
+  label <- paste(x$candidates$grain, x$candidates$learner, sep = "|")
   at <- seq_along(label)
   folds <- sort(unique(inner$fold))
   if (is.null(col)) {
@@ -234,11 +234,11 @@ plot.climgrain_selection <- function(x, col = NULL, ...) {
 
   for (i in seq_along(folds)) {
     rows <- inner[inner$fold == folds[i], , drop = FALSE]
-    rows <- rows[match(label, paste(rows$window, rows$learner)), , drop = FALSE]
+    rows <- rows[match(label, paste(rows$grain, rows$learner)), , drop = FALSE]
     graphics::lines(at, rows$score, col = col[i], lwd = 1.5)
     graphics::points(at, rows$score, col = col[i], pch = 19L, cex = 0.8)
     won <- x$selected[x$selected$fold == folds[i], , drop = FALSE]
-    mark <- match(paste(won$window, won$learner), label)
+    mark <- match(paste(won$grain, won$learner), label)
     graphics::points(at[mark], rows$score[mark], col = col[i], pch = 1L, cex = 2.2, lwd = 2)
   }
   invisible(inner)
@@ -266,8 +266,8 @@ plot.climgrain_selection <- function(x, col = NULL, ...) {
   if (is.null(compare)) {
     return(invisible(TRUE))
   }
-  if (!inherits(compare, "climgrain_ladder")) {
-    stop("`compare` is a window_ladder() result, got ", class(compare)[1L], ".", call. = FALSE)
+  if (!inherits(compare, "timesift_ladder")) {
+    stop("`compare` is a grain_ladder() result, got ", class(compare)[1L], ".", call. = FALSE)
   }
   if (!identical(attr(compare, "metric"), metric)) {
     stop("`compare` is scored by ", attr(compare, "metric"), " and the selection by ", metric,
@@ -282,21 +282,21 @@ plot.climgrain_selection <- function(x, col = NULL, ...) {
   }
   shared <- intersect(names(scores), names(compare))
   both <- rbind(scores[shared], compare[shared])
-  both <- structure(both, class = c("climgrain_ladder", "data.frame"),
+  both <- structure(both, class = c("timesift_ladder", "data.frame"),
                     metric = attr(scores, "metric"))
-  arms <- unique(paste(compare$window, compare$learner, sep = "|"))
+  arms <- unique(paste(compare$grain, compare$learner, sep = "|"))
   out <- lapply(arms, function(a) paired_contrast(both, .selected_arm, a))
   out <- do.call(rbind, out)
   rownames(out) <- NULL
   out
 }
 
-# The candidate set keeps the order its windows and its learners were declared in, so which
+# The candidate set keeps the order its grains and its learners were declared in, so which
 # candidate an exact tie on the inner score falls to does not depend on the session's collation the
 # way a join on the names would.
 .join_candidates <- function(candidates, grid, fold) {
-  i <- match(paste(candidates$window, candidates$learner, sep = "|"),
-             paste(grid$window, grid$learner, sep = "|"))
+  i <- match(paste(candidates$grain, candidates$learner, sep = "|"),
+             paste(grid$grain, grid$learner, sep = "|"))
   candidates$score <- grid$score[i]
   candidates$n_variable <- grid$n_variable[i]
   candidates$fold <- fold
@@ -318,5 +318,5 @@ plot.climgrain_selection <- function(x, col = NULL, ...) {
 }
 
 .subset_set <- function(set, idx) {
-  climgrain_set(lapply(set, .subset_units, idx = idx))
+  timesift_set(lapply(set, .subset_units, idx = idx))
 }

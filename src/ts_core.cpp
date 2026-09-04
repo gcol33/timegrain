@@ -1,10 +1,10 @@
-#include "cg_core.h"
+#include "ts_core.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-namespace climgrain {
+namespace timesift {
 
 namespace {
 
@@ -47,8 +47,8 @@ Grouping group_by_search(const seconds* start, std::size_t n) {
 
 // Bin membership is a function of the slot alone, so the calendar is read once per slot the record
 // touches and every reading is then an array lookup.
-Grouping group_by_window(const seconds* local, std::size_t n, Window w, YearStart ys) {
-  const seconds g = window_granularity(w);
+Grouping group_by_grain(const seconds* local, std::size_t n, Grain w, YearStart ys) {
+  const seconds g = grain_granularity(w);
   std::int64_t lo = floor_div(local[0], g);
   std::int64_t hi = lo;
   for (std::size_t i = 1; i < n; ++i) {
@@ -115,10 +115,10 @@ void check_full_grid(const std::vector<std::int32_t>& count, const std::vector<s
 void check_contiguous(const std::vector<seconds>& bins, const Request& req) {
   if (bins.size() < 2) return;
   std::vector<seconds> next(bins.size());
-  bin_nexts(bins.data(), bins.size(), req.window, req.year_start, next.data());
+  bin_nexts(bins.data(), bins.size(), req.grain, req.year_start, next.data());
   for (std::size_t k = 0; k + 1 < bins.size(); ++k) {
     if (next[k] == bins[k + 1]) continue;
-    throw Error(std::string("the ") + window_name(req.window) +
+    throw Error(std::string("the ") + grain_name(req.grain) +
                 " bins are not contiguous: nothing falls in the one beginning " +
                 iso8601(next[k]) + ", between " + iso8601(bins[k]) + " and " +
                 iso8601(bins[k + 1]) + ". Bins must tile the record; a gap is not closed up.");
@@ -133,17 +133,17 @@ Result reduce(const Request& req) {
   if (n == 0) throw Error("no readings to reduce.");
   if (n_unit == 0) throw Error("no units to reduce.");
   if (req.stats.empty()) throw Error("no statistic to compute.");
-  if (req.window == Window::custom && req.custom == nullptr) {
+  if (req.grain == Grain::custom && req.custom == nullptr) {
     throw Error("a supplied calendar must give a bin start for every reading.");
   }
 
-  // A supplied calendar declares its bins, and the `hour` window is the record unreduced, so in
+  // A supplied calendar declares its bins, and the `native` grain is the record unreduced, so in
   // both the bin start is already in hand and the distinct ones are read off it directly. Every
-  // other window is a function of the slot an instant falls in.
+  // other grain is a function of the slot an instant falls in.
   const Grouping grid =
-      req.window == Window::custom ? group_by_search(req.custom, n)
-      : req.window == Window::hour ? group_by_search(req.local, n)
-                                   : group_by_window(req.local, n, req.window, req.year_start);
+      req.grain == Grain::custom ? group_by_search(req.custom, n)
+      : req.grain == Grain::native ? group_by_search(req.local, n)
+                                   : group_by_grain(req.local, n, req.grain, req.year_start);
   const std::vector<seconds>& bins = grid.bins;
   const std::vector<std::int32_t>& bin_of = grid.bin_of;
   const std::size_t n_bin = bins.size();
@@ -159,9 +159,9 @@ Result reduce(const Request& req) {
   }
   check_full_grid(count, bins, req);
 
-  // A supplied calendar owns its own bin lengths, and the `hour` window's bin is the reading
+  // A supplied calendar owns its own bin lengths, and the `native` grain's bin is the reading
   // itself, so in neither case can the calendar say what a bin between two others would have been.
-  if (req.window != Window::custom && req.window != Window::hour) {
+  if (req.grain != Grain::custom && req.grain != Grain::native) {
     check_contiguous(bins, req);
   }
 
@@ -201,7 +201,7 @@ Result reduce(const Request& req) {
   std::vector<double> day_low, day_high, day_min_sum, day_max_sum;
   std::vector<std::int32_t> n_day;
   if (need_day) {
-    const Grouping calendar = group_by_window(req.local, n, Window::day, req.year_start);
+    const Grouping calendar = group_by_grain(req.local, n, Grain::day, req.year_start);
     const std::size_t n_days = calendar.bins.size();
 
     std::vector<std::int32_t> day_bin(n_days, -1);
@@ -315,11 +315,11 @@ Result reduce(const Request& req) {
   covered_end += req.sampling_step;
 
   std::vector<seconds> next(n_bin);
-  if (req.window == Window::custom) {
+  if (req.grain == Grain::custom || req.grain == Grain::native) {
     for (std::size_t k = 0; k + 1 < n_bin; ++k) next[k] = bins[k + 1];
     if (n_bin > 0) next[n_bin - 1] = covered_end;
   } else {
-    bin_nexts(bins.data(), n_bin, req.window, req.year_start, next.data());
+    bin_nexts(bins.data(), n_bin, req.grain, req.year_start, next.data());
   }
   out.bin_partial.assign(n_bin, 0);
   for (std::size_t k = 0; k < n_bin; ++k) {
@@ -346,4 +346,4 @@ Result reduce(const Request& req) {
   return out;
 }
 
-}  // namespace climgrain
+}  // namespace timesift

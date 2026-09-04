@@ -5,8 +5,8 @@ import importlib.util
 import numpy as np
 import pytest
 
-from climgrain import (Response, cnn_learner, fit_learner, mlp_learner, rescnn_learner, roc_auc,
-                       window_matrix)
+from timesift import (Response, cnn_learner, fit_learner, mlp_learner, rescnn_learner, roc_auc,
+                       grain_matrix)
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None,
                                 reason="torch is not installed")
@@ -22,7 +22,7 @@ def fixture(n_unit=40, days=90, noise=0.5, level=3.0, seed=81):
     readings = {"id": [u for u in units for _ in range(len(t))],
                 "time": list(t) * n_unit, "value": list(value)}
     y = rng.binomial(1, 1 / (1 + np.exp(-4 * np.outer(warmth, [1, -1]))))
-    x = window_matrix(readings, "id", "time", "value", window="week",
+    x = grain_matrix(readings, "id", "time", "value", grain="week",
                       stats=["cold_day", "mean", "warm_day"])
     return x, Response(y.astype(float), tuple(units), ("sp0", "sp1")), readings
 
@@ -49,7 +49,7 @@ def test_the_same_seed_gives_the_same_fit():
 def test_the_stack_still_runs_where_the_record_is_one_bin_per_year():
     _, y, readings = fixture(n_unit=24, days=400, seed=83)
     for w in ("season", "year"):
-        x = window_matrix(readings, "id", "time", "value", window=w)
+        x = grain_matrix(readings, "id", "time", "value", grain=w)
         assert x.values.shape[1] <= 5
         for build in (lambda: cnn_learner(epochs=2),
                       lambda: rescnn_learner(epochs=2, channels=(16, 32))):
@@ -59,7 +59,7 @@ def test_the_stack_still_runs_where_the_record_is_one_bin_per_year():
 def test_an_encoder_refuses_a_representation_it_was_not_fitted_on():
     x, y, readings = fixture(n_unit=24, days=60)
     fit = fit_learner(cnn_learner(epochs=2), x, y)
-    other = window_matrix(readings, "id", "time", "value", window="month")
+    other = grain_matrix(readings, "id", "time", "value", grain="month")
     with pytest.raises(ValueError, match="different channels or bins"):
         fit.predict(other)
 
@@ -70,7 +70,7 @@ def test_a_fully_connected_encoder_recovers_a_planted_signal():
     assert roc_auc(y.values[:, 0], p[:, 0]) > 0.8
 
 
-def test_weight_averaging_runs_the_whole_averaging_window_and_returns_a_usable_fit():
+def test_weight_averaging_runs_the_whole_averaging_grain_and_returns_a_usable_fit():
     x, y, _ = fixture(n_unit=30, days=60)
     p = fit_learner(cnn_learner(epochs=6, swa=True, swa_start=0.5), x, y).predict(x)
     assert p.shape == (30, 2)

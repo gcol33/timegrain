@@ -11,11 +11,11 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6.5, fig.height = 4.5,
                       dev.args = list(pointsize = 14))
 set.seed(1)
-library(climgrain)
+library(timesift)
 ```
 
 A logger records every hour for years. Before any model sees it, the record is reduced: to monthly
-means, to growing-degree-days, to whatever the analyst settled on once. `climgrain` makes that
+means, to growing-degree-days, to whatever the analyst settled on once. `timesift` makes that
 reduction an argument, fits at each setting of it, and shows where predictive skill saturates.
 
 This vignette runs the whole path on a small simulated record, from readings to a curve that says
@@ -46,10 +46,10 @@ y <- matrix(rbinom(60 * 6, 1, plogis(3 * as.numeric(outer(warmth, sign)))), ncol
 
 ## The representation
 
-`window_matrix()` bins the readings by the calendar and summarises every bin.
+`grain_matrix()` bins the readings by the calendar and summarises every bin.
 
 ```{r representation}
-x <- window_matrix(readings, plot, t, temp, window = "week",
+x <- grain_matrix(readings, plot, t, temp, grain = "week",
                    stats = c("cold_day", "mean", "warm_day"))
 x
 ```
@@ -65,7 +65,7 @@ Bins follow the calendar. A month is 28, 30 or 31 days, and a week starts on a M
 a real month or a real week and not a drifting block of 730 or 168 hours.
 
 ```{r calendar}
-attr(window_matrix(readings, plot, t, temp, window = "month"), "bin_n")[1, ]
+attr(grain_matrix(readings, plot, t, temp, grain = "month"), "bin_n")[1, ]
 ```
 
 ### An extreme day is not an extreme reading
@@ -77,7 +77,7 @@ bin brought. One hour at -50 sets `min` to -50 outright; it reaches the day-leve
 through its twenty-fourth of that day's mean.
 
 ```{r statistics}
-week <- window_matrix(readings, plot, t, temp, window = "week",
+week <- grain_matrix(readings, plot, t, temp, grain = "week",
                       stats = c("min", "mean_daily_min", "cold_day", "mean",
                                 "warm_day", "mean_daily_max", "max"))
 round(week[1, 1, ], 2)
@@ -106,20 +106,20 @@ one denominator and every paired difference runs on matched cells.
 
 ## The ladder
 
-`window_matrix()` given several windows returns one representation per window, which is what
-`window_ladder()` fits across.
+`grain_matrix()` given several grains returns one representation per grain, which is what
+`grain_ladder()` fits across.
 
 ```{r ladder}
-set <- window_matrix(readings, plot, t, temp, window = c("day", "week", "month"))
-lad <- window_ladder(set, y, elasticnet_learner(), folds = folds, verbose = FALSE)
+set <- grain_matrix(readings, plot, t, temp, grain = c("day", "week", "month"))
+lad <- grain_ladder(set, y, elasticnet_learner(), folds = folds, verbose = FALSE)
 summary(lad)
 ```
 
-```{r plot, fig.alt = "Mean true skill statistic against aggregation window, with an interval across species."}
+```{r plot, fig.alt = "Mean true skill statistic against aggregation grain, with an interval across species."}
 plot(lad)
 ```
 
-Skill rises as the record is smoothed, and it is still rising at the coarsest window here: the
+Skill rises as the record is smoothed, and it is still rising at the coarsest grain here: the
 signal was planted at a scale wider than a month and the daily reading is still buried in the
 hourly noise. The paired contrast is what a claim about that rests on. The difference is taken
 inside each cell both arms scored, averaged within a species, and summarised across the species,
@@ -130,12 +130,12 @@ where the means are ordered.
 paired_contrast(lad, "month|elasticnet", "day|elasticnet")
 ```
 
-Where the whole curve is the question rather than one pair of it, `window_contrasts()` fits a mixed
-model on the per-cell scores and compares every window against the best one, correcting for the
+Where the whole curve is the question rather than one pair of it, `grain_contrasts()` fits a mixed
+model on the per-cell scores and compares every grain against the best one, correcting for the
 comparisons made and no others.
 
-```{r window-contrasts, eval = requireNamespace("emmeans", quietly = TRUE) && requireNamespace("lmerTest", quietly = TRUE)}
-window_contrasts(lad)
+```{r grain-contrasts, eval = requireNamespace("emmeans", quietly = TRUE) && requireNamespace("lmerTest", quietly = TRUE)}
+grain_contrasts(lad)
 ```
 
 ## Reading a level honestly
@@ -163,7 +163,7 @@ An encoder that ends in global pooling discards when a thermal event happened, s
 bin in the year has to be given to it as input.
 
 ```{r channels}
-week_mean <- window_matrix(readings, plot, t, temp, window = "week")
+week_mean <- grain_matrix(readings, plot, t, temp, grain = "week")
 dimnames(bind_channels(week_mean, calendar_channels(week_mean)))[[3]]
 ```
 
@@ -173,7 +173,7 @@ architecture, in width, or in the grain they read are what it is for.
 
 ```{r ensemble}
 both <- ensemble_learner(list(ridge = elasticnet_learner(alpha = 0), lasso = elasticnet_learner(alpha = 1)))
-summary(window_ladder(set["week"], y, both, folds = folds, verbose = FALSE))
+summary(grain_ladder(set["week"], y, both, folds = folds, verbose = FALSE))
 ```
 
 A learner of your own is a fit and a predict pair, and nothing else. It goes through the same
@@ -191,7 +191,7 @@ nearest_neighbour <- learner(
   }
 )
 
-summary(window_ladder(set, y, list(elasticnet = elasticnet_learner(), nn = nearest_neighbour),
+summary(grain_ladder(set, y, list(elasticnet = elasticnet_learner(), nn = nearest_neighbour),
                       folds = folds, verbose = FALSE))
 ```
 
@@ -201,11 +201,11 @@ With the fits kept, `bin_occlusion()` holds each bin of the record back in turn,
 held-out plots, and records the fall in score as that bin's weight. Nothing is refitted.
 
 ```{r occlusion}
-kept <- window_ladder(set["month"], y, elasticnet_learner(), folds = folds,
+kept <- grain_ladder(set["month"], y, elasticnet_learner(), folds = folds,
                       keep_fits = TRUE, verbose = FALSE)
 weight <- bin_occlusion(kept, set, y, "month|elasticnet", permutations = 5)
 head(aggregate(weight ~ part, weight, mean), 4)
 ```
 
-Holding a channel back instead asks what each statistic of a window carries, which is the question
+Holding a channel back instead asks what each statistic of a grain carries, which is the question
 behind keeping a bin's extremes at all.

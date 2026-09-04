@@ -5,20 +5,20 @@ title: "Python"
 <!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
 
 The binning, the statistics and the array assembly are `src/`, compiled into both
-languages and answering to [the representation contract](contract.html). `window_matrix()` here
-and `window_matrix()` in R return the same numbers from the same input, and the fixtures under
+languages and answering to [the representation contract](contract.html). `grain_matrix()` here
+and `grain_matrix()` in R return the same numbers from the same input, and the fixtures under
 `inst/spec/fixtures/` hold them to it.
 
 ```bash
-pip install git+https://github.com/gcol33/climgrain
+pip install git+https://github.com/gcol33/timesift
 ```
 
 ```python
-import climgrain as tg
+import timesift as tg
 
-x = tg.window_matrix(readings, id="plot", time="t", value="temp",
-                     window="week", stats=("cold_day", "mean", "warm_day"))
-lad = tg.window_ladder(x, y, learners=[tg.mlp_learner(), tg.cnn_learner()])
+x = tg.grain_matrix(readings, id="plot", time="t", value="temp",
+                     grain="week", stats=("cold_day", "mean", "warm_day"))
+lad = tg.grain_ladder(x, y, learners=[tg.mlp_learner(), tg.cnn_learner()])
 ```
 
 The contract's last section says what each language carries, so a difference between the two is a

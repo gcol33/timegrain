@@ -1,7 +1,7 @@
 #' The cross-language digest of a representation
 #'
 #' The MD5 the contract in `inst/spec/representation.md` defines, and what the fixtures in
-#' `inst/spec/fixtures/` are checked against. `climgrain.digest_array()` on the Python side is the
+#' `inst/spec/fixtures/` are checked against. `timesift.digest_array()` on the Python side is the
 #' same function: the same array gives the same string in either language, which is what makes a
 #' digest a statement about the representation rather than about the machine.
 #'
@@ -11,7 +11,7 @@
 #' explicitly because `writeLines()` emits CRLF on Windows, which would make a digest depend on
 #' the machine that produced it.
 #'
-#' @param x A [window_matrix()] result, or any numeric array.
+#' @param x A [grain_matrix()] result, or any numeric array.
 #'
 #' @return The digest, a single string of 32 hexadecimal characters.
 #'

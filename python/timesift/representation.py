@@ -4,11 +4,11 @@ Implements ``inst/spec/representation.md``. Where this file and that document di
 right: it is also what the R side answers to, and the two are held together by the digests in
 ``inst/spec/fixtures/``.
 
-The binning and the reduction are not written here. They are ``src/cg_core.cpp``, compiled into
-``climgrain._core`` and into the R package alike, so the two languages agree by construction rather
+The binning and the reduction are not written here. They are ``src/ts_core.cpp``, compiled into
+``timesift._core`` and into the R package alike, so the two languages agree by construction rather
 than by two implementations being checked against each other after the fact. What is written here
 is the boundary: resolving the columns, resolving the zone, and putting the result into a
-``WindowMatrix``.
+``GrainMatrix``.
 """
 
 from __future__ import annotations
@@ -21,20 +21,20 @@ import numpy as np
 
 from . import _core
 
-WINDOWS = ("hour", "halfday", "day", "week", "month", "season", "year")
+GRAINS = ("native", "halfday", "day", "week", "month", "season", "year")
 DAY_LEVEL_STATS = ("cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
 STATS = ("mean", "min", "max") + DAY_LEVEL_STATS
 
 
 @dataclass(frozen=True)
-class WindowMatrix:
+class GrainMatrix:
     """A ``[unit, bin, channel]`` representation and the binning that produced it."""
 
     values: np.ndarray
     units: tuple[str, ...]
     bins: tuple[str, ...]
     stats: tuple[str, ...]
-    window: str
+    grain: str
     year_start: str
     bin_start: np.ndarray
     bin_end: np.ndarray
@@ -50,7 +50,7 @@ class WindowMatrix:
         """One statistic as a `[unit, bin]` matrix."""
         return self.values[:, :, self.stats.index(name)]
 
-    def take_units(self, index) -> "WindowMatrix":
+    def take_units(self, index) -> "GrainMatrix":
         """The representation restricted to a subset of its units, in the order given."""
         index = np.asarray(index)
         return replace(self, values=self.values[index], bin_n=self.bin_n[index],
@@ -58,39 +58,39 @@ class WindowMatrix:
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         n_u, n_b, n_c = self.values.shape
-        return (f"<climgrain matrix> {n_u} units x {n_b} bins x {n_c} channels\n"
-                f"window: {self.window}  stats: {', '.join(self.stats)}\n"
+        return (f"<timesift matrix> {n_u} units x {n_b} bins x {n_c} channels\n"
+                f"grain: {self.grain}  stats: {', '.join(self.stats)}\n"
                 f"from  : {self.bins[0]} to {self.bins[-1]}")
 
 
-class ClimgrainSet(Mapping):
-    """A ladder of representations, one per window.
+class TimesiftSet(Mapping):
+    """A ladder of representations, one per grain.
 
-    Naming several windows in :func:`window_matrix` returns one of these: representations of the
+    Naming several grains in :func:`grain_matrix` returns one of these: representations of the
     same units, differing only in how coarsely the record was read. It is what
-    :func:`window_ladder` fits across, and it reads as a mapping of window name to representation.
+    :func:`grain_ladder` fits across, and it reads as a mapping of grain name to representation.
     """
 
     def __init__(self, parts):
-        if isinstance(parts, WindowMatrix):
-            parts = {parts.window: parts}
+        if isinstance(parts, GrainMatrix):
+            parts = {parts.grain: parts}
         parts = dict(parts)
         if not parts:
-            raise ValueError("a climgrain set is a non-empty mapping of window_matrix() results")
-        bad = [k for k, v in parts.items() if not isinstance(v, WindowMatrix)]
+            raise ValueError("a timesift set is a non-empty mapping of grain_matrix() results")
+        bad = [k for k, v in parts.items() if not isinstance(v, GrainMatrix)]
         if bad:
             raise ValueError(f"{', '.join(bad)} "
-                             f"{'are' if len(bad) > 1 else 'is'} not a window_matrix() result")
+                             f"{'are' if len(bad) > 1 else 'is'} not a grain_matrix() result")
         units = next(iter(parts.values())).units
         differ = [k for k, v in parts.items() if v.units != units]
         if differ:
-            raise ValueError(f"every window in a set must cover the same units; "
+            raise ValueError(f"every grain in a set must cover the same units; "
                              f"{', '.join(differ)} does not")
         self._parts = parts
 
     def __getitem__(self, key):
         if isinstance(key, (list, tuple)):
-            return ClimgrainSet({k: self._parts[k] for k in key})
+            return TimesiftSet({k: self._parts[k] for k in key})
         return self._parts[key]
 
     def __iter__(self):
@@ -101,31 +101,31 @@ class ClimgrainSet(Mapping):
 
     @property
     def units(self) -> tuple[str, ...]:
-        """The units the set covers, which every window in it shares."""
+        """The units the set covers, which every grain in it shares."""
         return next(iter(self._parts.values())).units
 
     def __repr__(self) -> str:  # pragma: no cover - display only
-        lines = [f"<climgrain set> {len(self._parts)} windows over {len(self.units)} units"]
+        lines = [f"<timesift set> {len(self._parts)} grains over {len(self.units)} units"]
         for name, m in self._parts.items():
             lines.append(f"  {name:<10} {m.values.shape[1]:5d} bins x {m.values.shape[2]} "
                          f"channels ({', '.join(m.stats)})")
         return "\n".join(lines)
 
 
-def climgrain_set(x) -> ClimgrainSet:
-    """Every entry point that fits across windows takes a representation, a set, or a bare mapping,
+def timesift_set(x) -> TimesiftSet:
+    """Every entry point that fits across grains takes a representation, a set, or a bare mapping,
     and works on a set. One coercion, so no caller repeats the three cases."""
-    return x if isinstance(x, ClimgrainSet) else ClimgrainSet(x)
+    return x if isinstance(x, TimesiftSet) else TimesiftSet(x)
 
 
-def window_matrix(data=None, id=None, time=None, value=None, *, window="day", stats=("mean",),
+def grain_matrix(data=None, id=None, time=None, value=None, *, grain="day", stats=("mean",),
                   year_start="09-01", partial="keep", tz=None):
     """Bin readings by the calendar and summarise every bin.
 
     ``data`` is a mapping of column name to sequence, or any object with ``__getitem__`` over the
-    three column names given by ``id``, ``time`` and ``value``. Naming two or more windows returns
-    a :class:`ClimgrainSet`; naming one, whether as a string or as a sequence of one, returns the
-    representation itself. ``window`` may also be a callable, which is handed the reading instants
+    three column names given by ``id``, ``time`` and ``value``. Naming two or more grains returns
+    a :class:`TimesiftSet`; naming one, whether as a string or as a sequence of one, returns the
+    representation itself. ``grain`` may also be a callable, which is handed the reading instants
     and must return the start of each reading's bin.
 
     ``tz`` names the calendar to bin by. Left at ``None`` the instants are taken as already
@@ -144,16 +144,16 @@ def window_matrix(data=None, id=None, time=None, value=None, *, window="day", st
     unit, when, reading = _columns(data, id, time, value)
     partial = _check_partial(partial)
 
-    if not callable(window) and not isinstance(window, str):
-        named = _check_windows(window)
-        parts = {w: window_matrix(data, id, time, value, window=w, stats=stats,
+    if not callable(grain) and not isinstance(grain, str):
+        named = _check_grains(grain)
+        parts = {w: grain_matrix(data, id, time, value, grain=w, stats=stats,
                                   year_start=year_start, partial=partial, tz=tz)
                  for w in named}
-        # One window is one representation, as it is when it is named as a string: a set of one is
+        # One grain is one representation, as it is when it is named as a string: a set of one is
         # a shape the caller then has to unwrap for no reason, and the R side does not make one.
-        return parts[named[0]] if len(named) == 1 else ClimgrainSet(parts)
+        return parts[named[0]] if len(named) == 1 else TimesiftSet(parts)
 
-    stats = _check_stats(stats, window)
+    stats = _check_stats(stats, grain)
     ys = _parse_year_start(year_start)
     zone = _zone(tz)
 
@@ -164,37 +164,37 @@ def window_matrix(data=None, id=None, time=None, value=None, *, window="day", st
     local = _naive_seconds(instant, zone)
 
     supplied = None
-    if callable(window):
-        given = np.asarray(window(when), dtype="datetime64[s]")
+    if callable(grain):
+        given = np.asarray(grain(when), dtype="datetime64[s]")
         if given.shape != when.shape:
-            raise ValueError("a window function must return one bin start per reading")
+            raise ValueError("a grain function must return one bin start per reading")
         supplied = _naive_seconds(np.ascontiguousarray(given.astype(np.int64)), zone)
 
-    name = "custom" if callable(window) else window
+    name = "custom" if callable(grain) else grain
     values, bin_start, bin_end, bin_n, bin_partial = _core.reduce(
         unit_ix, reading, instant, local, supplied, [str(u) for u in units],
         name, ys[0], ys[1], list(stats), _sampling_step(instant))
 
     n_u, n_b, n_c = len(units), len(bin_start), len(stats)
     starts = _local_to_instant(bin_start, zone).astype("datetime64[s]")
-    x = WindowMatrix(
+    x = GrainMatrix(
         values=np.ascontiguousarray(values.reshape(n_c, n_b, n_u).transpose(2, 1, 0)),
         units=tuple(str(u) for u in units), bins=tuple(_iso(b) for b in starts),
-        stats=tuple(stats), window=name, year_start=year_start,
+        stats=tuple(stats), grain=name, year_start=year_start,
         bin_start=starts, bin_end=bin_end.astype("datetime64[s]"),
         bin_n=bin_n.reshape(n_b, n_u).T, bin_partial=bin_partial.astype(bool),
     )
     return _drop_partial(x) if partial == "drop" else x
 
 
-def _drop_partial(x: WindowMatrix) -> WindowMatrix:
+def _drop_partial(x: GrainMatrix) -> GrainMatrix:
     """Keeping or dropping a partial bin is the caller's choice, so the array is built over every
     bin the calendar produced and the unwanted ones are removed afterwards, which keeps one binning
     path rather than one per setting."""
     keep = np.flatnonzero(~x.bin_partial)
     if not len(keep):
         raise ValueError(f"dropping the partial bins leaves no bin: the record covers no whole "
-                         f"{x.window}. Use partial='keep' or a finer window.")
+                         f"{x.grain}. Use partial='keep' or a finer grain.")
     if len(keep) == len(x.bin_partial):
         return x
     return replace(x, values=x.values[:, keep, :], bins=tuple(x.bins[i] for i in keep),
@@ -202,7 +202,7 @@ def _drop_partial(x: WindowMatrix) -> WindowMatrix:
                    bin_n=x.bin_n[:, keep], bin_partial=x.bin_partial[keep])
 
 
-def calendar_channels(x: WindowMatrix) -> WindowMatrix:
+def calendar_channels(x: GrainMatrix) -> GrainMatrix:
     """Where in the year each bin sits, as the sine and cosine of its fractional position."""
     mid = x.bin_start + (x.bin_end - x.bin_start) / 2
     year = mid.astype("datetime64[Y]")
@@ -218,7 +218,7 @@ def calendar_channels(x: WindowMatrix) -> WindowMatrix:
     return replace(x, values=out, stats=("year_sin", "year_cos"))
 
 
-def bind_channels(*parts: WindowMatrix) -> WindowMatrix:
+def bind_channels(*parts: GrainMatrix) -> GrainMatrix:
     """Put the channels of several representations of the same units and bins side by side."""
     if len(parts) < 2:
         raise ValueError("bind_channels() needs at least two representations")
@@ -297,29 +297,29 @@ def _columns(data, id, time, value):
     return unit, when, reading
 
 
-def _check_windows(window):
-    window = list(window)
-    bad = [w for w in window if w not in WINDOWS]
+def _check_grains(grain):
+    grain = list(grain)
+    bad = [w for w in grain if w not in GRAINS]
     if bad:
-        raise ValueError(f"unknown window: {', '.join(bad)}. Available: {', '.join(WINDOWS)}")
-    if len(set(window)) != len(window):
-        raise ValueError("`window` names a window twice")
-    return window
+        raise ValueError(f"unknown grain: {', '.join(bad)}. Available: {', '.join(GRAINS)}")
+    if len(set(grain)) != len(grain):
+        raise ValueError("`grain` names a grain twice")
+    return grain
 
 
-def _check_stats(stats, window):
+def _check_stats(stats, grain):
     stats = [stats] if isinstance(stats, str) else list(stats)
     bad = [s for s in stats if s not in STATS]
     if bad:
         raise ValueError(f"unknown statistic: {', '.join(bad)}. Available: {', '.join(STATS)}")
     if len(set(stats)) != len(stats):
         raise ValueError("`stats` names a statistic twice")
-    if isinstance(window, str) and window in ("hour", "halfday"):
+    if isinstance(grain, str) and grain in ("native", "halfday"):
         day_level = [s for s in stats if s in DAY_LEVEL_STATS]
         if day_level:
-            raise ValueError(f"`{window}` bins are shorter than a day, so "
+            raise ValueError(f"`{grain}` bins are shorter than a day, so "
                              f"{' and '.join(day_level)} is not defined there. "
-                             "Use a window of `day` or coarser.")
+                             "Use a grain of `day` or coarser.")
     return stats
 
 

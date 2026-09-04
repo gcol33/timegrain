@@ -12,7 +12,7 @@ BENCH <- list(
   year_start   = "09-01",
   outer        = 5L,
   metric       = "roc_auc",
-  windows      = c("halfday", "day", "week", "month", "season", "year"),
+  grains      = c("halfday", "day", "week", "month", "season", "year"),
   elasticnet_squares = TRUE,
   elasticnet_n_inner  = 5L,
   cnn_epochs   = 40L,
@@ -22,7 +22,7 @@ BENCH <- list(
   mechanisms   = c("none", "event", "season", "lag"),
   design_seed  = c(none = 101L, event = 102L, season = 103L, lag = 104L),
   true_grain   = c(none = NA_character_, event = "day", season = "season", lag = "week"),
-  # The windows whose bins tile the generating window exactly, so the driver is still an exact
+  # The grains whose bins tile the generating grain exactly, so the driver is still an exact
   # linear functional of the representation there. A selection landing on one of these has lost
   # nothing to averaging; it has only spent more coefficients than it needed.
   nesting      = list(day = c("halfday", "day"),
@@ -30,15 +30,15 @@ BENCH <- list(
                       season = c("halfday", "day", "month", "season"))
 )
 
-# A candidate is a (window, summary) pair. The penalised block searches both summaries, the neural
-# block the window mean alone, which is what the sizing in the plan assumes.
+# A candidate is a (grain, summary) pair. The penalised block searches both summaries, the neural
+# block the grain mean alone, which is what the sizing in the plan assumes.
 bench_candidates <- function(block) {
   summaries <- if (block == "elasticnet") list(mean = "mean", mmm = c("min", "mean", "max"))
                else list(mean = "mean")
-  out <- expand.grid(stat = names(summaries), window = BENCH$windows,
+  out <- expand.grid(stat = names(summaries), grain = BENCH$grains,
                      KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
-  out <- out[order(match(out$window, BENCH$windows), out$stat), c("window", "stat")]
-  out$candidate <- paste(out$window, out$stat, sep = ".")
+  out <- out[order(match(out$grain, BENCH$grains), out$stat), c("grain", "stat")]
+  out$candidate <- paste(out$grain, out$stat, sep = ".")
   out$channels <- I(unname(summaries[out$stat]))
   rownames(out) <- NULL
   out
@@ -82,27 +82,27 @@ bench_scale <- function(scale) {
 
 bench_learner <- function(block) {
   switch(block,
-         elasticnet = climgrain::elasticnet_learner(squares = BENCH$elasticnet_squares,
+         elasticnet = timesift::elasticnet_learner(squares = BENCH$elasticnet_squares,
                                             n_inner = BENCH$elasticnet_n_inner),
-         cnn = climgrain::cnn_learner(epochs = BENCH$cnn_epochs,
-                                      device = Sys.getenv("CLIMGRAIN_DEVICE", unset = "cpu")),
+         cnn = timesift::cnn_learner(epochs = BENCH$cnn_epochs,
+                                      device = Sys.getenv("TIMESIFT_DEVICE", unset = "cpu")),
          stop("unknown block: ", block))
 }
 
-# Two calls to window_matrix() cover every candidate, one per summary, because naming several
-# windows already returns one representation each. The set is renamed to the candidate labels so
-# select_grain() reports the pair rather than only the window.
+# Two calls to grain_matrix() cover every candidate, one per summary, because naming several
+# grains already returns one representation each. The set is renamed to the candidate labels so
+# select_grain() reports the pair rather than only the grain.
 bench_representation <- function(readings, candidates) {
   wanted <- unique(candidates$stat)
   parts <- lapply(wanted, function(s) {
     channels <- candidates$channels[[match(s, candidates$stat)]]
-    m <- climgrain::window_matrix(readings, "unit", "time", "reading",
-                                  window = BENCH$windows, stats = channels,
+    m <- timesift::grain_matrix(readings, "unit", "time", "reading",
+                                  grain = BENCH$grains, stats = channels,
                                   year_start = BENCH$year_start)
     stats::setNames(unclass(m), paste(names(m), s, sep = "."))
   })
   set <- do.call(c, parts)
-  climgrain::climgrain_set(set[candidates$candidate])
+  timesift::timesift_set(set[candidates$candidate])
 }
 
 # Every run says what it was fed before it is fed it: the cell, the seeds, the package it is
@@ -136,19 +136,19 @@ bench_stamp <- function(cell, replicate, candidates, pkg_dir, learner) {
     learner = learner$name,
     learner_digest = .bench_digest(paste(utils::capture.output(utils::str(learner$params)),
                                          collapse = "|")),
-    pkg_version = as.character(utils::packageVersion("climgrain")),
+    pkg_version = as.character(utils::packageVersion("timesift")),
     pkg_commit = if (length(commit) == 1L) commit else NA_character_,
     pkg_dirty = isTRUE(dirty),
     r_version = paste(R.version$major, R.version$minor, sep = "."),
     platform = R.version$platform,
-    device = Sys.getenv("CLIMGRAIN_DEVICE", unset = "cpu")
+    device = Sys.getenv("TIMESIFT_DEVICE", unset = "cpu")
   )
 }
 
 # The candidate set actually searched is read back off the selection and checked against the one
 # the stamp declares. A run that searched a different set than it recorded is stopped, not saved.
 bench_assert_candidates <- function(selection, stamp) {
-  searched <- paste(sort(unique(selection$candidates$window)), collapse = ",")
+  searched <- paste(sort(unique(selection$candidates$grain)), collapse = ",")
   declared <- paste(sort(strsplit(stamp$candidates, ",", fixed = TRUE)[[1L]]), collapse = ",")
   if (!identical(searched, declared)) {
     stop("cell ", stamp$cell_id, " replicate ", stamp$replicate, " searched {", searched,

@@ -4,15 +4,15 @@
 #include <string>
 #include <vector>
 
-#include "cg_core.h"
+#include "ts_core.h"
 
 namespace {
 
-std::vector<climgrain::seconds> as_seconds(const cpp11::doubles& x) {
-  std::vector<climgrain::seconds> out(x.size());
+std::vector<timesift::seconds> as_seconds(const cpp11::doubles& x) {
+  std::vector<timesift::seconds> out(x.size());
   for (R_xlen_t i = 0; i < x.size(); ++i) {
     out[static_cast<std::size_t>(i)] =
-        static_cast<climgrain::seconds>(std::floor(x[i]));
+        static_cast<timesift::seconds>(std::floor(x[i]));
   }
   return out;
 }
@@ -20,9 +20,9 @@ std::vector<climgrain::seconds> as_seconds(const cpp11::doubles& x) {
 }  // namespace
 
 [[cpp11::register]]
-cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles when,
+cpp11::list ts_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles when,
                        cpp11::doubles local, cpp11::sexp custom, cpp11::strings unit_names,
-                       std::string window, int year_month, int year_day, cpp11::strings stats,
+                       std::string grain, int year_month, int year_day, cpp11::strings stats,
                        double sampling_step) {
   const std::size_t n = static_cast<std::size_t>(value.size());
 
@@ -32,10 +32,10 @@ cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::double
   std::vector<double> reading(n);
   for (std::size_t i = 0; i < n; ++i) reading[i] = value[static_cast<R_xlen_t>(i)];
 
-  const std::vector<climgrain::seconds> instant = as_seconds(when);
-  const std::vector<climgrain::seconds> naive = as_seconds(local);
+  const std::vector<timesift::seconds> instant = as_seconds(when);
+  const std::vector<timesift::seconds> naive = as_seconds(local);
 
-  std::vector<climgrain::seconds> supplied;
+  std::vector<timesift::seconds> supplied;
   if (custom != R_NilValue) supplied = as_seconds(cpp11::doubles(custom));
 
   std::vector<std::string> names;
@@ -47,7 +47,7 @@ cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::double
   name_ptr.reserve(names.size());
   for (const std::string& s : names) name_ptr.push_back(s.c_str());
 
-  climgrain::Request req;
+  timesift::Request req;
   req.unit = unit_index.data();
   req.value = reading.data();
   req.when = instant.data();
@@ -56,14 +56,14 @@ cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::double
   req.unit_name = name_ptr.empty() ? nullptr : name_ptr.data();
   req.n = n;
   req.n_unit = names.size();
-  req.window = climgrain::window_from_name(window);
-  req.year_start = climgrain::YearStart{year_month, year_day};
-  req.sampling_step = static_cast<climgrain::seconds>(sampling_step);
+  req.grain = timesift::grain_from_name(grain);
+  req.year_start = timesift::YearStart{year_month, year_day};
+  req.sampling_step = static_cast<timesift::seconds>(sampling_step);
   for (R_xlen_t i = 0; i < stats.size(); ++i) {
-    req.stats.push_back(climgrain::stat_from_name(std::string(stats[i])));
+    req.stats.push_back(timesift::stat_from_name(std::string(stats[i])));
   }
 
-  const climgrain::Result result = climgrain::reduce(req);
+  const timesift::Result result = timesift::reduce(req);
   const std::size_t n_bin = result.bin_start.size();
 
   cpp11::writable::doubles values(static_cast<R_xlen_t>(result.values.size()));
@@ -94,15 +94,15 @@ cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::double
   });
 }
 
-// The seven windows and the civil arithmetic under them, reachable from the suites so the oracle
+// The seven grains and the civil arithmetic under them, reachable from the suites so the oracle
 // can be checked against the core rather than only through a whole reduction.
 [[cpp11::register]]
-cpp11::doubles cg_bin_starts_(cpp11::doubles local, std::string window, int year_month,
+cpp11::doubles ts_bin_starts_(cpp11::doubles local, std::string grain, int year_month,
                               int year_day) {
-  const std::vector<climgrain::seconds> naive = as_seconds(local);
-  std::vector<climgrain::seconds> out(naive.size());
-  climgrain::bin_starts(naive.data(), naive.size(), climgrain::window_from_name(window),
-                        climgrain::YearStart{year_month, year_day}, out.data());
+  const std::vector<timesift::seconds> naive = as_seconds(local);
+  std::vector<timesift::seconds> out(naive.size());
+  timesift::bin_starts(naive.data(), naive.size(), timesift::grain_from_name(grain),
+                        timesift::YearStart{year_month, year_day}, out.data());
   cpp11::writable::doubles result(static_cast<R_xlen_t>(out.size()));
   for (std::size_t i = 0; i < out.size(); ++i) {
     result[static_cast<R_xlen_t>(i)] = static_cast<double>(out[i]);
@@ -111,12 +111,12 @@ cpp11::doubles cg_bin_starts_(cpp11::doubles local, std::string window, int year
 }
 
 [[cpp11::register]]
-cpp11::doubles cg_bin_nexts_(cpp11::doubles bins, std::string window, int year_month,
+cpp11::doubles ts_bin_nexts_(cpp11::doubles bins, std::string grain, int year_month,
                              int year_day) {
-  const std::vector<climgrain::seconds> start = as_seconds(bins);
-  std::vector<climgrain::seconds> out(start.size());
-  climgrain::bin_nexts(start.data(), start.size(), climgrain::window_from_name(window),
-                       climgrain::YearStart{year_month, year_day}, out.data());
+  const std::vector<timesift::seconds> start = as_seconds(bins);
+  std::vector<timesift::seconds> out(start.size());
+  timesift::bin_nexts(start.data(), start.size(), timesift::grain_from_name(grain),
+                       timesift::YearStart{year_month, year_day}, out.data());
   cpp11::writable::doubles result(static_cast<R_xlen_t>(out.size()));
   for (std::size_t i = 0; i < out.size(); ++i) {
     result[static_cast<R_xlen_t>(i)] = static_cast<double>(out[i]);

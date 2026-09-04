@@ -9,7 +9,7 @@
 #   Rscript inst/benchmark/run.R --scale=smoke --list
 
 suppressWarnings(suppressMessages({
-  library(climgrain)
+  library(timesift)
 }))
 
 .bench_args <- function() {
@@ -58,7 +58,7 @@ learner <- bench_learner(cell$block)
 
 # Bind the deployment sample's chunks along the unit axis. The chunks share a design and a reading
 # grid, so their bins are identical; that is asserted rather than assumed, and everything else about
-# the representation comes from window_matrix().
+# the representation comes from grain_matrix().
 .bench_bind <- function(parts) {
   first <- parts[[1L]]
   for (p in parts[-1L]) {
@@ -76,11 +76,11 @@ learner <- bench_learner(cell$block)
     out[at + seq_len(dim(p)[1L]), , ] <- p
     at <- at + dim(p)[1L]
   }
-  for (a in c("window", "stats", "year_start", "bin_start", "bin_end", "bin_partial")) {
+  for (a in c("grain", "stats", "year_start", "bin_start", "bin_end", "bin_partial")) {
     attr(out, a) <- attr(first, a)
   }
   attr(out, "bin_n") <- do.call(rbind, lapply(parts, function(p) attr(p, "bin_n")))
-  class(out) <- c("climgrain_matrix", "array")
+  class(out) <- c("timesift_matrix", "array")
   out
 }
 
@@ -105,7 +105,7 @@ learner <- bench_learner(cell$block)
     parts[[i]] <- unclass(bench_representation(sim$readings, candidates))
     ys[[i]] <- sim$y
   }
-  set <- climgrain_set(stats::setNames(
+  set <- timesift_set(stats::setNames(
     lapply(candidates$candidate, function(cc) .bench_bind(lapply(parts, `[[`, cc))),
     candidates$candidate))
   list(set = set, y = do.call(rbind, ys))
@@ -115,7 +115,7 @@ learner <- bench_learner(cell$block)
 # variables, so a deployment number and a reported number are the same quantity.
 .bench_deploy_score <- function(fit, x, y, metric) {
   p <- stats::predict(fit, x)
-  score <- climgrain:::.metrics_reg$get(metric)
+  score <- timesift:::.metrics_reg$get(metric)
   vapply(colnames(y), function(v) score(y[rownames(p), v], p[, v]), numeric(1L))
 }
 
@@ -152,7 +152,7 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
   sel <- tick("select", select_grain(set, sim$y, learner, folds = folds, inner = cell$inner,
                                      metric = BENCH$metric, verbose = FALSE))
   bench_assert_candidates(sel, stamp)
-  lad <- tick("ladder", window_ladder(set, sim$y, learner, folds = folds, metric = BENCH$metric,
+  lad <- tick("ladder", grain_ladder(set, sim$y, learner, folds = folds, metric = BENCH$metric,
                                       verbose = FALSE))
 
   f <- attr(sel, "folds")
@@ -162,7 +162,7 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
   # The oracle arm: every candidate fitted on one outer training set and scored on units the
   # procedure never saw, which is the only place a regret can be read from.
   truth <- tick("oracle", vapply(candidates$candidate, function(cc) {
-    fit <- fit_learner(learner, climgrain:::.subset_units(set[[cc]], which(f != levels[1L])),
+    fit <- fit_learner(learner, timesift:::.subset_units(set[[cc]], which(f != levels[1L])),
                        sim$y[train1, , drop = FALSE])
     mean(.bench_deploy_score(fit, dep$set[[cc]], dep$y, BENCH$metric))
   }, numeric(1L)))
@@ -170,15 +170,15 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
   # The same refit the procedure makes at line 12 of its own algorithm, scored on the deployment
   # sample instead of on the outer fold, so the reported number has something to be honest about.
   true_fold <- tick("procedure", vapply(seq_along(levels), function(i) {
-    cc <- sel$selected$window[match(levels[i], sel$selected$fold)]
+    cc <- sel$selected$grain[match(levels[i], sel$selected$fold)]
     idx <- which(f != levels[i])
-    fit <- fit_learner(learner, climgrain:::.subset_units(set[[cc]], idx),
+    fit <- fit_learner(learner, timesift:::.subset_units(set[[cc]], idx),
                        sim$y[names(f)[idx], , drop = FALSE])
     mean(.bench_deploy_score(fit, dep$set[[cc]], dep$y, BENCH$metric))
   }, numeric(1L)))
 
   grid <- summary(lad)
-  single <- grid$window[which.max(grid$score)]
+  single <- grid$grain[which.max(grid$score)]
   est <- sel$estimate
   sel_est <- est[est$metric == BENCH$metric, ]
 
@@ -191,9 +191,9 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
                sel_est$score + 1.96 * sel_est$se),
     .bench_row(stamp, "nested", NA_character_, NA_integer_, BENCH$metric, "true",
                mean(true_fold)),
-    .bench_row(stamp, "nested", sel$selected$window, sel$selected$fold, BENCH$metric, "true_fold",
+    .bench_row(stamp, "nested", sel$selected$grain, sel$selected$fold, BENCH$metric, "true_fold",
                true_fold),
-    .bench_row(stamp, "nested", sel$selected$window, sel$selected$fold, BENCH$metric, "selected",
+    .bench_row(stamp, "nested", sel$selected$grain, sel$selected$fold, BENCH$metric, "selected",
                sel$selected$inner_score),
     .bench_row(stamp, "single_loop", single, NA_integer_, BENCH$metric, "reported",
                max(grid$score)),
@@ -203,8 +203,8 @@ bench_replicate <- function(cell, replicate, candidates, learner, pkg_dir) {
                max(truth)),
     .bench_row(stamp, "candidate", names(truth), NA_integer_, BENCH$metric, "true",
                unname(truth)),
-    .bench_row(stamp, "candidate", grid$window, NA_integer_, BENCH$metric, "ladder", grid$score),
-    .bench_row(stamp, "candidate", sel$inner$window, sel$inner$fold, BENCH$metric, "inner",
+    .bench_row(stamp, "candidate", grid$grain, NA_integer_, BENCH$metric, "ladder", grid$score),
+    .bench_row(stamp, "candidate", sel$inner$grain, sel$inner$fold, BENCH$metric, "inner",
                sel$inner$score),
     .bench_row(stamp, "stage", names(clock), NA_integer_, NA_character_, "secs",
                unlist(clock))

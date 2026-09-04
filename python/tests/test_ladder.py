@@ -5,10 +5,10 @@ import importlib.util
 import numpy as np
 import pytest
 
-from climgrain import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
+from timesift import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
                        paired_contrast, roc_auc, scorable_cells, tss, tss_inflation,
-                       window_ladder, window_matrix)
-from climgrain._stats import norm_ppf, wilcoxon_p
+                       grain_ladder, grain_matrix)
+from timesift._stats import norm_ppf, wilcoxon_p
 
 
 def brute_tss(y, p):
@@ -92,9 +92,9 @@ def test_a_signal_buried_in_hourly_noise_is_found_once_the_record_is_averaged():
     if importlib.util.find_spec("sklearn") is None:
         pytest.skip("scikit-learn is not installed")
     readings, y, _ = sim(n_unit=48, days=120, noise=20.0, seed=5)
-    x = window_matrix(readings, "id", "time", "value", window=["day", "month"])
-    lad = window_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=3), verbose=False)
-    rows = {r["window"]: r["score"] for r in lad.summary()}
+    x = grain_matrix(readings, "id", "time", "value", grain=["day", "month"])
+    lad = grain_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=3), verbose=False)
+    rows = {r["grain"]: r["score"] for r in lad.summary()}
     assert rows["month"] > rows["day"]
     gain = paired_contrast(lad, "month|elasticnet", "day|elasticnet")
     assert gain["diff"] > 0
@@ -102,7 +102,7 @@ def test_a_signal_buried_in_hourly_noise_is_found_once_the_record_is_averaged():
 
 def test_a_learner_of_ones_own_needs_nothing_but_a_fit_and_a_predict():
     readings, y, _ = sim(n_unit=20, days=30)
-    x = window_matrix(readings, "id", "time", "value", window="week")
+    x = grain_matrix(readings, "id", "time", "value", grain="week")
     mine = Learner(name="mine",
                    fit=lambda x, y, **kw: y.mean(axis=0),
                    predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
@@ -112,13 +112,13 @@ def test_a_learner_of_ones_own_needs_nothing_but_a_fit_and_a_predict():
 
 def test_every_arm_is_scored_on_the_same_cells():
     readings, y, _ = sim(n_unit=36, days=60)
-    x = window_matrix(readings, "id", "time", "value", window=["week", "month"])
+    x = grain_matrix(readings, "id", "time", "value", grain=["week", "month"])
     rank = Learner(name="rank",
                    fit=lambda x, y, **kw: y.mean(axis=0),
                    predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
-    lad = window_ladder(x, y, {"a": rank, "b": rank}, folds=fold_map(y, v=3, seed=2),
+    lad = grain_ladder(x, y, {"a": rank, "b": rank}, folds=fold_map(y, v=3, seed=2),
                         verbose=False)
-    marks = {arm: lad.scorable[(lad.window == w) & (lad.learner == ln)].tolist()
+    marks = {arm: lad.scorable[(lad.grain == w) & (lad.learner == ln)].tolist()
              for arm, (w, ln) in {f"{w}|{ln}": (w, ln)
                                   for w in ("week", "month") for ln in ("a", "b")}.items()}
     assert len({tuple(v) for v in marks.values()}) == 1
@@ -144,7 +144,7 @@ def test_the_normal_quantile_and_the_signed_rank_p_value_are_the_ones_r_reports(
 
 
 def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
-    from climgrain import implied_skill
+    from timesift import implied_skill
     rng = np.random.default_rng(61)
     units = tuple(f"p{i:03d}" for i in range(200))
     y = Response(rng.binomial(1, 0.2, (200, 6)).astype(float), units,
@@ -159,8 +159,8 @@ def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
 
 def test_a_ladder_given_no_fold_map_builds_one():
     readings, y, _ = sim(n_unit=30, days=40, noise=1.0)
-    x = window_matrix(readings, "id", "time", "value", window="week")
-    lad = window_ladder(x, y, [constant_learner()], verbose=False)
+    x = grain_matrix(readings, "id", "time", "value", grain="week")
+    lad = grain_ladder(x, y, [constant_learner()], verbose=False)
     # The same defaults `fold_map` would have been called with, so the two agree cell for cell.
     assert np.array_equal(lad.folds.fold, fold_map(y).fold)
     assert lad.folds.units == tuple(x.units)
@@ -168,9 +168,9 @@ def test_a_ladder_given_no_fold_map_builds_one():
 
 def test_every_held_out_cell_is_the_prediction_for_that_unit_and_that_variable():
     readings, y, _ = sim(n_unit=30, days=40, noise=1.0)
-    x = window_matrix(readings, "id", "time", "value", window="week")
+    x = grain_matrix(readings, "id", "time", "value", grain="week")
     folds = fold_map(y, v=3, seed=4)
-    lad = window_ladder(x, y, [constant_learner()], folds=folds, verbose=False)
+    lad = grain_ladder(x, y, [constant_learner()], folds=folds, verbose=False)
     p = lad.predictions["week|constant"]
 
     # The assembly is keyed by unit and by variable rather than by position, so every cell is

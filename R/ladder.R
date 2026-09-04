@@ -1,14 +1,14 @@
 #' Fit at every grain and see where skill saturates
 #'
-#' Cross-validates every learner at every window of a representation set, on one fold map and one
-#' mask of scorable cells, and returns the score of each `(window, learner, variable, fold)` cell.
+#' Cross-validates every learner at every grain of a representation set, on one fold map and one
+#' mask of scorable cells, and returns the score of each `(grain, learner, variable, fold)` cell.
 #' It is the measurement the package exists for: how much of a record a model needs, read off the
 #' point where making the record finer stops paying.
 #'
 #' Every arm sees identical splits and is restricted to identical cells, so the arms' means share a
 #' denominator and any two of them can be compared cell by cell with [paired_contrast()].
 #'
-#' @param x A [window_matrix()] result, a [climgrain_set()], or a named list of representations.
+#' @param x A [grain_matrix()] result, a [timesift_set()], or a named list of representations.
 #' @param y The response for the same units.
 #' @param learners A learner, a list of them, or names of registered ones. An unnamed list is
 #'   labelled by each learner's own name.
@@ -21,8 +21,8 @@
 #' @param verbose Report each arm and each fold as it runs.
 #' @param ... Ignored, so that `summary()` takes the arguments its generic declares.
 #'
-#' @return A data frame of one row per scored cell, of class `climgrain_ladder`, carrying the
-#'   window, the learner, the variable, the fold and the score. The held-out prediction of every
+#' @return A data frame of one row per scored cell, of class `timesift_ladder`, carrying the
+#'   grain, the learner, the variable, the fold and the score. The held-out prediction of every
 #'   unit is kept in the `predictions` attribute, and the scorable-cell mask in `cells`.
 #'
 #' @examples
@@ -36,12 +36,12 @@
 #'                            numeric(length(t)))))
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
-#' x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-#' lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+#' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
+#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
 #' summary(lad)
 #'
 #' @export
-window_ladder <- function(x, y, learners, folds = NULL, response = "presence_absence",
+grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_absence",
                           metric = NULL, keep_fits = FALSE, verbose = TRUE) {
   set <- .as_set(x)
   units <- dimnames(set[[1L]])[[1L]]
@@ -63,7 +63,7 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
     for (ln in names(learners)) {
       arm <- paste(w, ln, sep = "|")
       if (verbose) {
-        message("fitting ", ln, " at the ", w, " window")
+        message("fitting ", ln, " at the ", w, " grain")
       }
       p <- matrix(NA_real_, nrow = length(units), ncol = ncol(y),
                   dimnames = list(units, colnames(y)))
@@ -93,13 +93,13 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
   }
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
-  structure(out, class = c("climgrain_ladder", "data.frame"),
+  structure(out, class = c("timesift_ladder", "data.frame"),
             predictions = preds, cells = cells, folds = stats::setNames(f, units),
             fits = if (keep_fits) fits else NULL,
             metric = metric %||% spec$metric, response = response)
 }
 
-.score_arm <- function(window, learner, y, p, f, levels, cells, score) {
+.score_arm <- function(grain, learner, y, p, f, levels, cells, score) {
   grid <- expand.grid(variable = colnames(y), fold = levels,
                       KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   key <- paste(grid$variable, grid$fold)
@@ -110,25 +110,25 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
     rows <- f == grid$fold[i]
     value[i] <- score(y[rows, grid$variable[i]], p[rows, grid$variable[i]])
   }
-  data.frame(window = window, learner = learner, variable = grid$variable, fold = grid$fold,
+  data.frame(grain = grain, learner = learner, variable = grid$variable, fold = grid$fold,
              score = value, scorable = ok, stringsAsFactors = FALSE)
 }
 
 .subset_units <- function(x, idx) {
   out <- x[idx, , , drop = FALSE]
-  attr(out, "window") <- attr(x, "window")
+  attr(out, "grain") <- attr(x, "grain")
   attr(out, "stats") <- attr(x, "stats")
   attr(out, "year_start") <- attr(x, "year_start")
   attr(out, "bin_start") <- attr(x, "bin_start")
   attr(out, "bin_end") <- attr(x, "bin_end")
   attr(out, "bin_n") <- attr(x, "bin_n")[idx, , drop = FALSE]
   attr(out, "bin_partial") <- attr(x, "bin_partial")
-  class(out) <- c("climgrain_matrix", "array")
+  class(out) <- c("timesift_matrix", "array")
   out
 }
 
 .learner_list <- function(learners) {
-  if (inherits(learners, "climgrain_learner") || is.character(learners)) {
+  if (inherits(learners, "timesift_learner") || is.character(learners)) {
     learners <- list(learners)
   }
   learners <- lapply(learners, .as_learner)
@@ -150,8 +150,8 @@ window_ladder <- function(x, y, learners, folds = NULL, response = "presence_abs
 }
 
 #' @export
-print.climgrain_ladder <- function(x, ...) {
-  cat("<climgrain ladder>", .plural(length(unique(x$window)), "window"), "x",
+print.timesift_ladder <- function(x, ...) {
+  cat("<timesift ladder>", .plural(length(unique(x$grain)), "grain"), "x",
       .plural(length(unique(x$learner)), "learner"), "\n")
   cat("metric:", attr(x, "metric"), "on", .plural(sum(x$scorable), "scorable cell"), "\n")
   print(summary(x))
@@ -159,22 +159,22 @@ print.climgrain_ladder <- function(x, ...) {
 }
 
 #' @param object A ladder.
-#' @rdname window_ladder
+#' @rdname grain_ladder
 #' @export
-summary.climgrain_ladder <- function(object, ...) {
+summary.timesift_ladder <- function(object, ...) {
   per_variable <- .per_variable(object)
   if (!nrow(per_variable)) {
-    return(data.frame(learner = character(), window = character(), score = numeric(),
+    return(data.frame(learner = character(), grain = character(), score = numeric(),
                       n_variable = integer(), best = logical(), stringsAsFactors = FALSE))
   }
-  key <- per_variable[c("learner", "window")]
+  key <- per_variable[c("learner", "grain")]
   out <- merge(stats::aggregate(list(score = per_variable$score), key, mean),
                stats::aggregate(list(n_variable = per_variable$score), key, length),
-               by = c("learner", "window"))
-  windows <- unique(object$window)
-  out <- out[order(out$learner, match(out$window, windows), method = "radix"), ]
-  # One window per learner is the best, even where two tie: it is the reference a contrast is read
-  # against, and a reference has to be a single window.
+               by = c("learner", "grain"))
+  grains <- unique(object$grain)
+  out <- out[order(out$learner, match(out$grain, grains), method = "radix"), ]
+  # One grain per learner is the best, even where two tie: it is the reference a contrast is read
+  # against, and a reference has to be a single grain.
   out$best <- stats::ave(out$score, out$learner,
                          FUN = function(v) seq_along(v) == which.max(v)) == 1
   rownames(out) <- NULL
@@ -187,9 +187,9 @@ summary.climgrain_ladder <- function(object, ...) {
 .per_variable <- function(ladder) {
   keep <- ladder[!is.na(ladder$score), , drop = FALSE]
   if (!nrow(keep)) {
-    return(keep[c("window", "learner", "variable", "score")])
+    return(keep[c("grain", "learner", "variable", "score")])
   }
-  stats::aggregate(list(score = keep$score), keep[c("window", "learner", "variable")],
+  stats::aggregate(list(score = keep$score), keep[c("grain", "learner", "variable")],
                    mean)
 }
 

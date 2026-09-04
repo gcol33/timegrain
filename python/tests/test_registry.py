@@ -5,10 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from climgrain import (Learner, Response, fold_map, get_learner, learners, metrics,
+from timesift import (Learner, Response, fold_map, get_learner, learners, metrics,
                        register_learner, register_metric, register_response, responses,
-                       scorable_cells, window_ladder, window_matrix)
-from climgrain.registry import LEARNERS, METRICS, RESPONSES
+                       scorable_cells, grain_ladder, grain_matrix)
+from timesift.registry import LEARNERS, METRICS, RESPONSES
 
 
 @pytest.fixture(autouse=True)
@@ -87,8 +87,8 @@ def test_a_metric_of_ones_own_reaches_the_ladder_by_name():
     d, y = readings()
     register_metric("hit_rate", lambda y, p: float(np.mean((p >= 0.5) == (y == 1))))
     register_learner("constant", constant_learner)
-    x = window_matrix(d, "id", "time", "value", window="week")
-    lad = window_ladder(x, y, ["constant"], folds=fold_map(y, v=3, seed=2), metric="hit_rate",
+    x = grain_matrix(d, "id", "time", "value", grain="week")
+    lad = grain_ladder(x, y, ["constant"], folds=fold_map(y, v=3, seed=2), metric="hit_rate",
                         verbose=False)
     assert lad.metric == "hit_rate"
     scored = lad.score[np.isfinite(lad.score)]
@@ -104,8 +104,8 @@ def test_a_response_head_of_ones_own_decides_the_metric_and_the_cells():
         metric="roc_auc",
         cells=lambda r, folds: scorable_cells(r, folds)))
     register_learner("constant", constant_learner)
-    x = window_matrix(d, "id", "time", "value", window="week")
-    lad = window_ladder(x, y, ["constant"], folds=fold_map(y, v=3, seed=2),
+    x = grain_matrix(d, "id", "time", "value", grain="week")
+    lad = grain_ladder(x, y, ["constant"], folds=fold_map(y, v=3, seed=2),
                         response="every_cell", verbose=False)
     # A ladder that names no metric is scored on the one its response head carries.
     assert lad.metric == "roc_auc"
@@ -113,7 +113,7 @@ def test_a_response_head_of_ones_own_decides_the_metric_and_the_cells():
 
 def test_the_head_that_ships_refuses_a_response_that_is_not_presence_absence():
     d, y = readings()
-    x = window_matrix(d, "id", "time", "value", window="week")
+    x = grain_matrix(d, "id", "time", "value", grain="week")
     counts = Response(y.values * 3, y.units, y.variables)
     with pytest.raises(ValueError, match="presence-absence"):
-        window_ladder(x, counts, ["elasticnet"], folds=fold_map(y, v=3), verbose=False)
+        grain_ladder(x, counts, ["elasticnet"], folds=fold_map(y, v=3), verbose=False)

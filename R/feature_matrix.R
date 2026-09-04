@@ -2,7 +2,7 @@
 #'
 #' A representation the package did not build, such as a published set of hand-aggregated climate
 #' summaries, enters here. It becomes a one-channel `[unit, feature, 1]` array, which is what a
-#' learner reads, so a feature table and a temporal grain can be arms of the same [window_ladder()]
+#' learner reads, so a feature table and a temporal grain can be arms of the same [grain_ladder()]
 #' and be scored on the same cells by the same rule.
 #'
 #' It carries no time axis, because it has none: the reduction already happened, elsewhere, and
@@ -13,7 +13,7 @@
 #'   in a leading character or factor column.
 #' @param label The name the arm is reported under.
 #'
-#' @return A `climgrain_matrix` of shape `[unit, feature, 1]`.
+#' @return A `timesift_matrix` of shape `[unit, feature, 1]`.
 #'
 #' @examples
 #' m <- matrix(rnorm(30), nrow = 10,
@@ -25,7 +25,7 @@ feature_matrix <- function(m, label = "features") {
   m <- .as_response(m)
   out <- array(as.numeric(m), dim = c(nrow(m), ncol(m), 1L),
                dimnames = list(rownames(m), colnames(m), label))
-  attr(out, "window") <- label
+  attr(out, "grain") <- label
   attr(out, "stats") <- label
   attr(out, "year_start") <- NA_character_
   attr(out, "bin_start") <- .POSIXct(rep(NA_real_, ncol(m)), tz = "UTC")
@@ -33,6 +33,6 @@ feature_matrix <- function(m, label = "features") {
   attr(out, "bin_n") <- matrix(NA_integer_, nrow = nrow(m), ncol = ncol(m),
                                dimnames = dimnames(m))
   attr(out, "bin_partial") <- rep(FALSE, ncol(m))
-  class(out) <- c("climgrain_matrix", "array")
+  class(out) <- c("timesift_matrix", "array")
   out
 }

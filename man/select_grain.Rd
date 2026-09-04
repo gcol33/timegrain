@@ -2,7 +2,7 @@
 % Please edit documentation in R/select_grain.R
 \name{select_grain}
 \alias{select_grain}
-\alias{summary.climgrain_selection}
+\alias{summary.timesift_selection}
 \title{Choose the grain inside the training data, and score the whole procedure}
 \usage{
 select_grain(
@@ -18,16 +18,16 @@ select_grain(
   verbose = TRUE
 )
 
-\method{summary}{climgrain_selection}(object, ...)
+\method{summary}{timesift_selection}(object, ...)
 }
 \arguments{
-\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result, a \code{\link[=climgrain_set]{climgrain_set()}}, or a named list of representations.
+\item{x}{A \code{\link[=grain_matrix]{grain_matrix()}} result, a \code{\link[=timesift_set]{timesift_set()}}, or a named list of representations.
 Its names are the grains being chosen between.}
 
 \item{y}{The response for the same units.}
 
-\item{learners}{A learner, a list of them, or names of registered ones, as \code{\link[=window_ladder]{window_ladder()}}
-takes. Named alongside the windows they form the candidate set.}
+\item{learners}{A learner, a list of them, or names of registered ones, as \code{\link[=grain_ladder]{grain_ladder()}}
+takes. Named alongside the grains they form the candidate set.}
 
 \item{folds}{The outer fold map, from \code{\link[=fold_map]{fold_map()}} or any named integer vector. Built with the
 defaults of \code{\link[=fold_map]{fold_map()}} when not given.}
@@ -40,7 +40,7 @@ response returning a fold map for those units.}
 \item{metric}{Name of the registered metric the selection is made on, or \code{NULL} for the
 response's own. The estimate is reported under every registered metric whichever this is.}
 
-\item{compare}{A \code{\link[=window_ladder]{window_ladder()}} result on the same units, response and outer fold map, whose
+\item{compare}{A \code{\link[=grain_ladder]{grain_ladder()}} result on the same units, response and outer fold map, whose
 arms the selected procedure is contrasted against cell by cell. \code{NULL} for no contrast.}
 
 \item{seed}{Seed for the inner splits. Each outer fold splits under \code{seed} plus its own number,
@@ -53,17 +53,17 @@ so no two outer folds inherit the same inner partition.}
 \item{...}{Ignored.}
 }
 \value{
-A \code{climgrain_selection}: a list carrying \code{selected}, one row per outer fold with the
+A \code{timesift_selection}: a list carrying \code{selected}, one row per outer fold with the
 candidate it chose and the inner score it chose on; \code{estimate}, the nested score under every
 registered metric with its standard error across variables; \code{contrast}, one
 \code{\link[=paired_contrast]{paired_contrast()}} row against each arm of \code{compare}, or \code{NULL}; \code{candidates}, the set that
 was searched; and \code{scores}, the per-cell rows of the selected procedure under the selection
-metric, in the layout \code{\link[=window_ladder]{window_ladder()}} returns. The held-out prediction of every unit is in
+metric, in the layout \code{\link[=grain_ladder]{grain_ladder()}} returns. The held-out prediction of every unit is in
 the \code{predictions} attribute and the scorable-cell mask in \code{cells}.
 }
 \description{
-\code{\link[=window_ladder]{window_ladder()}} fits every candidate against one fold map and reports the grid, so reading the
-best window off it and quoting that window's score quotes a number the held-out units helped
+\code{\link[=grain_ladder]{grain_ladder()}} fits every candidate against one fold map and reports the grid, so reading the
+best grain off it and quoting that grain's score quotes a number the held-out units helped
 choose. This does the choosing inside the training data instead. Within each outer fold the
 training units are split again, every candidate is fitted on part of them and scored on the rest,
 the best is refitted on the whole outer training set, and the outer test fold is predicted once.
@@ -71,10 +71,10 @@ The estimate that comes back is therefore of the procedure including its choice 
 is what an ecologist applying it to a new site would run.
 }
 \details{
-A candidate is a \verb{(window, learner)} pair: the windows are the elements of the representation set,
-which is where a grain and the statistic its windows are summarised by are both named, and the
+A candidate is a \verb{(grain, learner)} pair: the grains are the elements of the representation set,
+which is where a grain and the statistic its grains are summarised by are both named, and the
 learners are the ones passed. Both are registry entries or objects built by \code{\link[=learner]{learner()}}, so a new
-grain, a new window summary or a new candidate model widens the search with no change here.
+grain, a new grain summary or a new candidate model widens the search with no change here.
 
 What the estimate is of: the expected held-out score of the whole pipeline, selection included,
 on units drawn as these were. What it is not: the score of the winning grain. That is higher, by
@@ -95,7 +95,7 @@ d <- data.frame(
                            numeric(length(t)))))
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
-x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
+x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
 sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
                     verbose = FALSE)
 sel
@@ -103,6 +103,6 @@ sel$estimate
 
 }
 \seealso{
-\code{\link[=window_ladder]{window_ladder()}} for the grid this selects from, and \code{\link[=paired_contrast]{paired_contrast()}} for the
+\code{\link[=grain_ladder]{grain_ladder()}} for the grid this selects from, and \code{\link[=paired_contrast]{paired_contrast()}} for the
 comparison the \code{contrast} element holds.
 }

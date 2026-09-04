@@ -10,9 +10,9 @@ suppressMessages(pkgload::load_all(".", quiet = TRUE))
 out_dir <- "inst/spec/fixtures"
 
 # Two series, because a record that starts on a bin boundary cannot tell two binning rules apart.
-# The first begins at midnight on the default year_start, so every coarse window is in phase with
+# The first begins at midnight on the default year_start, so every coarse grain is in phase with
 # it from the first reading. The second begins at an arbitrary hour of an arbitrary day, which is
-# what a logger deployed when someone could walk to it gives, and puts every window out of phase.
+# what a logger deployed when someone could walk to it gives, and puts every grain out of phase.
 make_series <- function(from, units, days, seed) {
   t <- seq(as.POSIXct(from, tz = "UTC"), by = "hour", length.out = 24 * days)
   set.seed(seed)
@@ -73,26 +73,26 @@ astronomical <- function(name) {
 }
 
 # The three-channel schemes a caller asks for by name in the literature this package serves: the
-# window's own extremes, its typical day, and its coldest and warmest day.
+# grain's own extremes, its typical day, and its coldest and warmest day.
 schemes <- list(
   c("min", "mean", "max"),
   c("mean_daily_min", "mean", "mean_daily_max"),
   c("cold_day", "mean", "warm_day")
 )
 
-fine <- c("hour", "halfday")
+fine <- c("native", "halfday")
 coarse <- c("month", "season", "year")
-windows <- c("hour", "halfday", "day", "week", "month", "season", "year")
+grains <- c("native", "halfday", "day", "week", "month", "season", "year")
 
 rows <- list()
 digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep", tz = "UTC") {
   series <- SERIES[[name]]
   attr(series$time, "tzone") <- tz
   binning <- if (w == "astronomical") astronomical(name) else w
-  x <- window_matrix(series, id, time, value, window = binning, stats = stats,
+  x <- grain_matrix(series, id, time, value, grain = binning, stats = stats,
                      year_start = year_start, partial = partial)
   start <- attr(x, "bin_start")
-  data.frame(series = name, window = w, tz = tz, year_start = year_start, partial = partial,
+  data.frame(series = name, grain = w, tz = tz, year_start = year_start, partial = partial,
              stat = paste(stats, collapse = "+"), n_unit = dim(x)[1], n_bin = dim(x)[2],
              first_bin = format(start[1], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
              last_bin = format(start[length(start)], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
@@ -105,7 +105,7 @@ digest_row <- function(name, w, stats, year_start = "09-01", partial = "keep", t
 add <- function(...) rows[[length(rows) + 1L]] <<- digest_row(...)
 
 for (name in c("aligned", "offset")) {
-  for (w in windows) {
+  for (w in grains) {
     available <- if (w %in% fine) c("mean", "min", "max") else
       c("mean", "min", "max", "cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
     for (s in available) {
@@ -118,7 +118,7 @@ for (name in c("aligned", "offset")) {
       add(name, w, scheme)
     }
   }
-  # The anniversary sets the phase of the two windows that count from it, so a contract checked at
+  # The anniversary sets the phase of the two grains that count from it, so a contract checked at
   # the default alone pins only the phase the fixtures happen to start on.
   for (w in coarse) {
     for (ys in c("01-01", "03-01", "07-15")) {
@@ -126,10 +126,10 @@ for (name in c("aligned", "offset")) {
     }
   }
   # The bin the record does not fill is a choice, so both settings are pinned rather than the one
-  # that happens to be the default. A window the record holds no whole one of has nothing to pin:
+  # that happens to be the default. A grain the record holds no whole one of has nothing to pin:
   # it errors, and the test suites assert that separately.
-  for (w in setdiff(windows, "hour")) {
-    whole <- !attr(window_matrix(SERIES[[name]], id, time, value, window = w), "bin_partial")
+  for (w in setdiff(grains, "native")) {
+    whole <- !attr(grain_matrix(SERIES[[name]], id, time, value, grain = w), "bin_partial")
     if (any(whole)) {
       add(name, w, "mean", partial = "drop")
     }
@@ -144,13 +144,13 @@ for (name in c("aligned", "offset")) {
 # read that clock the same way. Europe/Vienna moves its clock twice inside the aligned record;
 # America/Sao_Paulo moves it at midnight inside the short one, which is the case that has no local
 # midnight to parse.
-for (w in windows) {
+for (w in grains) {
   add("aligned", w, "mean", tz = "Europe/Vienna")
 }
 add("aligned", "week", c("cold_day", "mean", "warm_day"), tz = "Europe/Vienna")
 add("aligned", "day", c("min", "mean", "max"), tz = "Europe/Vienna")
 add("zoned", "day", "mean")
-for (w in c("hour", "halfday", "day", "week")) {
+for (w in c("native", "halfday", "day", "week")) {
   add("zoned", w, "mean", tz = "America/Sao_Paulo")
 }
 add("zoned", "day", c("min", "mean", "max"), tz = "America/Sao_Paulo")
@@ -265,11 +265,11 @@ write.csv(
 
 as_ladder <- function(cells) {
   arm <- function(name, score) {
-    data.frame(window = "week", learner = name, variable = cells$variable, fold = cells$fold,
+    data.frame(grain = "week", learner = name, variable = cells$variable, fold = cells$fold,
                score = score, scorable = !is.na(score), stringsAsFactors = FALSE)
   }
   structure(rbind(arm("a", cells$a), arm("b", cells$b)),
-            class = c("climgrain_ladder", "data.frame"))
+            class = c("timesift_ladder", "data.frame"))
 }
 QUANTITIES <- c("diff", "lower", "upper", "n_variable", "n_cell", "n_favour", "p_value")
 contrast <- paired_contrast(as_ladder(contrast_cells), "week|a", "week|b")

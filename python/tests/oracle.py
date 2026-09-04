@@ -19,39 +19,39 @@ _HOUR = np.timedelta64(1, "h")
 _DAY = np.timedelta64(1, "D")
 
 
-def oracle_bin_start(when: np.ndarray, window, ys) -> np.ndarray:
-    if callable(window):
-        out = np.asarray(window(when), dtype="datetime64[s]")
+def oracle_bin_start(when: np.ndarray, grain, ys) -> np.ndarray:
+    if callable(grain):
+        out = np.asarray(grain(when), dtype="datetime64[s]")
         if out.shape != when.shape:
-            raise ValueError("a window function must return one bin start per reading")
+            raise ValueError("a grain function must return one bin start per reading")
         return out
-    if window == "hour":
+    if grain == "native":
         return when
     day = when.astype("datetime64[D]").astype("datetime64[s]")
-    if window == "halfday":
+    if grain == "halfday":
         hour = (when.astype("datetime64[h]") - when.astype("datetime64[D]")).astype(np.int64)
         return day + np.where(hour >= 12, 12, 0) * _HOUR
-    if window == "day":
+    if grain == "day":
         return day
-    if window == "week":
+    if grain == "week":
         days = when.astype("datetime64[D]")
         # 1970-01-01 was a Thursday, so (days since the epoch + 3) is zero on a Monday.
         weekday = (days.astype(np.int64) + 3) % 7
         return (days - weekday * _DAY).astype("datetime64[s]")
-    if window == "month":
+    if grain == "month":
         return when.astype("datetime64[M]").astype("datetime64[s]")
-    step = 3 if window == "season" else 12
+    step = 3 if grain == "season" else 12
     return oracle_anniversary(oracle_offset_months(when, ys) // step * step, ys)
 
 
-def oracle_bin_partial(when: np.ndarray, bins: np.ndarray, window, ys) -> np.ndarray:
+def oracle_bin_partial(when: np.ndarray, bins: np.ndarray, grain, ys) -> np.ndarray:
     """Which bins the record does not cover for their whole calendar span. The record covers from
     its first reading to its last plus one sampling interval, and a bin is partial when its own
     span reaches outside that. Only a bin at an end of the record can, because _check_grid() has
     already required every unit to hold readings in every bin between them."""
     covered_start = when.min()
     covered_end = when.max() + oracle_sampling_step(when)
-    return (bins < covered_start) | (oracle_bin_next(bins, window, ys, covered_end) > covered_end)
+    return (bins < covered_start) | (oracle_bin_next(bins, grain, ys, covered_end) > covered_end)
 
 
 def oracle_sampling_step(when: np.ndarray) -> np.timedelta64:
@@ -59,22 +59,20 @@ def oracle_sampling_step(when: np.ndarray) -> np.timedelta64:
     return np.diff(u).min() if len(u) > 1 else np.timedelta64(0, "s")
 
 
-def oracle_bin_next(bins: np.ndarray, window, ys, covered_end) -> np.ndarray:
+def oracle_bin_next(bins: np.ndarray, grain, ys, covered_end) -> np.ndarray:
     """Where each bin ends, which is where the next one on the same calendar starts. The four
-    coarse windows step by the calendar rather than by a count of seconds, so the successor is
+    coarse grains step by the calendar rather than by a count of seconds, so the successor is
     taken by landing well inside the following bin and flooring that, which is exact whatever the
     month length. A caller-supplied binning declares its own bins, so its successors are read off
     the bins themselves and its last bin is taken to end with the record."""
-    if callable(window):
+    if callable(grain) or grain == "native":
         return np.concatenate([bins[1:], np.asarray([covered_end], dtype="datetime64[s]")])
-    if window == "hour":
-        return bins + _HOUR
-    if window == "halfday":
+    if grain == "halfday":
         return bins + 12 * _HOUR
-    if window in ("day", "week", "month"):
-        ahead = {"day": 36 * _HOUR, "week": 180 * _HOUR, "month": 40 * _DAY}[window]
-        return oracle_bin_start(bins + ahead, window, ys)
-    return oracle_anniversary(oracle_offset_months(bins, ys) + (3 if window == "season" else 12), ys)
+    if grain in ("day", "week", "month"):
+        ahead = {"day": 36 * _HOUR, "week": 180 * _HOUR, "month": 40 * _DAY}[grain]
+        return oracle_bin_start(bins + ahead, grain, ys)
+    return oracle_anniversary(oracle_offset_months(bins, ys) + (3 if grain == "season" else 12), ys)
 
 
 def oracle_offset_months(when: np.ndarray, ys) -> np.ndarray:
@@ -133,7 +131,7 @@ def oracle_bin_extent(when, bin_ix, n_b):
     return np.maximum.reduceat(seconds[order], starts).astype("datetime64[s]")
 
 
-def oracle_window_matrix(data, id, time, value, *, window="day", stats=("mean",),
+def oracle_grain_matrix(data, id, time, value, *, grain="day", stats=("mean",),
                          year_start="09-01"):
     unit = np.asarray([str(v) for v in data[id]])
     when = np.asarray(data[time], dtype="datetime64[s]")
@@ -141,7 +139,7 @@ def oracle_window_matrix(data, id, time, value, *, window="day", stats=("mean",)
     stats = [stats] if isinstance(stats, str) else list(stats)
     ys = (int(year_start.split("-")[0]), int(year_start.split("-")[1]))
 
-    bin_start = oracle_bin_start(when, window, ys)
+    bin_start = oracle_bin_start(when, grain, ys)
     units, unit_ix = np.unique(unit, return_inverse=True)
     bins, bin_ix = np.unique(bin_start, return_inverse=True)
     n_u, n_b = len(units), len(bins)
@@ -175,4 +173,4 @@ def oracle_window_matrix(data, id, time, value, *, window="day", stats=("mean",)
     return {"values": out, "units": units, "bin_start": bins,
             "bin_end": oracle_bin_extent(when, bin_ix, n_b),
             "bin_n": count.reshape(n_b, n_u).T,
-            "bin_partial": oracle_bin_partial(when, bins, window, ys)}
+            "bin_partial": oracle_bin_partial(when, bins, grain, ys)}

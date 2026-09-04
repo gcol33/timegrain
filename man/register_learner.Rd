@@ -20,7 +20,7 @@ learners()
 The constructor, invisibly.
 }
 \description{
-Makes a learner available by name to \code{\link[=window_ladder]{window_ladder()}} and to \code{\link[=learners]{learners()}}. The learners that
+Makes a learner available by name to \code{\link[=grain_ladder]{grain_ladder()}} and to \code{\link[=learners]{learners()}}. The learners that
 ship are registered the same way, so there is no list of names inside the fitting code.
 }
 \examples{

@@ -2,17 +2,17 @@
 % Please edit documentation in R/learner.R
 \name{fit_learner}
 \alias{fit_learner}
-\alias{predict.climgrain_fit}
+\alias{predict.timesift_fit}
 \title{Fit one learner at one grain}
 \usage{
 fit_learner(learner, x, y, response = "presence_absence", ...)
 
-\method{predict}{climgrain_fit}(object, newdata, ...)
+\method{predict}{timesift_fit}(object, newdata, ...)
 }
 \arguments{
 \item{learner}{A \code{\link[=learner]{learner()}}, or the name of a registered one.}
 
-\item{x}{A \code{\link[=window_matrix]{window_matrix()}} result.}
+\item{x}{A \code{\link[=grain_matrix]{grain_matrix()}} result.}
 
 \item{y}{The response for the same units.}
 
@@ -20,12 +20,12 @@ fit_learner(learner, x, y, response = "presence_absence", ...)
 
 \item{...}{Passed to the learner's \code{fit}.}
 
-\item{object}{A \code{climgrain_fit}.}
+\item{object}{A \code{timesift_fit}.}
 
 \item{newdata}{A representation of the same channels for the units to predict.}
 }
 \value{
-A \code{climgrain_fit}, which \code{\link[stats:predict]{stats::predict()}} takes a new representation.
+A \code{timesift_fit}, which \code{\link[stats:predict]{stats::predict()}} takes a new representation.
 }
 \description{
 Fit one learner at one grain
@@ -36,7 +36,7 @@ t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 12
 units <- sprintf("p\%02d", 1:40)
 d <- data.frame(plot = rep(units, each = length(t)), t = rep(t, length(units)),
                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
-x <- window_matrix(d, plot, t, temp, window = "month")
+x <- grain_matrix(d, plot, t, temp, grain = "month")
 y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
 fit <- fit_learner(elasticnet_learner(), x, y)
 dim(stats::predict(fit, x))

@@ -5,38 +5,38 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
-// cg_r.cpp
-cpp11::list cg_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles when, cpp11::doubles local, cpp11::sexp custom, cpp11::strings unit_names, std::string window, int year_month, int year_day, cpp11::strings stats, double sampling_step);
-extern "C" SEXP _climgrain_cg_reduce_(SEXP unit, SEXP value, SEXP when, SEXP local, SEXP custom, SEXP unit_names, SEXP window, SEXP year_month, SEXP year_day, SEXP stats, SEXP sampling_step) {
+// ts_r.cpp
+cpp11::list ts_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles when, cpp11::doubles local, cpp11::sexp custom, cpp11::strings unit_names, std::string grain, int year_month, int year_day, cpp11::strings stats, double sampling_step);
+extern "C" SEXP _timesift_ts_reduce_(SEXP unit, SEXP value, SEXP when, SEXP local, SEXP custom, SEXP unit_names, SEXP grain, SEXP year_month, SEXP year_day, SEXP stats, SEXP sampling_step) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cg_reduce_(cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(unit), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(value), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(when), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(local), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(custom), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(unit_names), cpp11::as_cpp<cpp11::decay_t<std::string>>(window), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(stats), cpp11::as_cpp<cpp11::decay_t<double>>(sampling_step)));
+    return cpp11::as_sexp(ts_reduce_(cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(unit), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(value), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(when), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(local), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(custom), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(unit_names), cpp11::as_cpp<cpp11::decay_t<std::string>>(grain), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(stats), cpp11::as_cpp<cpp11::decay_t<double>>(sampling_step)));
   END_CPP11
 }
-// cg_r.cpp
-cpp11::doubles cg_bin_starts_(cpp11::doubles local, std::string window, int year_month, int year_day);
-extern "C" SEXP _climgrain_cg_bin_starts_(SEXP local, SEXP window, SEXP year_month, SEXP year_day) {
+// ts_r.cpp
+cpp11::doubles ts_bin_starts_(cpp11::doubles local, std::string grain, int year_month, int year_day);
+extern "C" SEXP _timesift_ts_bin_starts_(SEXP local, SEXP grain, SEXP year_month, SEXP year_day) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cg_bin_starts_(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(local), cpp11::as_cpp<cpp11::decay_t<std::string>>(window), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day)));
+    return cpp11::as_sexp(ts_bin_starts_(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(local), cpp11::as_cpp<cpp11::decay_t<std::string>>(grain), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day)));
   END_CPP11
 }
-// cg_r.cpp
-cpp11::doubles cg_bin_nexts_(cpp11::doubles bins, std::string window, int year_month, int year_day);
-extern "C" SEXP _climgrain_cg_bin_nexts_(SEXP bins, SEXP window, SEXP year_month, SEXP year_day) {
+// ts_r.cpp
+cpp11::doubles ts_bin_nexts_(cpp11::doubles bins, std::string grain, int year_month, int year_day);
+extern "C" SEXP _timesift_ts_bin_nexts_(SEXP bins, SEXP grain, SEXP year_month, SEXP year_day) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cg_bin_nexts_(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(bins), cpp11::as_cpp<cpp11::decay_t<std::string>>(window), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day)));
+    return cpp11::as_sexp(ts_bin_nexts_(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(bins), cpp11::as_cpp<cpp11::decay_t<std::string>>(grain), cpp11::as_cpp<cpp11::decay_t<int>>(year_month), cpp11::as_cpp<cpp11::decay_t<int>>(year_day)));
   END_CPP11
 }
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_climgrain_cg_bin_nexts_",  (DL_FUNC) &_climgrain_cg_bin_nexts_,   4},
-    {"_climgrain_cg_bin_starts_", (DL_FUNC) &_climgrain_cg_bin_starts_,  4},
-    {"_climgrain_cg_reduce_",     (DL_FUNC) &_climgrain_cg_reduce_,     11},
+    {"_timesift_ts_bin_nexts_",  (DL_FUNC) &_timesift_ts_bin_nexts_,   4},
+    {"_timesift_ts_bin_starts_", (DL_FUNC) &_timesift_ts_bin_starts_,  4},
+    {"_timesift_ts_reduce_",     (DL_FUNC) &_timesift_ts_reduce_,     11},
     {NULL, NULL, 0}
 };
 }
 
-extern "C" attribute_visible void R_init_climgrain(DllInfo* dll){
+extern "C" attribute_visible void R_init_timesift(DllInfo* dll){
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
   R_forceSymbols(dll, TRUE);

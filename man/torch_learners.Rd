@@ -84,7 +84,7 @@ absences to presences among the fitting units.}
 The schedule anneals to \code{swa_start} of the epoch budget and is then held flat while the
 remaining epochs' weights are averaged, and the batch-normalisation statistics are recomputed
 for the average. Early stopping is off while an average is being accumulated, so the
-averaging window always runs.}
+averaging grain always runs.}
 
 \item{swa_start}{Share of the epoch budget after which averaging begins.}
 

@@ -13,12 +13,12 @@ in a leading character or factor column.}
 \item{label}{The name the arm is reported under.}
 }
 \value{
-A \code{climgrain_matrix} of shape \verb{[unit, feature, 1]}.
+A \code{timesift_matrix} of shape \verb{[unit, feature, 1]}.
 }
 \description{
 A representation the package did not build, such as a published set of hand-aggregated climate
 summaries, enters here. It becomes a one-channel \verb{[unit, feature, 1]} array, which is what a
-learner reads, so a feature table and a temporal grain can be arms of the same \code{\link[=window_ladder]{window_ladder()}}
+learner reads, so a feature table and a temporal grain can be arms of the same \code{\link[=grain_ladder]{grain_ladder()}}
 and be scored on the same cells by the same rule.
 }
 \details{

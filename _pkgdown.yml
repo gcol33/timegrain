@@ -1,4 +1,4 @@
-url: https://gillescolling.com/climgrain/
+url: https://gillescolling.com/timesift/
 template:
   bootstrap: 5
   bootswatch: sandstone
@@ -65,8 +65,8 @@ reference:
   desc: |
     Readings in long form to the array a model is fitted on, at one grain or at every grain of a ladder.
   contents:
-  - window_matrix
-  - climgrain_set
+  - grain_matrix
+  - timesift_set
   - calendar_channels
   - bind_channels
   - feature_matrix
@@ -78,11 +78,11 @@ reference:
   - scorable_cells
 - title: Fitting
   contents:
-  - window_ladder
+  - grain_ladder
   - fit_learner
   - select_grain
-  - plot.climgrain_ladder
-  - plot.climgrain_selection
+  - plot.timesift_ladder
+  - plot.timesift_selection
 - title: Learners
   desc: |
     The arms that ship, and the interface a learner of your own goes through.
@@ -99,7 +99,7 @@ reference:
   - roc_auc
   - kappa_score
   - paired_contrast
-  - window_contrasts
+  - grain_contrasts
   - tss_inflation
   - implied_skill
   - bin_occlusion
@@ -118,7 +118,7 @@ reference:
 - title: A record to test on
   contents: simulate_records
 - title: The package
-  contents: climgrain-package
+  contents: timesift-package
 articles:
 - title: Articles
   navbar: ~

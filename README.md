@@ -1,23 +1,23 @@
-# climgrain
+# timesift
 
-[![R-CMD-check](https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml)
-[![pytest](https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml)
-[![contract](https://github.com/gcol33/climgrain/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/climgrain/actions/workflows/contract.yaml)
+[![R-CMD-check](https://github.com/gcol33/timesift/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/gcol33/timesift/actions/workflows/R-CMD-check.yaml)
+[![pytest](https://github.com/gcol33/timesift/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/timesift/actions/workflows/pytest.yaml)
+[![contract](https://github.com/gcol33/timesift/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/timesift/actions/workflows/contract.yaml)
 
 A logger records every hour for years. Before any model sees it, that record gets reduced: to
 monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited.
-`climgrain` makes the reduction an argument. Build the representation at any grain, fit at each
+`timesift` makes the reduction an argument. Build the representation at any grain, fit at each
 grain, and read off where predictive skill saturates.
 
 On 894 alpine plots and three years of hourly soil temperature, the full hourly record was the
 best input for none of three architectures, skill peaked at the weekly average, and a week's
-coldest and warmest **day** carried more than its mean, by more the coarser the window.
+coldest and warmest **day** carried more than its mean, by more the coarser the grain.
 
 ```r
-x   <- window_matrix(readings, plot, datetime, temperature,
-                     window = c("day", "week", "month"),
+x   <- grain_matrix(readings, plot, datetime, temperature,
+                     grain = c("day", "week", "month"),
                      stats = c("cold_day", "mean", "warm_day"))
-lad <- window_ladder(x, y, list(cnn_learner(), elasticnet_learner()), folds = fold_map(y))
+lad <- grain_ladder(x, y, list(cnn_learner(), elasticnet_learner()), folds = fold_map(y))
 plot(lad)
 paired_contrast(lad, "week|cnn", "week|elasticnet")
 ```
@@ -26,16 +26,16 @@ paired_contrast(lad, "week|cnn", "week|elasticnet")
 
 A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift
 away from both, so a "monthly" mean built from 730-hour blocks slides through the seasons over
-three years. `climgrain` bins on the calendar and asserts every unit holds readings in every bin.
+three years. `timesift` bins on the calendar and asserts every unit holds readings in every bin.
 
 ```r
-attr(window_matrix(d, plot, t, temp, window = "month"), "bin_n")[1, 1:3]
+attr(grain_matrix(d, plot, t, temp, grain = "month"), "bin_n")[1, 1:3]
 #> 2021-09-01T00:00:00Z 2021-10-01T00:00:00Z 2021-11-01T00:00:00Z
 #>                  720                  744                  720
 ```
 
 A calendar of your own is a function: pass one that returns each reading's bin start, and seasons
-cut at the equinoxes bin like any named window. They are a different calendar from the named
+cut at the equinoxes bin like any named grain. They are a different calendar from the named
 `season`, not a different reading of it: three years from 1 September are twelve bins of three
 calendar months and thirteen cut at the equinoxes, because the record begins inside one of those.
 
@@ -54,17 +54,17 @@ that predicts.
 
 ## What is in the box
 
-- **`window_matrix()`**: readings in long form to a `[unit, bin, channel]` array, at one of
-  `hour`, `halfday`, `day`, `week`, `month`, `season`, `year`, or at all of them at once.
+- **`grain_matrix()`**: readings in long form to a `[unit, bin, channel]` array, at one of
+  `native`, `halfday`, `day`, `week`, `month`, `season`, `year`, or at all of them at once.
 - **`fold_map()`, `scorable_cells()`**: one split read by everything that scores, and the mask of
   cells a score is defined on, computed from the response and the fold map with no model involved.
-- **`window_ladder()`, `plot()`, `paired_contrast()`**: fit every learner at every grain on one
+- **`grain_ladder()`, `plot()`, `paired_contrast()`**: fit every learner at every grain on one
   split and one mask, draw the curve, and compare two arms inside each cell both scored.
 - **Learners**: `elasticnet_learner()`, `stepwise_learner()`, and the `torch` encoders
   `mlp_learner()`, `cnn_learner()`, `rescnn_learner()`, all joint multi-label.
   `ensemble_learner()` averages members before the threshold is chosen. `learner()` takes a fit
   and a predict pair of your own, which then goes through the same folds, cells and scoring.
-- **`window_contrasts()`**: a mixed model on the per-cell scores, comparing every window against a
+- **`grain_contrasts()`**: a mixed model on the per-cell scores, comparing every grain against a
   learner's best by Dunnett's procedure, so a difference of 0.015 can be read where absolute skill
   varies across species by ten times as much.
 - **`bin_occlusion()`**: hold each bin of the record back and rescore, so a fitted model says which
@@ -83,20 +83,20 @@ cancels, because both arms carry the same bias on the same cell.
 ## The two languages agree
 
 `inst/spec/representation.md` is normative, and `inst/spec/fixtures/` holds a synthetic series with the
-digest of every window-by-statistic combination. Both test suites assert the same digests, so R and
+digest of every grain-by-statistic combination. Both test suites assert the same digests, so R and
 Python cannot drift apart on the one thing the package is about.
 
 ## Reproducing the study
 
 `inst/reproduce/schrankogel.R` runs the published grid from the Zenodo deposit it was built on, and
-asserts the plot count, the species count, the cell count and the bin count of every window before
+asserts the plot count, the species count, the cell count and the bin count of every grain before
 fitting anything. `vignette("reproducing-schrankogel")` says which setting corresponds to which
 part of that grid.
 
 ## Installation
 
 ```r
-pak::pak("gcol33/climgrain")
+pak::pak("gcol33/timesift")
 ```
 
 ## License

@@ -7,10 +7,10 @@
 paired_contrast(ladder, a, b)
 }
 \arguments{
-\item{ladder}{A \code{\link[=window_ladder]{window_ladder()}} result.}
+\item{ladder}{A \code{\link[=grain_ladder]{grain_ladder()}} result.}
 
-\item{a, b}{The two arms, each given as \code{"learner"} or \code{"window|learner"}. Naming a learner alone
-takes its best window.}
+\item{a, b}{The two arms, each given as \code{"learner"} or \code{"grain|learner"}. Naming a learner alone
+takes its best grain.}
 }
 \value{
 A one-row data frame: the mean per-variable difference, a 95 percent interval from its
@@ -41,8 +41,8 @@ d <- data.frame(
                            numeric(length(t)))))
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
-x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
+lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
 paired_contrast(lad, "week|elasticnet", "month|elasticnet")
 
 }

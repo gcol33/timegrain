@@ -21,7 +21,7 @@ Each candidate enters as an orthogonal polynomial, so a term can be non-monotone
 the way a niche optimum is.
 }
 \details{
-Selection happens inside whichever units the learner is handed, so under \code{\link[=window_ladder]{window_ladder()}} it is
+Selection happens inside whichever units the learner is handed, so under \code{\link[=grain_ladder]{grain_ladder()}} it is
 redone in every fold. That is the footing the other learners are fitted on. Reported beside a
 penalised fit it also prices discrete selection: choosing a handful of columns out of hundreds
 is high variance, and that variance is a cost of the selector rather than of the features.

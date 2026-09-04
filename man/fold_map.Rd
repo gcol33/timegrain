@@ -19,7 +19,7 @@ the row names or in a leading character or factor column.}
 \item{by}{A numeric vector of length \code{nrow(y)} to stratify on instead of richness.}
 }
 \value{
-An integer vector of fold numbers named by unit, of class \code{climgrain_folds}. Any named
+An integer vector of fold numbers named by unit, of class \code{timesift_folds}. Any named
 integer vector of the same shape is accepted wherever this is.
 }
 \description{

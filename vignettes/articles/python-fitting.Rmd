@@ -6,10 +6,10 @@ title: "Python: fitting"
 
 Fitting one learner at one grain, fitting every grain of a ladder, and reading the grain a ladder saturates at.
 
-## `window_ladder()`
+## `grain_ladder()`
 
 ```python
-window_ladder(
+grain_ladder(
     x,
     y,
     learners,
@@ -21,7 +21,7 @@ window_ladder(
 )
 ```
 
-Cross-validate every learner at every window, on one fold map and one mask of cells.
+Cross-validate every learner at every grain, on one fold map and one mask of cells.
 
 Every arm sees identical splits and is restricted to identical cells, so the arms' means share
 a denominator and any two of them can be compared with `paired_contrast`.
@@ -32,7 +32,7 @@ must see the same splits, build it once and read it in the other with `read_fold
 ## `fit_learner()`
 
 ```python
-fit_learner(learner, x: WindowMatrix, y, response: str = 'presence_absence', **kwargs)
+fit_learner(learner, x: GrainMatrix, y, response: str = 'presence_absence', **kwargs)
 ```
 
 Fit one learner at one grain, under one registered response head.
@@ -73,7 +73,7 @@ candidates + 1)` fits.
 
 ```python
 Ladder(
-    window,
+    grain,
     learner,
     variable,
     fold,
@@ -87,11 +87,11 @@ Ladder(
 )
 ```
 
-One score per `(window, learner, variable, fold)` cell, and what produced it.
+One score per `(grain, learner, variable, fold)` cell, and what produced it.
 
 Attributes:
 
-- `window` - np.ndarray
+- `grain` - np.ndarray
 - `learner` - np.ndarray
 - `variable` - np.ndarray
 - `fold` - np.ndarray
@@ -109,7 +109,7 @@ Attributes:
 arm(self, name: str)
 ```
 
-A mask over the rows of one window-and-learner arm, named `window/learner`.
+A mask over the rows of one grain-and-learner arm, named `grain/learner`.
 
 ### `summary()`
 
@@ -137,7 +137,7 @@ Attributes:
 ### `predict()`
 
 ```python
-predict(self, x: WindowMatrix)
+predict(self, x: GrainMatrix)
 ```
 
 Predictions for a representation, as a `[unit, variable]` matrix.

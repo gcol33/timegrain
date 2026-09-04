@@ -153,12 +153,12 @@ test_that("the paired contrast matches the value the fixtures pin", {
   arm <- function(name, column) {
     raw <- cells[[column]]
     score <- ifelse(raw == "NA", NA_real_, suppressWarnings(as.numeric(raw)))
-    data.frame(window = "week", learner = name, variable = cells$variable,
+    data.frame(grain = "week", learner = name, variable = cells$variable,
                fold = as.integer(cells$fold), score = score, scorable = !is.na(score),
                stringsAsFactors = FALSE)
   }
   ladder <- structure(rbind(arm("a", "a"), arm("b", "b")),
-                      class = c("climgrain_ladder", "data.frame"))
+                      class = c("timesift_ladder", "data.frame"))
   got <- paired_contrast(ladder, "week|a", "week|b")
 
   for (i in seq_len(nrow(expected))) {

@@ -37,8 +37,8 @@ the file's own rows in the file's own order.}
 }
 \value{
 The writers return \code{file}, invisibly. \code{read_folds()} returns a named integer vector of
-class \code{climgrain_folds}, \code{read_response()} a numeric matrix with the units in its row names,
-and \code{read_cells()} a \code{climgrain_cells} data frame.
+class \code{timesift_folds}, \code{read_response()} a numeric matrix with the units in its row names,
+and \code{read_cells()} a \code{timesift_cells} data frame.
 }
 \description{
 The representation is built twice, once per language, from one shared core. The response

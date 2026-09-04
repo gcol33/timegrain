@@ -50,15 +50,15 @@ simulate_records(
 \item{anomaly_days}{Correlation time of that anomaly, in days.}
 
 \item{offset_effect}{Weight the unit-level offset enters the driver with. At the default \code{0}
-the driver reads the unit's \emph{anomaly} alone, so a window coarse enough to average the anomaly
-away loses the signal. At \code{1} the offset carries the response as well, and since every window
+the driver reads the unit's \emph{anomaly} alone, so a grain coarse enough to average the anomaly
+away loses the signal. At \code{1} the offset carries the response as well, and since every grain
 however coarse reports the offset, every grain is then equally good: that is the
 grain-invariant control, not a temporal mechanism.}
 
 \item{sensor_sd}{Standard deviation of the measurement noise added to the latent record. The
 response is generated from the latent record; the readings returned carry this noise.}
 
-\item{year_start}{\code{"MM-DD"} boundary of the hydrological year, passed to \code{\link[=window_matrix]{window_matrix()}} when
+\item{year_start}{\code{"MM-DD"} boundary of the hydrological year, passed to \code{\link[=grain_matrix]{grain_matrix()}} when
 the mechanism's bins are located. Use the same value when representing the readings.}
 
 \item{seed}{Seed of the design: the weights and the link coefficients. Two calls with the same
@@ -68,7 +68,7 @@ held-out deployment sample be drawn from the same population as a training sampl
 \item{draw}{Seed of the unit draw. Also names the units, so two draws never collide.}
 }
 \value{
-A \code{climgrain_simulation}: a list with \code{readings}, the long table \code{\link[=window_matrix]{window_matrix()}} takes;
+A \code{timesift_simulation}: a list with \code{readings}, the long table \code{\link[=grain_matrix]{grain_matrix()}} takes;
 \code{y}, the \verb{[unit, variable]} 0/1 response; \code{driver}, the standardised driver \code{z} behind it;
 \code{grain}, the true grain or \code{NA}; \code{weights}, the \verb{[reading, variable]} weights defining the
 driver; \code{link}, the solved \code{b0} and \code{b1}; and \code{design}, the settings the draw is reproducible
@@ -84,13 +84,13 @@ for asking whether \code{\link[=select_grain]{select_grain()}} finds it.
 
 The response is driven by \verb{g_ij = sum_t w_j(t) * a_i(t)}, a weighted mean of unit \code{i}'s latent
 \emph{anomaly}: the record with the seasonal cycle every unit shares and the unit's own constant
-offset taken out, since neither of those is temporally located and a window of any width reports
-both. The weights \code{w_j} are constant within the bins of one window and zero outside
-a short stretch of them, so \code{g} is exactly a linear combination of that window's bin means. The
-true grain of a mechanism is the \strong{coarsest window of \code{\link[=window_matrix]{window_matrix()}} at which \code{g} is still an
-exact linear functional of the representation}: at that window and at every window whose bins
-nest inside it, no information about \code{g} has been averaged away, and at any coarser window some
-has. Finer windows keep the information but spread it over more coefficients, so they lose to
+offset taken out, since neither of those is temporally located and a grain of any width reports
+both. The weights \code{w_j} are constant within the bins of one grain and zero outside
+a short stretch of them, so \code{g} is exactly a linear combination of that grain's bin means. The
+true grain of a mechanism is the \strong{coarsest grain of \code{\link[=grain_matrix]{grain_matrix()}} at which \code{g} is still an
+exact linear functional of the representation}: at that grain and at every grain whose bins
+nest inside it, no information about \code{g} has been averaged away, and at any coarser grain some
+has. Finer grains keep the information but spread it over more coefficients, so they lose to
 the true grain by variance rather than by bias, which is the tension the selection has to
 resolve.
 }
@@ -129,11 +129,11 @@ weights have to be estimated.
 sim <- simulate_records(n = 40L, mechanism = "event", variables = 2L, days = 60L)
 sim
 sim$grain
-x <- window_matrix(sim$readings, unit, time, reading, window = c("day", "month"))
+x <- grain_matrix(sim$readings, unit, time, reading, grain = c("day", "month"))
 dim(x$day)
 
 }
 \seealso{
-\code{\link[=select_grain]{select_grain()}}, which this exists to test, and \code{\link[=window_matrix]{window_matrix()}}, whose calendar the
+\code{\link[=select_grain]{select_grain()}}, which this exists to test, and \code{\link[=grain_matrix]{grain_matrix()}}, whose calendar the
 weights are defined on.
 }

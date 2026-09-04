@@ -73,14 +73,14 @@ rather than 24.
 Instants are read at whole seconds. Two readings a fraction of a second apart are the same reading
 twice, and are reported as a duplicated `(id, time)` pair.
 
-## Windows
+## Grains
 
 Bin membership is read from the calendar rather than from a running count of hours, so a bin is a
 real week or a real month rather than a drifting block of 168 or 730 hours.
 
-| window | bin |
+| grain | bin |
 |---|---|
-| `hour` | the reading itself, no reduction |
+| `native` | the reading itself, no reduction |
 | `halfday` | 00:00-11:59 and 12:00-23:59 of each calendar day |
 | `day` | the calendar day |
 | `week` | ISO week, Monday to Sunday |
@@ -99,11 +99,11 @@ asserted:
 
 - every `(id, bin)` cell holds at least one reading, which is what makes a bin the same span for
   every id and a record that stops early an error rather than a padded row;
-- consecutive bin starts are one bin apart on the window's own calendar. A bin no id reaches is
+- consecutive bin starts are one bin apart on the grain's own calendar. A bin no id reaches is
   never built, so a February missing from every logger would otherwise give four "adjacent" monthly
   bins with February simply gone, and a convolution would read January and March as neighbours.
 
-The second is not asserted for `hour`, where the bin is the reading itself and the bin sequence is
+The second is not asserted for `native`, where the bin is the reading itself and the bin sequence is
 the record's own sampling grid rather than a calendar, nor for a supplied calendar, which declares
 its own bin lengths and is contiguous by construction. It is asserted in local time, so a sequence
 stepping across a clock change is contiguous: the civil day a zone shortened is still one bin of
@@ -118,16 +118,16 @@ that. Only a bin at an end of the record can, because every id is required to ho
 every bin between them.
 
 Which bins those are follows from where the record starts and stops against the calendar, not from
-the window alone. Three years of hourly readings from 1 September on a `"09-01"` boundary carry no
+the grain alone. Three years of hourly readings from 1 September on a `"09-01"` boundary carry no
 partial month, season or year, and a partial week at each end, because 1 September 2021 is a
 Wednesday. A record from an arbitrary deployment date carries one at each end of almost every
-window.
+grain.
 
-`window_matrix()` reports the verdict as `bin_partial` and takes a `partial` argument saying what
+`grain_matrix()` reports the verdict as `bin_partial` and takes a `partial` argument saying what
 becomes of such a bin: `"keep"`, the default, returns it alongside the full bins; `"drop"` removes
 it, and errors rather than returning an empty representation if that leaves no bin. Dropping is a
 choice about the record, not about the implementation: it discards up to three months of readings
-at each end of a seasonal window, while keeping gives a bin whose mean is taken over fewer readings
+at each end of a seasonal grain, while keeping gives a bin whose mean is taken over fewer readings
 and whose `cold_day` and `warm_day` are drawn from fewer days, so they sit closer to that bin's
 mean than a full bin's would. `bin_n` gives the count each bin was reduced from.
 
@@ -135,21 +135,21 @@ Both implementations obey the same rule and the fixtures pin both settings.
 
 ## Statistics
 
-Each named statistic becomes one channel of the output. A window may carry any subset, and the
+Each named statistic becomes one channel of the output. A grain may carry any subset, and the
 channel order in the output is the order given by the caller.
 
 | name | definition | defined for |
 |---|---|---|
-| `mean` | arithmetic mean of the readings in the bin | every window |
-| `min` | smallest single reading in the bin | every window |
-| `max` | largest single reading in the bin | every window |
+| `mean` | arithmetic mean of the readings in the bin | every grain |
+| `min` | smallest single reading in the bin | every grain |
+| `max` | largest single reading in the bin | every grain |
 | `cold_day` | smallest daily mean among the days in the bin | `day` and coarser |
 | `warm_day` | largest daily mean among the days in the bin | `day` and coarser |
 | `mean_daily_min` | mean over the bin's days of each day's smallest reading | `day` and coarser |
 | `mean_daily_max` | mean over the bin's days of each day's largest reading | `day` and coarser |
 
-"A day or coarser" is decided from the bins rather than from the window's name: a day-level
-statistic requires every calendar day of the record to lie entirely inside one bin. Naming `hour`
+"A day or coarser" is decided from the bins rather than from the grain's name: a day-level
+statistic requires every calendar day of the record to lie entirely inside one bin. Naming `native`
 or `halfday` is refused before any data is read; a supplied calendar that cuts inside a day is
 refused once the bins are in hand, naming the day it splits and the two bins it splits it between.
 
@@ -166,13 +166,13 @@ Two orderings follow from the definitions and are asserted:
 other, and a bin whose days differ widely in level is where they part: a bin of one day at 0 and
 one at 10 has `cold_day` 0 and `mean_daily_min` 5.
 
-At the `day` window `cold_day`, `warm_day` and `mean` coincide by construction, as do
+At the `day` grain `cold_day`, `warm_day` and `mean` coincide by construction, as do
 `mean_daily_min` with `min` and `mean_daily_max` with `max`. Requesting them there is allowed and
 returns the identical channels.
 
 ## Custom bins
 
-A caller may supply the binning instead of naming a window, as a function of the reading instants
+A caller may supply the binning instead of naming a grain, as a function of the reading instants
 returning the start of each reading's bin. Everything downstream is unchanged: the bins are still
 required to tile the record, and the output still carries the bin starts as its second dimension's
 names. This is how a calendar the package does not carry is used, such as seasons cut at the
@@ -205,7 +205,7 @@ Attributes carried on the array:
 
 | attribute | content |
 |---|---|
-| `window` | the window name |
+| `grain` | the grain name |
 | `stats` | the statistic names, in channel order |
 | `year_start` | the `"MM-DD"` boundary used |
 | `bin_start` | the bin start instants, resolved from local time as **The time zone** describes |
@@ -219,7 +219,7 @@ would leak the held-out units into the training input.
 
 ## What crosses the language boundary, and what does not
 
-The binning and the reduction are one implementation: `src/cg_core.cpp` and `src/cg_calendar.cpp`,
+The binning and the reduction are one implementation: `src/ts_core.cpp` and `src/ts_calendar.cpp`,
 compiled into the R package by R itself and into the Python extension by CMake. What each language
 holds above it is the boundary, which resolves the columns, resolves the zone and wraps the result.
 The two agree by construction rather than by two implementations being checked against each other
@@ -295,20 +295,20 @@ thing to read a subset of.
 Three series, because a record that starts on a bin boundary cannot tell two binning rules apart
 and a record in UTC cannot tell two readings of a zone apart.
 `spec/fixtures/series.csv` is a synthetic three-unit, 400-day hourly series beginning at midnight
-on the default anniversary, so every coarse window is in phase with it from the first reading.
+on the default anniversary, so every coarse grain is in phase with it from the first reading.
 `series_offset.csv` is a two-unit, 200-day series beginning at 05:00 on 17 October, which is what
-a logger deployed when someone could walk to it gives, and puts every window out of phase.
+a logger deployed when someone could walk to it gives, and puts every grain out of phase.
 `series_zoned.csv` is a two-unit, 10-day series across 4 November 2018, the night
 `America/Sao_Paulo` moved its clock at midnight, which is the record that tells a calendar read by
 arithmetic apart from one read by writing a local midnight and parsing it back. `seasons.csv` holds
 the equinox and solstice boundaries that make each series a caller-supplied calendar, which is the
 only path the manuscript's seasonal rung ever took.
 
-`digests.csv` holds one row per series, window, time zone, `year_start`, `partial` setting and
-statistic, covering every window-by-statistic combination, each of the three-channel schemes
+`digests.csv` holds one row per series, grain, time zone, `year_start`, `partial` setting and
+statistic, covering every grain-by-statistic combination, each of the three-channel schemes
 (`min+mean+max`, `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the coarse
-windows at anniversaries other than the default, both `partial` settings, the supplied calendar,
-and the zone: every window of the aligned series read as a `Europe/Vienna` clock, which moves twice
+grains at anniversaries other than the default, both `partial` settings, the supplied calendar,
+and the zone: every grain of the aligned series read as a `Europe/Vienna` clock, which moves twice
 inside that record, and the short series read as an `America/Sao_Paulo` clock, which moves at
 midnight inside it, including a `year_start` landing on the night it moves. Each row carries `n_unit`, `n_bin`, the first and last bin start, how many bins are
 partial, and the digest.
@@ -394,16 +394,16 @@ call site.
 |---|---|
 | the penalised learner | `elasticnet_learner()` |
 | the forward selector | `stepwise_learner()` |
-| a set of representations | `climgrain_set()`, which reads as a mapping of window name to representation |
+| a set of representations | `timesift_set()`, which reads as a mapping of grain name to representation |
 | folds of the inner cross-validation | `n_inner` |
 | the digest | `digest_array()`, exported |
 | the three registries | `register_learner()` and `learners()`, `register_metric()` and `metrics()`, `register_response()` and `responses()` |
 
 ### The same call does the same thing
 
-- Naming one window returns the representation and naming two or more returns a set, whether the
+- Naming one grain returns the representation and naming two or more returns a set, whether the
   one is named as a string or as a sequence of one.
-- `window_ladder()` and `select_grain()` left without a fold map build one with the defaults of
+- `grain_ladder()` and `select_grain()` left without a fold map build one with the defaults of
   `fold_map()`. The two languages draw different maps from the same seed, so where both must see
   one split, write it and read it back as the section above describes.
 - Held-out predictions are placed by unit and by variable, never by position.
@@ -414,7 +414,7 @@ call site.
 - The encoders take `swa` and `swa_start`: the schedule anneals until the averaging begins and is
   then held flat, the averaged weights get their own pass to rebuild the batch-normalisation
   statistics, and the default is off, so a default recipe is the same recipe on both sides.
-- `select_grain()` searches the candidates in the order the windows and the learners were declared
+- `select_grain()` searches the candidates in the order the grains and the learners were declared
   in, so which candidate an exact tie on the inner score falls to does not depend on how the names
   sort.
 
@@ -422,7 +422,7 @@ call site.
 
 | in R only | why |
 |---|---|
-| `window_contrasts()` | fits a mixed model over the whole ladder and reads Dunnett's comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
+| `grain_contrasts()` | fits a mixed model over the whole ladder and reads Dunnett's comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
 | `simulate_records()` | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
 | `plot()` on a ladder and on a selection | the wheel depends on numpy alone, and every number a plot draws is on the object it is called on. |
 

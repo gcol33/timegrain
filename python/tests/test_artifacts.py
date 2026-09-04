@@ -13,10 +13,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from climgrain import (Ladder, Response, fold_map, paired_contrast, read_cells, read_folds,
+from timesift import (Ladder, Response, fold_map, paired_contrast, read_cells, read_folds,
                        read_response, scorable_cells, tss_inflation, write_cells, write_folds,
                        write_response)
-from climgrain.metrics import decision_threshold, kappa_score, roc_auc, tss
+from timesift.metrics import decision_threshold, kappa_score, roc_auc, tss
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 
@@ -163,7 +163,7 @@ def test_the_paired_contrast_matches_the_value_the_fixtures_pin():
     fold = np.asarray([int(r["fold"]) for r in cells] * 2)
     score = np.asarray([float(r["a"]) if r["a"] != "NA" else np.nan for r in cells]
                        + [float(r["b"]) if r["b"] != "NA" else np.nan for r in cells])
-    ladder = Ladder(window=np.asarray(["week"] * len(variable)),
+    ladder = Ladder(grain=np.asarray(["week"] * len(variable)),
                     learner=np.asarray(["a"] * len(cells) + ["b"] * len(cells)),
                     variable=variable, fold=fold, score=score, scorable=~np.isnan(score),
                     predictions={}, cells=None, folds=None, metric="tss", fits={})

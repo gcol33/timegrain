@@ -7,7 +7,7 @@ torch_fixture <- function(n_unit = 40L, days = 90L) {
   sim <- sim_series(n_unit = n_unit, days = days, seed = 81L)
   list(sim = sim,
        y = sim_response(sim, n_var = 2L, seed = 82L),
-       x = window_matrix(sim$readings, plot, t, temp, window = "week",
+       x = grain_matrix(sim$readings, plot, t, temp, grain = "week",
                          stats = c("cold_day", "mean", "warm_day")))
 }
 
@@ -37,7 +37,7 @@ test_that("the stack still runs where the record is one bin per year", {
   sim <- sim_series(n_unit = 24L, days = 400L, seed = 83L)
   y <- sim_response(sim, n_var = 2L, seed = 84L)
   for (w in c("season", "year")) {
-    x <- window_matrix(sim$readings, plot, t, temp, window = w)
+    x <- grain_matrix(sim$readings, plot, t, temp, grain = w)
     expect_lte(dim(x)[2L], 5L)
     for (l in list(cnn_learner(epochs = 2L), rescnn_learner(epochs = 2L,
                                                             channels = c(16L, 32L)))) {
@@ -61,7 +61,7 @@ test_that("an encoder refuses a representation it was not fitted on", {
   skip_if_no_torch()
   f <- torch_fixture(n_unit = 24L, days = 60L)
   fit <- fit_learner(cnn_learner(epochs = 2L), f$x, f$y)
-  other <- window_matrix(f$sim$readings, plot, t, temp, window = "month")
+  other <- grain_matrix(f$sim$readings, plot, t, temp, grain = "month")
   expect_error(stats::predict(fit, other), "different channels or bins")
 })
 
@@ -69,13 +69,13 @@ test_that("a fully connected encoder recovers a planted signal", {
   skip_if_no_torch()
   sim <- sim_series(n_unit = 90L, days = 90L, sd = 0.3, level = 3, seed = 85L)
   y <- sim_response(sim, n_var = 2L, strength = 4, seed = 86L)
-  x <- window_matrix(sim$readings, plot, t, temp, window = "week")
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "week")
   fit <- fit_learner(mlp_learner(epochs = 40L, seed = 3L), x, y)
   p <- stats::predict(fit, x)
   expect_gt(roc_auc(y[, 1], p[, 1]), 0.8)
 })
 
-test_that("weight averaging runs the whole averaging window and returns a usable fit", {
+test_that("weight averaging runs the whole averaging grain and returns a usable fit", {
   skip_if_no_torch()
   f <- torch_fixture(n_unit = 30L, days = 60L)
   fit <- fit_learner(cnn_learner(epochs = 6L, swa = TRUE, swa_start = 0.5), f$x, f$y)

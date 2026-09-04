@@ -22,7 +22,7 @@ The registered function, invisibly.
 }
 \description{
 A metric scores one held-out cell: the observed response of the units in a fold and a model's
-predictions for them. Registering one makes it available to \code{\link[=window_ladder]{window_ladder()}} by name, with no
+predictions for them. Registering one makes it available to \code{\link[=grain_ladder]{grain_ladder()}} by name, with no
 change to the fitting code.
 }
 \examples{

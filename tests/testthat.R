@@ -1,4 +1,4 @@
 library(testthat)
-library(climgrain)
+library(timesift)
 
-test_check("climgrain")
+test_check("timesift")

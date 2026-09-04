@@ -7,9 +7,9 @@ import importlib.util
 import numpy as np
 import pytest
 
-from climgrain import (Response, elasticnet_learner, fit_learner, roc_auc, stepwise_learner,
-                       window_matrix)
-from climgrain.learners import _apply_basis, _logistic, _poly_basis
+from timesift import (Response, elasticnet_learner, fit_learner, roc_auc, stepwise_learner,
+                       grain_matrix)
+from timesift.learners import _apply_basis, _logistic, _poly_basis
 
 needs_sklearn = pytest.mark.skipif(importlib.util.find_spec("sklearn") is None,
                                    reason="scikit-learn is not installed")
@@ -25,7 +25,7 @@ def planted(n_unit=40, days=56, noise=1.0, seed=17):
     d = {"id": [u for u in units for _ in range(len(t))],
          "time": list(t) * n_unit, "value": list(value)}
     y = rng.binomial(1, 1 / (1 + np.exp(-3 * np.column_stack([warmth, -warmth])))).astype(float)
-    x = window_matrix(d, "id", "time", "value", window="week")
+    x = grain_matrix(d, "id", "time", "value", grain="week")
     return x, Response(y, tuple(units), ("sp1", "sp2"))
 
 
@@ -66,12 +66,12 @@ def test_the_selector_refuses_a_representation_it_was_not_fitted_on():
     x, y = planted()
     fit = fit_learner(stepwise_learner(max_terms=1), x, y)
     with pytest.raises(ValueError, match="different channels or bins"):
-        fit.predict(window_matrix(
+        fit.predict(grain_matrix(
             {"id": [u for u in y.units for _ in range(24)],
              "time": list(np.datetime64("2021-09-01T00:00:00", "s")
                           + np.arange(24) * np.timedelta64(1, "h")) * len(y.units),
              "value": list(np.zeros(24 * len(y.units)))},
-            "id", "time", "value", window="day"))
+            "id", "time", "value", grain="day"))
 
 
 def test_the_polynomial_basis_is_orthonormal_and_travels_with_the_fit():

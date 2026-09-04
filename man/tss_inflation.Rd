@@ -31,7 +31,7 @@ presence counts of a given design.
 \details{
 Predictions are simulated under a normal model in which the population skill is exactly \code{skill},
 at the cell sizes and presence counts of the response and fold map supplied, and the level is
-read back exactly as \code{\link[=window_ladder]{window_ladder()}} reports it. The gap between what comes back and the truth
+read back exactly as \code{\link[=grain_ladder]{grain_ladder()}} reports it. The gap between what comes back and the truth
 planted is the inflation.
 
 It cancels in the paired differences \code{\link[=paired_contrast]{paired_contrast()}} takes, since both arms carry it on the

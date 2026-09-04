@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from climgrain import (WINDOWS, ClimgrainSet, WindowMatrix, bind_channels,
-                       calendar_channels, climgrain_set, window_matrix)
+from timesift import (GRAINS, TimesiftSet, GrainMatrix, bind_channels,
+                       calendar_channels, timesift_set, grain_matrix)
 
 
 def hourly(units=("a", "b"), hours=24 * 400, start="2021-09-01"):
@@ -24,8 +24,8 @@ def brute(data, key, fun):
 
 def test_bins_tile_the_record_with_no_gap_and_no_overlap():
     d = hourly()
-    for w in WINDOWS:
-        x = window_matrix(d, "id", "time", "value", window=w)
+    for w in GRAINS:
+        x = grain_matrix(d, "id", "time", "value", grain=w)
         assert x.bin_n.sum(axis=1).tolist() == [24 * 400, 24 * 400], w
         assert (x.bin_n > 0).all(), w
 
@@ -34,7 +34,7 @@ def test_the_mean_matches_an_independent_reduction():
     d = hourly()
     key = [str(np.datetime64(t, "D")) for t in d["time"]]
     ref = brute(d, key, np.mean)
-    x = window_matrix(d, "id", "time", "value", window="day", stats="mean")
+    x = grain_matrix(d, "id", "time", "value", grain="day", stats="mean")
     for i, u in enumerate(x.units):
         for j, b in enumerate(x.bins):
             assert x.values[i, j, 0] == pytest.approx(ref[(u, b[:10])])
@@ -45,7 +45,7 @@ def test_an_extreme_day_is_not_an_extreme_reading():
     temp = np.repeat([10.0, 5, 0, 5, 10, 10, 10], 24)
     temp[24 + 5] = -50
     d = {"id": ["a"] * len(t), "time": list(t), "value": list(temp)}
-    x = window_matrix(d, "id", "time", "value", window="week",
+    x = grain_matrix(d, "id", "time", "value", grain="week",
                       stats=["min", "cold_day", "mean", "warm_day", "max"])
     assert x.channel("min")[0, 0] == -50
     assert x.channel("cold_day")[0, 0] == 0
@@ -57,7 +57,7 @@ def test_the_average_daily_extremes_average_over_days():
     t = np.datetime64("2021-09-06T00:00:00", "s") + np.arange(48) * np.timedelta64(1, "h")
     temp = np.concatenate([np.repeat([-10.0, 10.0], 12), np.zeros(24)])
     d = {"id": ["a"] * len(t), "time": list(t), "value": list(temp)}
-    x = window_matrix(d, "id", "time", "value", window="week",
+    x = grain_matrix(d, "id", "time", "value", grain="week",
                       stats=["min", "mean_daily_min", "mean", "mean_daily_max", "max"])
     assert x.channel("min")[0, 0] == -10
     assert x.channel("mean_daily_min")[0, 0] == -5
@@ -69,7 +69,7 @@ def test_the_average_daily_extremes_average_over_days():
 def test_the_mean_of_the_daily_minima_is_not_the_coldest_day():
     t = np.datetime64("2021-09-06T00:00:00", "s") + np.arange(48) * np.timedelta64(1, "h")
     d = {"id": ["a"] * len(t), "time": list(t), "value": list(np.repeat([0.0, 10.0], 24))}
-    x = window_matrix(d, "id", "time", "value", window="week",
+    x = grain_matrix(d, "id", "time", "value", grain="week",
                       stats=["cold_day", "mean_daily_min", "mean_daily_max", "warm_day"])
     assert x.channel("cold_day")[0, 0] == 0
     assert x.channel("mean_daily_min")[0, 0] == 5
@@ -78,7 +78,7 @@ def test_the_mean_of_the_daily_minima_is_not_the_coldest_day():
 
 def test_coarse_bins_follow_the_calendar():
     d = hourly(units=("a",))
-    x = window_matrix(d, "id", "time", "value", window="month")
+    x = grain_matrix(d, "id", "time", "value", grain="month")
     n = x.bin_n[0].tolist()
     assert n[0] == 30 * 24
     assert n[1] == 31 * 24
@@ -87,7 +87,7 @@ def test_coarse_bins_follow_the_calendar():
 
 def test_seasons_are_three_calendar_months_from_the_year_start():
     d = hourly(units=("a",))
-    x = window_matrix(d, "id", "time", "value", window="season", year_start="09-01")
+    x = grain_matrix(d, "id", "time", "value", grain="season", year_start="09-01")
     assert [b[:10] for b in x.bins[:3]] == ["2021-09-01", "2021-12-01", "2022-03-01"]
 
 
@@ -95,24 +95,24 @@ def test_a_bin_the_record_does_not_fill_is_reported_and_can_be_dropped():
     # 1 September 2021 is a Wednesday, so three hydrological years from it fill every month, season
     # and year of the calendar and neither the first nor the last week of it.
     aligned = hourly(units=("a",), hours=26304, start="2021-09-01")
-    for w in ("hour", "halfday", "day", "month", "season", "year"):
-        x = window_matrix(aligned, "id", "time", "value", window=w)
+    for w in ("native", "halfday", "day", "month", "season", "year"):
+        x = grain_matrix(aligned, "id", "time", "value", grain=w)
         assert not x.bin_partial.any(), w
-    week = window_matrix(aligned, "id", "time", "value", window="week")
+    week = grain_matrix(aligned, "id", "time", "value", grain="week")
     assert np.flatnonzero(week.bin_partial).tolist() == [0, 156]
-    assert window_matrix(aligned, "id", "time", "value", window="week",
+    assert grain_matrix(aligned, "id", "time", "value", grain="week",
                          partial="drop").values.shape[1] == 155
 
-    # A logger deployed on no boundary at all carries one at the start of every window that
+    # A logger deployed on no boundary at all carries one at the start of every grain that
     # aggregates, and the bin it starts is the one holding fewer readings than its neighbours.
     offset = hourly(units=("a",), hours=24 * 300, start="2021-10-17T05:00:00")
     for w in ("halfday", "day", "week", "month", "season"):
-        p = window_matrix(offset, "id", "time", "value", window=w).bin_partial
+        p = grain_matrix(offset, "id", "time", "value", grain=w).bin_partial
         assert p[0], w
         assert not p[1:-1].any(), w
-    m = window_matrix(offset, "id", "time", "value", window="month")
+    m = grain_matrix(offset, "id", "time", "value", grain="month")
     assert m.bin_n[0, 0] < m.bin_n[0, 1]
-    dropped = window_matrix(offset, "id", "time", "value", window="month", partial="drop")
+    dropped = grain_matrix(offset, "id", "time", "value", grain="month", partial="drop")
     assert dropped.values.shape[1] == m.values.shape[1] - int(m.bin_partial.sum())
     assert not dropped.bin_partial.any()
     assert np.array_equal(dropped.values, m.values[:, ~m.bin_partial, :])
@@ -129,14 +129,14 @@ def test_a_caller_supplied_calendar_owns_its_own_bin_lengths():
     def astronomical(when):
         return edges[np.searchsorted(edges, when, side="right") - 1]
 
-    x = window_matrix(d, "id", "time", "value", window=astronomical)
+    x = grain_matrix(d, "id", "time", "value", grain=astronomical)
     assert x.values.shape[1] == 3
     assert not x.bin_partial.any()
     assert x.bin_n[0, 0] < x.bin_n[0, 1]
 
-    # The same record on the named window counts three calendar months from the anniversary, so it
+    # The same record on the named grain counts three calendar months from the anniversary, so it
     # is a different rule and a different number of bins, not a different implementation of one.
-    named = window_matrix(d, "id", "time", "value", window="season")
+    named = grain_matrix(d, "id", "time", "value", grain="season")
     assert named.values.shape[1] == 3
     assert [b[:10] for b in named.bins] == ["2021-09-01", "2021-12-01", "2022-03-01"]
 
@@ -144,16 +144,16 @@ def test_a_caller_supplied_calendar_owns_its_own_bin_lengths():
 def test_the_hydrological_year_boundary_moves_with_year_start():
     t = np.datetime64("2021-08-25T00:00:00", "s") + np.arange(24 * 20) * np.timedelta64(1, "h")
     d = {"id": ["a"] * len(t), "time": list(t), "value": [1.0] * len(t)}
-    assert window_matrix(d, "id", "time", "value", window="year").values.shape[1] == 2
-    assert window_matrix(d, "id", "time", "value", window="year",
+    assert grain_matrix(d, "id", "time", "value", grain="year").values.shape[1] == 2
+    assert grain_matrix(d, "id", "time", "value", grain="year",
                          year_start="01-01").values.shape[1] == 1
 
 
-def test_naming_several_windows_returns_one_representation_per_window():
+def test_naming_several_grains_returns_one_representation_per_grain():
     d = hourly(hours=24 * 60)
-    s = window_matrix(d, "id", "time", "value", window=["day", "week", "month"])
+    s = grain_matrix(d, "id", "time", "value", grain=["day", "week", "month"])
     assert list(s) == ["day", "week", "month"]
-    one = window_matrix(d, "id", "time", "value", window="week")
+    one = grain_matrix(d, "id", "time", "value", grain="week")
     assert np.array_equal(s["week"].values, one.values)
 
 
@@ -165,8 +165,8 @@ def test_a_calendar_the_package_does_not_carry_can_be_passed_as_a_function():
     def astronomical(when):
         return edges[np.searchsorted(edges, when, side="right") - 1]
 
-    x = window_matrix(d, "id", "time", "value", window=astronomical)
-    assert x.window == "custom"
+    x = grain_matrix(d, "id", "time", "value", grain=astronomical)
+    assert x.grain == "custom"
     assert [b[:10] for b in x.bins] == ["2021-06-23", "2021-09-23", "2021-12-21"]
     assert x.bin_n.sum() == 24 * 120
 
@@ -177,25 +177,25 @@ def test_the_representation_refuses_input_it_cannot_reduce_honestly():
     gap = {k: list(gap[k]) + list(d[k][:24]) for k in d}
     gap["id"] = ["a"] * 24 + ["b"] * 24
     with pytest.raises(ValueError, match="no readings"):
-        window_matrix(gap, "id", "time", "value", window="day")
+        grain_matrix(gap, "id", "time", "value", grain="day")
 
     dup = {k: list(v) + [v[0]] for k, v in d.items()}
     with pytest.raises(ValueError, match="duplicated"):
-        window_matrix(dup, "id", "time", "value", window="day")
+        grain_matrix(dup, "id", "time", "value", grain="day")
 
     with pytest.raises(ValueError, match="not defined"):
-        window_matrix(d, "id", "time", "value", window="hour", stats="cold_day")
+        grain_matrix(d, "id", "time", "value", grain="native", stats="cold_day")
     with pytest.raises(ValueError, match="twice"):
-        window_matrix(d, "id", "time", "value", window="day", stats=["mean", "mean"])
+        grain_matrix(d, "id", "time", "value", grain="day", stats=["mean", "mean"])
     with pytest.raises(ValueError, match="unknown statistic"):
-        window_matrix(d, "id", "time", "value", window="day", stats="median")
+        grain_matrix(d, "id", "time", "value", grain="day", stats="median")
     with pytest.raises(ValueError, match="MM-DD"):
-        window_matrix(d, "id", "time", "value", window="day", year_start="9-1")
+        grain_matrix(d, "id", "time", "value", grain="day", year_start="9-1")
 
 
 def test_the_calendar_channels_are_the_position_of_a_bin_in_the_year():
     d = hourly()
-    x = window_matrix(d, "id", "time", "value", window="month")
+    x = grain_matrix(d, "id", "time", "value", grain="month")
     cc = calendar_channels(x)
     assert cc.stats == ("year_sin", "year_cos")
     assert np.allclose(cc.values[0], cc.values[1])
@@ -204,7 +204,7 @@ def test_the_calendar_channels_are_the_position_of_a_bin_in_the_year():
 
 def test_channels_are_joined_in_the_order_they_are_given():
     d = hourly(hours=24 * 60)
-    x = window_matrix(d, "id", "time", "value", window="week", stats=["cold_day", "mean"])
+    x = grain_matrix(d, "id", "time", "value", grain="week", stats=["cold_day", "mean"])
     b = bind_channels(x, calendar_channels(x))
     assert b.stats == ("cold_day", "mean", "year_sin", "year_cos")
     assert np.array_equal(b.channel("mean"), x.channel("mean"))
@@ -212,20 +212,20 @@ def test_channels_are_joined_in_the_order_they_are_given():
         bind_channels(x, x)
 
 
-def test_naming_one_window_returns_one_representation_however_it_is_named():
+def test_naming_one_grain_returns_one_representation_however_it_is_named():
     d = hourly(hours=24 * 40)
-    one = window_matrix(d, "id", "time", "value", window="week")
-    as_list = window_matrix(d, "id", "time", "value", window=["week"])
+    one = grain_matrix(d, "id", "time", "value", grain="week")
+    as_list = grain_matrix(d, "id", "time", "value", grain=["week"])
     # A set of one is a shape the caller would only have to unwrap, and the R side does not make
     # one either.
-    assert isinstance(as_list, WindowMatrix)
+    assert isinstance(as_list, GrainMatrix)
     assert np.array_equal(as_list.values, one.values)
 
 
-def test_a_set_reads_as_a_mapping_and_can_be_cut_to_some_of_its_windows():
+def test_a_set_reads_as_a_mapping_and_can_be_cut_to_some_of_its_grains():
     d = hourly(hours=24 * 60)
-    s = window_matrix(d, "id", "time", "value", window=["day", "week", "month"])
-    assert isinstance(s, ClimgrainSet)
+    s = grain_matrix(d, "id", "time", "value", grain=["day", "week", "month"])
+    assert isinstance(s, TimesiftSet)
     assert len(s) == 3 and list(s) == ["day", "week", "month"]
     part = s[["week", "month"]]
     assert list(part) == ["week", "month"]
@@ -233,12 +233,12 @@ def test_a_set_reads_as_a_mapping_and_can_be_cut_to_some_of_its_windows():
     assert np.array_equal(part["week"].values, s["week"].values)
 
 
-def test_a_set_must_cover_the_same_units_at_every_window():
+def test_a_set_must_cover_the_same_units_at_every_grain():
     d = hourly(hours=24 * 40)
-    whole = window_matrix(d, "id", "time", "value", window="week")
+    whole = grain_matrix(d, "id", "time", "value", grain="week")
     with pytest.raises(ValueError, match="same units"):
-        climgrain_set({"week": whole, "cut": whole.take_units([0])})
-    with pytest.raises(ValueError, match="not a window_matrix"):
-        climgrain_set({"week": whole.values})
+        timesift_set({"week": whole, "cut": whole.take_units([0])})
+    with pytest.raises(ValueError, match="not a grain_matrix"):
+        timesift_set({"week": whole.values})
     with pytest.raises(ValueError, match="non-empty"):
-        climgrain_set({})
+        timesift_set({})

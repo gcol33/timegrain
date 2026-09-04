@@ -1,10 +1,10 @@
-# climgrain
+# timesift
 
 Temporal climate resolution for ecological prediction. Flagship application: species
 modelling from microclimate loggers.
 
 A logger records every hour for years. Before any model is fitted, that record is reduced: to
-monthly means, to growing-degree-days, to whatever the analyst decides. `climgrain` makes that
+monthly means, to growing-degree-days, to whatever the analyst decides. `timesift` makes that
 reduction an explicit, testable choice rather than a preprocessing step nobody revisits. It builds
 the representation at any temporal grain, fits models at each grain, and shows where predictive
 skill saturates.
@@ -18,8 +18,8 @@ three years of hourly soil temperature:
 - The full hourly series is the best input for none of three architectures. Reading every hour
   cost the convolutional network 0.048 TSS against its own best grain.
 - Skill peaks at the weekly average and falls from monthly on (-0.080 at yearly).
-- A window's coldest and warmest **day** carry more than its mean, and increasingly so as the
-  window widens (+0.006 weekly to +0.046 yearly). They need daily values, so daily storage is the
+- A grain's coldest and warmest **day** carry more than its mean, and increasingly so as the
+  grain widens (+0.006 weekly to +0.046 yearly). They need daily values, so daily storage is the
   floor.
 - A fully connected network on the same series is level with a penalised logistic model on 188
   hand-built features (-0.002 TSS, p = 0.63). The gain comes from convolution reading the series at
@@ -35,7 +35,7 @@ the package hands the user is at what temporal grain climate should be represent
 ecological prediction problem, and the name says that.
 
 `timegrain` was the name through 0.2.0. It names the axis being varied rather than the thing whose
-grain is varied, so it stays true if the package later carries degree days, extreme-event windows,
+grain is varied, so it stays true if the package later carries degree days, extreme-event grains,
 lagged climate, diurnal range or humidity, but it reads as finance or time-series storage outside
 ecology and an unrelated Obsidian plugin already ranks above the package under that name.
 `sdmgrain` was rejected: it claims spatial distribution modelling the method does not do, in SDM
@@ -60,10 +60,10 @@ tidiness: a Python source distribution cannot reach above its own project direct
 copy still matched. The project directory is the repository, and there is one copy of the sources.
 
 ```
-climgrain/
+timesift/
   src/                the shared core, compiled into both languages
-    cg_core.h cg_calendar.cpp cg_core.cpp
-    cg_r.cpp          the cpp11 wrapper; cpp11.cpp is generated
+    ts_core.h ts_calendar.cpp ts_core.cpp
+    ts_r.cpp          the cpp11 wrapper; cpp11.cpp is generated
   R/                  R package source
   tests/testthat/     including helper-oracle.R, the pure-R implementation
   man/ vignettes/
@@ -75,8 +75,8 @@ climgrain/
       fixtures/       small input + expected digests, read by both test suites
     reproduce/        the driver that runs the published grid from the Zenodo deposit
   python/             the Python twin
-    cg_py.cpp         the nanobind wrapper
-    climgrain/
+    ts_py.cpp         the nanobind wrapper
+    timesift/
     tests/            including oracle.py, the pure-NumPy implementation
 ```
 
@@ -84,12 +84,12 @@ Same name on CRAN and PyPI (both verified free 2026-09-02).
 
 ## The contract between the two languages
 
-`window_matrix()` in R and `window_matrix()` in Python must return the **same numbers** for the
+`grain_matrix()` in R and `grain_matrix()` in Python must return the **same numbers** for the
 same input. This is not a nicety: the whole claim of the package is that the grain is what matters,
 so two implementations that bin differently would make the tool the confound.
 
 `inst/spec/representation.md` is the normative description. `inst/spec/fixtures/` holds a small input series
-and the digests of every window-by-statistic combination. Both test suites read those fixtures and
+and the digests of every grain-by-statistic combination. Both test suites read those fixtures and
 assert against the same digests. A change to binning that is not reflected in the fixtures is a bug
 in whichever language changed.
 
@@ -98,14 +98,14 @@ Models cannot be byte-identical across torch and libtorch and are not required t
 ## API
 
 ```r
-x   <- window_matrix(readings, id = plot, time = t, value = temp,
-                     window = "week", stats = c("cold_day", "mean", "warm_day"))
-lad <- window_ladder(x, y, learners = list(mlp(), cnn(), elasticnet_learner()))
+x   <- grain_matrix(readings, id = plot, time = t, value = temp,
+                     grain = "week", stats = c("cold_day", "mean", "warm_day"))
+lad <- grain_ladder(x, y, learners = list(mlp(), cnn(), elasticnet_learner()))
 plot(lad)
 fit <- fit_learner(cnn(), x, y)
 ```
 
-`window_matrix()` returns a numeric array `[id, bin, channel]` with dimnames and the binning
+`grain_matrix()` returns a numeric array `[id, bin, channel]` with dimnames and the binning
 recorded in attributes. It knows nothing about species, or about what the response is.
 
 ### Statistic vocabulary
@@ -115,24 +115,24 @@ up silently changes the result, so the names keep them apart:
 
 | name | meaning |
 |---|---|
-| `mean` | mean of the readings in the window |
-| `min`, `max` | coldest and warmest single reading in the window |
+| `mean` | mean of the readings in the grain |
+| `min`, `max` | coldest and warmest single reading in the grain |
 | `cold_day`, `warm_day` | coldest and warmest day, each day first reduced to its own mean |
 | `mean_daily_min`, `mean_daily_max` | the bin's average daily minimum and maximum, each day first reduced to its own extreme |
 
-The four day-level statistics are defined only for windows of a day or coarser. The reported input
-in the paper is `c("cold_day", "mean", "warm_day")` at the weekly window.
+The four day-level statistics are defined only for grains of a day or coarser. The reported input
+in the paper is `c("cold_day", "mean", "warm_day")` at the weekly grain.
 
-### Windows
+### Grains
 
-`hour`, `halfday`, `day`, `week`, `month`, `season`, `year`. The four coarse windows follow the
+`native`, `halfday`, `day`, `week`, `month`, `season`, `year`. The four coarse grains follow the
 calendar rather than a fixed count of hours, so a bin is a real month or a real week rather than a
 drifting block of 730 or 168 hours. `year_start` sets the hydrological-year boundary (default
 `"09-01"`, the convention in the source dataset).
 
 A calendar the package does not carry is passed as a function of the reading instants returning
 each reading's bin start. That is how the deposit's astronomical seasons, cut at the equinoxes and
-solstices rather than on the first of a month, bin like any named window.
+solstices rather than on the first of a month, bin like any named grain.
 
 ## Design rules
 
@@ -163,7 +163,7 @@ solstices rather than on the first of a month, bin like any named window.
 
 TSS read at the threshold that maximises it is inflated where presences are thin: the Schrankogel
 simulation puts the inflation at +0.110 when the true skill is 0.60, generated in cells holding one
-or two presences. Most SDM code carries that silently. `climgrain` reports the score and the
+or two presences. Most SDM code carries that silently. `timesift` reports the score and the
 expected inflation for the user's own presence counts. That is a reason to switch that has nothing
 to do with neural networks.
 
@@ -173,7 +173,7 @@ Version 0.3.0, 2026-09-04. Not on CRAN or PyPI yet.
 
 The build order is done on both sides: the representation and the fixtures, the fold map and the
 scorable-cell mask, the ladder and its plot, the learner registry, the torch learners, and above
-them the paired contrast, the mixed-model window contrast, the occlusion profile and the inflation
+them the paired contrast, the mixed-model grain contrast, the occlusion profile and the inflation
 of a self-selected threshold. The Python side carries the same except the mixed model, and
 reproduces every one of the 166 fixture digests, sixteen of which pin a zone.
 
@@ -190,7 +190,7 @@ every step. Verified against the deposit on 2026-09-02, matching the paper exact
 |---|---|---|
 | plots, species, rarest species | 894, 101, 26 | same |
 | scorable cells | 1003 of 1010 | same |
-| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| bins per grain | 26304, 2192, 1096, 157, 36, 13, 3 | same |
 | numbers per plot, weekly three-channel | 471 | same |
 | numbers per plot, daily three-channel | 3288 | same |
 | inflation at truth 0.60, 0.70, 0.90 | +0.110, +0.095, +0.051 | same |

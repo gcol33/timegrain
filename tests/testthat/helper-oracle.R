@@ -54,41 +54,41 @@ oracle_day_level <- function(reading, unit, when, units, bins, ys, tz, n_cell) {
 # instant alone, so the calendar is read once per distinct instant rather than once per reading.
 # On three years of hourly readings from 894 units that is 26,304 calendar lookups instead of
 # 23,515,776, and the difference is minutes.
-oracle_bin_start <- function(when, window, ys, tz) {
+oracle_bin_start <- function(when, grain, ys, tz) {
   u <- unique(when)
   if (length(u) == length(when)) {
-    return(oracle_bin_of(when, window, ys, tz))
+    return(oracle_bin_of(when, grain, ys, tz))
   }
-  oracle_bin_of(u, window, ys, tz)[match(unclass(when), unclass(u))]
+  oracle_bin_of(u, grain, ys, tz)[match(unclass(when), unclass(u))]
 }
 
-oracle_bin_of <- function(when, window, ys, tz) {
-  if (is.function(window)) {
-    out <- window(when)
+oracle_bin_of <- function(when, grain, ys, tz) {
+  if (is.function(grain)) {
+    out <- grain(when)
     if (!inherits(out, "POSIXct") || length(out) != length(when)) {
-      stop("a `window` function must return one POSIXct bin start per reading.", call. = FALSE)
+      stop("a `grain` function must return one POSIXct bin start per reading.", call. = FALSE)
     }
     return(out)
   }
-  if (window == "hour") {
+  if (grain == "native") {
     return(when)
   }
-  if (window == "halfday") {
+  if (grain == "halfday") {
     day <- as.POSIXct(trunc(when, units = "days"), tz = tz)
     return(day + 43200 * (as.integer(format(when, "%H", tz = tz)) >= 12L))
   }
-  if (window == "day") {
+  if (grain == "day") {
     return(as.POSIXct(trunc(when, units = "days"), tz = tz))
   }
-  if (window == "week") {
+  if (grain == "week") {
     day <- as.Date(when, tz = tz)
     monday <- day - (as.integer(format(day, "%u")) - 1L)
     return(as.POSIXct(paste0(monday, " 00:00:00"), tz = tz))
   }
-  if (window == "month") {
+  if (grain == "month") {
     return(as.POSIXct(paste0(format(when, "%Y-%m", tz = tz), "-01 00:00:00"), tz = tz))
   }
-  step <- if (window == "season") 3L else 12L
+  step <- if (grain == "season") 3L else 12L
   oracle_anniversary(oracle_offset_months(when, ys, tz) %/% step * step, ys, tz)
 }
 
@@ -96,11 +96,11 @@ oracle_bin_of <- function(when, window, ys, tz) {
 # first reading to its last plus one sampling interval, and a bin is partial when its own span
 # reaches outside that. Only a bin at an end of the record can, because .check_grid() has already
 # required every unit to hold readings in every bin between them.
-oracle_bin_partial <- function(when, bins, window, ys, tz) {
+oracle_bin_partial <- function(when, bins, grain, ys, tz) {
   covered <- range(as.numeric(when))
   covered[2L] <- covered[2L] + oracle_sampling_step(when)
   as.numeric(bins) < covered[1L] |
-    as.numeric(oracle_bin_next(bins, window, ys, tz, covered[2L])) > covered[2L]
+    as.numeric(oracle_bin_next(bins, grain, ys, tz, covered[2L])) > covered[2L]
 }
 
 oracle_sampling_step <- function(when) {
@@ -109,16 +109,15 @@ oracle_sampling_step <- function(when) {
 }
 
 # Where each bin ends, which is where the next one on the same calendar starts. The four coarse
-# windows step by the calendar rather than by a count of seconds, so the successor is taken by
+# grains step by the calendar rather than by a count of seconds, so the successor is taken by
 # landing well inside the following bin and flooring that, which is exact whatever the month length
 # or the daylight-saving offset. A caller-supplied binning declares its own bins, so its successors
 # are read off the bins themselves and its last bin is taken to end with the record.
-oracle_bin_next <- function(bins, window, ys, tz, covered_end) {
-  if (is.function(window)) {
+oracle_bin_next <- function(bins, grain, ys, tz, covered_end) {
+  if (is.function(grain) || identical(grain, "native")) {
     return(c(bins[-1L], .POSIXct(covered_end, tz = tz)))
   }
-  switch(window,
-         hour = bins + 3600,
+  switch(grain,
          halfday = bins + 43200,
          day = oracle_bin_of(bins + 36 * 3600, "day", ys, tz),
          week = oracle_bin_of(bins + 180 * 3600, "week", ys, tz),
@@ -141,7 +140,7 @@ oracle_anniversary <- function(offset, ys, tz) {
              tz = tz)
 }
 
-oracle_window_matrix <- function(data, id, time, value, window = "day", stats = "mean",
+oracle_grain_matrix <- function(data, id, time, value, grain = "day", stats = "mean",
                                  year_start = "09-01") {
   unit <- as.character(data[[id]])
   when <- data[[time]]
@@ -151,7 +150,7 @@ oracle_window_matrix <- function(data, id, time, value, window = "day", stats = 
   ys <- list(month = as.integer(substr(year_start, 1L, 2L)),
              day = as.integer(substr(year_start, 4L, 5L)))
 
-  bin_start <- oracle_bin_start(when, window, ys, tz)
+  bin_start <- oracle_bin_start(when, grain, ys, tz)
   units <- sort(unique(unit), method = "radix")
   bins <- sort(unique(bin_start))
   n_u <- length(units)
@@ -192,5 +191,5 @@ oracle_window_matrix <- function(data, id, time, value, window = "day", stats = 
        bin_start = bins,
        bin_end = .POSIXct(oracle_group_edge(as.numeric(when), bin_of, n_b, TRUE), tz = tz),
        bin_n = matrix(count, nrow = n_u, ncol = n_b),
-       bin_partial = oracle_bin_partial(when, bins, window, ys, tz))
+       bin_partial = oracle_bin_partial(when, bins, grain, ys, tz))
 }

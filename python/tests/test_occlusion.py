@@ -5,8 +5,8 @@ import importlib.util
 import numpy as np
 import pytest
 
-from climgrain import (Learner, Response, bin_occlusion, ensemble_learner, feature_matrix,
-                       fit_learner, fold_map, window_ladder, window_matrix)
+from timesift import (Learner, Response, bin_occlusion, ensemble_learner, feature_matrix,
+                       fit_learner, fold_map, grain_ladder, grain_matrix)
 
 
 def planted(planted_month="2021-11", n_unit=60, seed=61):
@@ -31,13 +31,13 @@ def test_a_feature_table_becomes_a_one_channel_representation():
     x = feature_matrix(m, units=[f"p{i}" for i in range(10)], features=["a", "b", "c"])
     assert x.values.shape == (10, 3, 1)
     assert x.bins == ("a", "b", "c")
-    assert x.window == "features"
+    assert x.grain == "features"
     assert np.array_equal(x.channel("features"), m)
 
 
 def test_an_ensemble_averages_its_members_before_the_threshold_is_chosen():
     readings, y, _ = planted(n_unit=20)
-    x = window_matrix(readings, "id", "time", "value", window="month")
+    x = grain_matrix(readings, "id", "time", "value", grain="month")
     a = Learner(name="a", fit=lambda x, y, **k: y.mean(axis=0),
                 predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
     b = Learner(name="b", fit=lambda x, y, **k: y.mean(axis=0) / 2,
@@ -56,8 +56,8 @@ def test_the_bin_a_signal_was_planted_in_is_the_bin_the_profile_weights():
     if importlib.util.find_spec("sklearn") is None:
         pytest.skip("scikit-learn is not installed")
     readings, y, month = planted()
-    x = window_matrix(readings, "id", "time", "value", window="month")
-    lad = window_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=6),
+    x = grain_matrix(readings, "id", "time", "value", grain="month")
+    lad = grain_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=6),
                         keep_fits=True, verbose=False)
     out = bin_occlusion(lad, x, y, "month|elasticnet", permutations=5, seed=4)
     mean_weight = np.nanmean(out["weight"], axis=1)
@@ -70,9 +70,9 @@ def test_holding_a_channel_back_asks_what_the_statistic_carries():
     if importlib.util.find_spec("sklearn") is None:
         pytest.skip("scikit-learn is not installed")
     readings, y, _ = planted(n_unit=40, seed=63)
-    x = window_matrix(readings, "id", "time", "value", window="month",
+    x = grain_matrix(readings, "id", "time", "value", grain="month",
                       stats=["cold_day", "mean", "warm_day"])
-    lad = window_ladder(x, y, "elasticnet", folds=fold_map(y, v=3, seed=6),
+    lad = grain_ladder(x, y, "elasticnet", folds=fold_map(y, v=3, seed=6),
                         keep_fits=True, verbose=False)
     out = bin_occlusion(lad, x, y, "month|elasticnet", over="channel", permutations=3)
     assert list(out["part"]) == ["cold_day", "mean", "warm_day"]
@@ -80,9 +80,9 @@ def test_holding_a_channel_back_asks_what_the_statistic_carries():
 
 def test_occlusion_needs_the_fits_the_ladder_was_told_to_keep():
     readings, y, _ = planted(n_unit=20)
-    x = window_matrix(readings, "id", "time", "value", window="month")
+    x = grain_matrix(readings, "id", "time", "value", grain="month")
     a = Learner(name="a", fit=lambda x, y, **k: y.mean(axis=0),
                 predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
-    lad = window_ladder(x, y, a, folds=fold_map(y, v=3, seed=2), verbose=False)
+    lad = grain_ladder(x, y, a, folds=fold_map(y, v=3, seed=2), verbose=False)
     with pytest.raises(ValueError, match="kept no fits"):
         bin_occlusion(lad, x, y, "month|a")

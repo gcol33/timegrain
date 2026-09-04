@@ -18,8 +18,8 @@ planted_series <- function(planted_month = "2021-11", n_unit = 60L, seed = 61L) 
 test_that("occlusion needs the fits the ladder was told to keep", {
   sim <- sim_series(n_unit = 30L, days = 60L)
   y <- sim_response(sim, n_var = 2L)
-  x <- window_matrix(sim$readings, plot, t, temp, window = "month")
-  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3L),
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "month")
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3L),
                                         verbose = FALSE))
   expect_error(bin_occlusion(lad, x, y, "month|elasticnet"), "kept no fits")
 })
@@ -30,8 +30,8 @@ test_that("the bin a signal was planted in is the bin the profile weights", {
   y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
                             stats::plogis(3 * c(sim$warmth, -sim$warmth))),
               ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
-  x <- window_matrix(sim$readings, plot, t, temp, window = "month")
-  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(),
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "month")
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(),
                                         folds = fold_map(y, v = 4L, seed = 6L),
                                         keep_fits = TRUE, verbose = FALSE))
   oc <- bin_occlusion(lad, x, y, "month|elasticnet", permutations = 5L, seed = 4L)
@@ -48,9 +48,9 @@ test_that("every substitute runs and reports the same parts", {
   y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
                             stats::plogis(3 * c(sim$warmth, -sim$warmth))),
               ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
-  x <- window_matrix(sim$readings, plot, t, temp, window = "month",
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "month",
                      stats = c("cold_day", "mean", "warm_day"))
-  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(),
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(),
                                         folds = fold_map(y, v = 3L, seed = 6L),
                                         keep_fits = TRUE, verbose = FALSE))
   parts <- lapply(c("permute", "fold_mean", "unit_mean"), function(s)
@@ -65,9 +65,9 @@ test_that("holding a channel back asks what the statistic carries", {
   y <- matrix(stats::rbinom(length(sim$warmth) * 2L, 1L,
                             stats::plogis(3 * c(sim$warmth, -sim$warmth))),
               ncol = 2L, dimnames = list(sim$units, c("sp1", "sp2")))
-  x <- window_matrix(sim$readings, plot, t, temp, window = "month",
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "month",
                      stats = c("cold_day", "mean", "warm_day"))
-  lad <- suppressWarnings(window_ladder(x, y, elasticnet_learner(),
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(),
                                         folds = fold_map(y, v = 3L, seed = 6L),
                                         keep_fits = TRUE, verbose = FALSE))
   oc <- bin_occlusion(lad, x, y, "month|elasticnet", over = "channel", permutations = 3L)

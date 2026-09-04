@@ -15,7 +15,7 @@ Rscript schrankogel.R <deposit_dir> <out_dir> [--name=value ...]
 | stage | what it does | writes |
 |---|---|---|
 | `contract` | the species filter, the fold map, the mask of scorable cells | `cells.csv` |
-| `representation` | the record at all seven windows, with every bin count asserted | `representation.csv` |
+| `representation` | the record at all seven grains, with every bin count asserted | `representation.csv` |
 | `baseline` | the aggregated-feature arms on the deposit's 188 variables | `baseline.csv` |
 | `networks` | the encoders across the ladder | `networks_mean.csv`, `networks_extremeday.csv` |
 | `contrasts` | every pair of arms, paired inside each cell both scored | `contrasts.csv` |
@@ -27,7 +27,7 @@ default is every stage but `networks`.
 ## Options
 
 - `--stages` comma-separated stage names.
-- `--windows` which windows the network grid covers. Default `day,week,month,season,year`.
+- `--grains` which grains the network grid covers. Default `day,week,month,season,year`.
 - `--learners` which encoders. Default `cnn`.
 - `--baseline` which aggregated-feature arms: `elastic_net`, `stepwise`, or both. Default
   `elastic_net`. Forward selection over 188 columns is one fit per candidate per step per species
@@ -40,7 +40,7 @@ default is every stage but `networks`.
 ## What it asserts before fitting anything
 
 The plot count, the species count after the contract filter, the rarest retained species, the cell
-count, the reading count, the readings per plot, and the bin count of every window. A mismatch
+count, the reading count, the readings per plot, and the bin count of every grain. A mismatch
 stops the run rather than producing a number nobody can trace to an input.
 
 Every stage reports the fold it is on as it goes, so a run measured in hours is distinguishable
@@ -53,10 +53,10 @@ Measured on one Windows processor, R 4.6.1:
 | stage | time |
 |---|---|
 | contract | seconds |
-| representation, all seven windows | about 2 minutes, 75 s of it reading the 1.2 GB CSV |
+| representation, all seven grains | about 2 minutes, 75 s of it reading the 1.2 GB CSV |
 | baseline, elastic net, 101 species by 10 folds | tens of minutes |
 | inflation, 2000 replicates at three planted levels | minutes |
-| networks, coarse windows, one encoder | hours |
+| networks, coarse grains, one encoder | hours |
 | networks, the hourly rung | wants a graphics processor, as it had in the study |
 
 Nothing here caps the data. A stage runs over all 894 plots and all 101 species or it does not run.
@@ -70,7 +70,7 @@ Run on 2026-09-02 with the study's own fold map.
 | plots, species, rarest species | 894, 101, 26 | 894, 101, 26 |
 | scorable cells | 1003 of 1010 (99.3%) | 1003 of 1010 (99.3%) |
 | species with a scorable fold | 101 of 101 | 101 of 101 |
-| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| bins per grain | 26304, 2192, 1096, 157, 36, 13, 3 | same |
 | numbers per plot, weekly three-channel | 471 | 471 |
 | numbers per plot, daily three-channel | 3288 | 3288 |
 | inflation at truth 0.60, 0.70, 0.90 | +0.110, +0.095, +0.051 | +0.110, +0.095, +0.051 |

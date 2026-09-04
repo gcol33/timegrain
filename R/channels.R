@@ -8,7 +8,7 @@
 #' They are the time index of each bin, not a summary of the readings, so adding them introduces no
 #' hand-built thermal feature: whatever a model does with them it could have done with a calendar.
 #'
-#' @param x A [window_matrix()] result.
+#' @param x A [grain_matrix()] result.
 #'
 #' @return An array of the same units and bins with two channels, `year_sin` and `year_cos`,
 #'   identical across units. Combine it with the readings using [bind_channels()].
@@ -16,7 +16,7 @@
 #' @examples
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 400)
 #' d <- data.frame(plot = "a", t = t, temp = sin(seq_along(t) / 500))
-#' x <- window_matrix(d, plot, t, temp, window = "month")
+#' x <- grain_matrix(d, plot, t, temp, grain = "month")
 #' round(calendar_channels(x)[1, 1:4, ], 3)
 #'
 #' @export
@@ -49,7 +49,7 @@ calendar_channels <- function(x) {
 #' t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 60)
 #' d <- data.frame(plot = rep(c("a", "b"), each = length(t)), t = rep(t, 2),
 #'                 temp = rnorm(2 * length(t)))
-#' x <- window_matrix(d, plot, t, temp, window = "week")
+#' x <- grain_matrix(d, plot, t, temp, grain = "week")
 #' dimnames(bind_channels(x, calendar_channels(x)))[[3]]
 #'
 #' @export
@@ -76,8 +76,8 @@ bind_channels <- function(...) {
 }
 
 .check_matrix <- function(x) {
-  if (!inherits(x, "climgrain_matrix")) {
-    stop("expected a window_matrix() result, got ", class(x)[1L], ".", call. = FALSE)
+  if (!inherits(x, "timesift_matrix")) {
+    stop("expected a grain_matrix() result, got ", class(x)[1L], ".", call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -92,13 +92,13 @@ bind_channels <- function(...) {
 }
 
 .carry_attrs <- function(out, from, stats) {
-  attr(out, "window") <- attr(from, "window")
+  attr(out, "grain") <- attr(from, "grain")
   attr(out, "stats") <- stats
   attr(out, "year_start") <- attr(from, "year_start")
   attr(out, "bin_start") <- attr(from, "bin_start")
   attr(out, "bin_end") <- attr(from, "bin_end")
   attr(out, "bin_n") <- attr(from, "bin_n")
   attr(out, "bin_partial") <- attr(from, "bin_partial")
-  class(out) <- c("climgrain_matrix", "array")
+  class(out) <- c("timesift_matrix", "array")
   out
 }

@@ -124,7 +124,7 @@ bin_occlusion(
 
 Hold one bin of the record back at a time and record the fall in score as its weight.
 
-Nothing is refitted: the models kept by `window_ladder(keep_fits=True)` are the ones read.
+Nothing is refitted: the models kept by `grain_ladder(keep_fits=True)` are the ones read.
 What a held-back bin is replaced by decides what the weight means, so the substitute is part of
 the answer: `permute` keeps the observed readings and cuts only the link between a reading
 and its unit, `fold_mean` removes all between-unit variation, `unit_mean` keeps how warm a

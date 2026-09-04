@@ -72,7 +72,7 @@ elasticnet_learner <- function(alpha = 0.5, n_inner = 5L, squares = TRUE, s = "l
 #' Each candidate enters as an orthogonal polynomial, so a term can be non-monotone in the reading
 #' the way a niche optimum is.
 #'
-#' Selection happens inside whichever units the learner is handed, so under [window_ladder()] it is
+#' Selection happens inside whichever units the learner is handed, so under [grain_ladder()] it is
 #' redone in every fold. That is the footing the other learners are fitted on. Reported beside a
 #' penalised fit it also prices discrete selection: choosing a handful of columns out of hundreds
 #' is high variance, and that variance is a cost of the selector rather than of the features.

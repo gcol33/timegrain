@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from climgrain import Response, digest_array, scorable_cells, window_matrix
+from timesift import Response, digest_array, scorable_cells, grain_matrix
 
 FIXTURES = Path(__file__).resolve().parents[2] / "inst" / "spec" / "fixtures"
 
@@ -40,9 +40,9 @@ def read_edges(name):
     return np.asarray(rows, dtype="datetime64[s]")
 
 
-def binning(name, window):
-    if window != "astronomical":
-        return window
+def binning(name, grain):
+    if grain != "astronomical":
+        return grain
     edges = read_edges(name)
 
     def astronomical(when):
@@ -58,13 +58,13 @@ def series():
 
 @pytest.mark.parametrize(
     "row", read_digests(),
-    ids=lambda r: (f"{r['series']}-{r['window']}-{r['tz'].replace('/', '_')}"
+    ids=lambda r: (f"{r['series']}-{r['grain']}-{r['tz'].replace('/', '_')}"
                    f"-{r['year_start']}-{r['partial']}-{r['stat']}"))
 def test_digest_matches_the_r_side(series, row):
     # The instants are the same bytes on disk whichever calendar reads them; the zone is the clock
     # laid over them, and a zone row asserts that both languages read that clock the same way.
-    x = window_matrix(series[row["series"]], "id", "time", "value",
-                      window=binning(row["series"], row["window"]),
+    x = grain_matrix(series[row["series"]], "id", "time", "value",
+                      grain=binning(row["series"], row["grain"]),
                       stats=row["stat"].split("+"), year_start=row["year_start"],
                       partial=row["partial"], tz=row["tz"])
     # The shape is asserted before the digest, so a binning that puts the record into a different
@@ -82,13 +82,13 @@ def test_digest_matches_the_r_side(series, row):
 
 
 def test_the_fixtures_cover_a_record_that_starts_on_no_bin_boundary():
-    # A record beginning at midnight on the year_start anniversary puts every window in phase with
+    # A record beginning at midnight on the year_start anniversary puts every grain in phase with
     # it, which is the one input on which a rule that keeps a partial leading bin and a rule that
     # never makes one agree. The contract is only a contract if it also carries the other case.
     rows = read_digests()
     assert {r["series"] for r in rows} == {"aligned", "offset", "zoned", "order"}
     offset = [r for r in rows if r["series"] == "offset"]
-    assert {r["window"] for r in offset} == {"hour", "halfday", "day", "week", "month", "season",
+    assert {r["grain"] for r in offset} == {"native", "halfday", "day", "week", "month", "season",
                                              "year", "astronomical"}
     assert sum(int(r["n_partial"]) for r in offset) > 0
     assert {r["partial"] for r in rows} == {"keep", "drop"}
@@ -103,9 +103,9 @@ def test_the_fixtures_cover_a_record_that_starts_on_no_bin_boundary():
 
 def test_dropping_every_bin_is_an_error_rather_than_an_empty_representation(series):
     with pytest.raises(ValueError, match="no whole year"):
-        window_matrix(series["offset"], "id", "time", "value", window="year", partial="drop")
+        grain_matrix(series["offset"], "id", "time", "value", grain="year", partial="drop")
     with pytest.raises(ValueError, match="must be"):
-        window_matrix(series["offset"], "id", "time", "value", window="day", partial="sometimes")
+        grain_matrix(series["offset"], "id", "time", "value", grain="day", partial="sometimes")
 
 
 def test_the_digest_is_the_lf_terminated_twelve_place_form_and_nothing_else():
@@ -127,7 +127,7 @@ def test_the_row_order_is_c_collation_and_not_the_locales(series):
     # them _x a1 A1 P10 P9, C collation orders them A1 P10 P9 _x a1, and the contract names the
     # second. NumPy already sorts this way; the fixture is what keeps it that way in both.
     record = series["order"]
-    x = window_matrix(record, "id", "time", "value", window="day")
+    x = grain_matrix(record, "id", "time", "value", grain="day")
     assert x.units == ("A1", "P10", "P9", "_x", "a1")
 
     # The input row order carries no meaning: the ids arrive in a third order again.
@@ -135,7 +135,7 @@ def test_the_row_order_is_c_collation_and_not_the_locales(series):
     assert seen == ["a1", "P9", "_x", "A1", "P10"]
     order = np.argsort(np.asarray(record["value"]), kind="stable")
     shuffled = {k: [record[k][i] for i in order] for k in ("id", "time", "value")}
-    assert digest_array(window_matrix(shuffled, "id", "time", "value", window="day"))         == digest_array(x)
+    assert digest_array(grain_matrix(shuffled, "id", "time", "value", grain="day"))         == digest_array(x)
 
 
 def test_the_scorable_mask_orders_its_variables_by_c_collation_too():
