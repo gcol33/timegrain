@@ -6,7 +6,7 @@ one, scores them all on one set of held-out folds, and stacks the out-of-fold pr
 
 ```r
 fit <- timesift(plots, logger, y = starts_with("sp_"), id = plot_id, time = datetime,
-                models = list(elasticnet(), forest(), cnn()),
+                models = c(elasticnet(), forest(), cnn()),
                 sift = grains("day", "week", "month"))
 summary(fit)
 ```
@@ -35,6 +35,9 @@ and the Schrankogel grid it was built on still reproduces from `inst/reproduce/s
 * `native()`, `grain()`, `multigrain()` and `lookback()` are what a representation is before any
   record has been read; `grains()` and `lookbacks()` are sets of them, and `grains("auto")` reads
   off the record every named grain it gives at least two bins.
+* `c()` combines learners, or representations, into a set: `c(elasticnet(), forest())` and
+  `c(grains("day", "week"), lookback("30 days"))`. A set handed back to `c()` splices, so a set can
+  be added to rather than rewritten. `models` and `sift` take that, a bare spec, or a list.
 * `lookback()` is a fixed span of record ending a fixed lag before each target's own instant, which
   is what a unit carrying several targets through time needs. It is one entry point in `src/`
   beside the calendar reduction, so both languages read it from the same implementation, and

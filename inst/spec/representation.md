@@ -550,9 +550,12 @@ call site.
 |---|---|---|
 | a learner's own training settings | a `control` field holding a partly specified `train_control()` | its `params`, beside the architecture |
 | the occlusion profile | `occlusion()`, an S3 generic with methods on a run and on a ladder | `occlusion()`, one function taking either |
+| a set of learners, or of representations | `c()`, an S3 method on each spec class | a `list`, and `+` between two of them |
 
-Both are shapes rather than behaviours: a setting given to a learner beats the run's control on
-both sides, and the profile is one implementation on both sides.
+All three are shapes rather than behaviours: a setting given to a learner beats the run's control
+on both sides, the profile is one implementation on both sides, and a set is the same set. `c()`
+is a method rather than a second constructor because R's own way to combine things of one kind is
+`c()`; a Python list already concatenates, so nothing is added there.
 
 ### Present in one language only
 

@@ -10,8 +10,8 @@
 #'
 #' @param x A [grain_matrix()] result, a [timesift_set()], or a named list of representations.
 #' @param y The response for the same units.
-#' @param learners A learner, a list of them, or names of registered ones. An unnamed list is
-#'   labelled by each learner's own name.
+#' @param learners A learner, a set of them from [c()], a list, or names of registered ones. An
+#'   unnamed set is labelled by each learner's own name.
 #' @param folds A fold map from [fold_map()], or any named integer vector. Built with the defaults
 #'   of [fold_map()] when not given.
 #' @param response Name of the registered response head.
@@ -189,6 +189,19 @@ score_predictions <- function(y, p, folds, cells = NULL, metric = "tss") {
          ". Name the list to tell them apart.", call. = FALSE)
   }
   learners
+}
+
+# A set handed back to `c()` splices rather than nests, so a set can be added to instead of
+# rewritten. A learner and a representation are both lists, so what splices is decided by class:
+# `is.list()` here would take a single spec apart into its fields.
+.splice <- function(args, cls) {
+  out <- list()
+  for (i in seq_along(args)) {
+    a <- args[[i]]
+    one <- inherits(a, cls) || !is.list(a)
+    out <- c(out, if (one) stats::setNames(list(a), names(args)[i]) else as.list(a))
+  }
+  out
 }
 
 # A learner names itself where the caller did not, and so does a representation; the field each

@@ -43,6 +43,20 @@ run_toy <- function(case, ...) {
            resampling = cv(v = 3L), control = NULL, verbose = FALSE, ...)
 }
 
+test_that("a run given c() and a run given list() agree", {
+  case <- toy_case()
+  by_c <- timesift(case$targets, case$series, y = starts_with("sp"), id = plot, time = t,
+                   models = c(toy(), toy("toy2")), sift = c(grain("week"), grain("month")),
+                   ensemble = FALSE, resampling = cv(v = 3L), verbose = FALSE)
+  by_list <- timesift(case$targets, case$series, y = starts_with("sp"), id = plot, time = t,
+                      models = list(toy(), toy("toy2")),
+                      sift = list(grain("week"), grain("month")),
+                      ensemble = FALSE, resampling = cv(v = 3L), verbose = FALSE)
+  expect_equal(names(by_c$oof), names(by_list$oof))
+  expect_equal(by_c$scores, by_list$scores)
+  expect_equal(by_c$oof, by_list$oof)
+})
+
 test_that("a fit carries every element the layers above it read", {
   fit <- run_toy(toy_case())
   expect_s3_class(fit, "timesift")

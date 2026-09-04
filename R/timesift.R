@@ -19,10 +19,10 @@
 #'   what a unit carrying several targets through time needs.
 #' @param static Columns of `targets` carried alongside the representation, as a tidyselect
 #'   expression. None by default.
-#' @param models A list of learners. Defaults to `list(elasticnet())`.
+#' @param models A learner, a set of them from [c()], or a list. Defaults to [elasticnet()].
 #' @param sift The representations a learner without a `data =` of its own is run across.
-#'   A [grains()] or [lookbacks()] set, a bare vector of grain names, a single representation, or a
-#'   list of them. Defaults to `grains("auto")`.
+#'   A [grains()] or [lookbacks()] set, a set from [c()], a bare vector of grain names, a single
+#'   representation, or a list of them. Defaults to `grains("auto")`.
 #' @param ensemble `TRUE` for the default stack, `FALSE` for none, or an [ensemble()] spec.
 #' @param resampling [cv()], [grouped_cv()], a fold vector, or a [fold_map()] result.
 #' @param response Name of the registered response head.
@@ -317,7 +317,7 @@ timesift <- function(targets, series = NULL, y, x = NULL, id = NULL, time = NULL
          call. = FALSE)
   }
   pinned <- Filter(Negate(is.null), lapply(learners, function(l) l$data))
-  wrong <- Filter(function(r) !identical(r$kind, "lookback"), c(as.list(sift), pinned))
+  wrong <- Filter(function(r) !identical(r$kind, "lookback"), c(unclass(sift), pinned))
   if (length(wrong)) {
     labels <- vapply(wrong, function(r) r$label, character(1L))
     stop("`target_time` needs a target-anchored representation, and ", .listing(unique(labels)),

@@ -218,6 +218,29 @@ timesift_sift <- function(x) {
   structure(x, class = "timesift_sift")
 }
 
+#' @rdname combine
+#' @export
+c.timesift_representation <- function(...) {
+  .sift_of(list(...))
+}
+
+#' @rdname combine
+#' @export
+c.timesift_sift <- function(...) {
+  .sift_of(list(...))
+}
+
+# `grains("auto")` stands for every grain the record turns out to carry, which is not known until
+# a record is read. Combining it with named ones would have to mean either "these as well" or
+# "these instead", so it is refused rather than resolved to one of them.
+.sift_of <- function(args) {
+  if (any(vapply(args, function(a) isTRUE(attr(a, "auto")), logical(1L)))) {
+    stop("grains(\"auto\") is every grain the record carries, so it cannot be combined with ",
+         "others. Name the grains you want instead.", call. = FALSE)
+  }
+  timesift_sift(.splice(args, "timesift_representation"))
+}
+
 #' @export
 print.timesift_sift <- function(x, ...) {
   if (isTRUE(attr(x, "auto"))) {

@@ -92,7 +92,7 @@ Models cannot be byte-identical across torch and libtorch and are not required t
 
 ```r
 fit <- timesift(targets, series, y = starts_with("sp_"), id = plot_id, time = datetime,
-                models = list(elasticnet(), forest(), cnn()),
+                models = c(elasticnet(), forest(), cnn()),
                 sift = grains("day", "week", "month"),
                 resampling = cv(v = 5))
 summary(fit)

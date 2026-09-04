@@ -23,8 +23,8 @@ grain_ladder(
 
 \item{y}{The response for the same units.}
 
-\item{learners}{A learner, a list of them, or names of registered ones. An unnamed list is
-labelled by each learner's own name.}
+\item{learners}{A learner, a set of them from \code{\link[=c]{c()}}, a list, or names of registered ones. An
+unnamed set is labelled by each learner's own name.}
 
 \item{folds}{A fold map from \code{\link[=fold_map]{fold_map()}}, or any named integer vector. Built with the defaults
 of \code{\link[=fold_map]{fold_map()}} when not given.}

@@ -198,6 +198,54 @@ print.timesift_fit <- function(x, ...) {
   invisible(x)
 }
 
+#' Combine learners, or representations, into a set
+#'
+#' `c()` on learners is the set of them, and on representations the set of those. A set handed to
+#' `c()` again splices, so a set can be added to rather than rewritten, which is what `list()`
+#' cannot do: `c(base, cnn())` where `base` is already a set.
+#'
+#' `models` and `sift` take either form. A length-one string is the name of a registered learner.
+#'
+#' @param ... Learners, representations, or sets of either.
+#' @return A `timesift_models` for learners and a `timesift_sift` for representations.
+#'
+#' @examples
+#' base <- c(elasticnet(), forest())
+#' base
+#' c(base, stepwise())
+#'
+#' c(grains("day", "week"), lookback("30 days"))
+#'
+#' @name combine
+NULL
+
+#' @rdname combine
+#' @export
+c.timesift_learner <- function(...) {
+  .models(.splice(list(...), "timesift_learner"))
+}
+
+#' @rdname combine
+#' @export
+c.timesift_models <- function(...) {
+  .models(.splice(list(...), "timesift_learner"))
+}
+
+#' @export
+print.timesift_models <- function(x, ...) {
+  cat("<timesift models>", .plural(length(x), "learner"), "\n")
+  for (nm in names(x)) {
+    cat(sprintf("  %-14s reads %s, %s\n", nm, x[[nm]]$reads, x[[nm]]$multi))
+  }
+  invisible(x)
+}
+
+# The set a `c()` of learners is, validated by the same call every entry point resolves `models`
+# with, so a set and a bare list cannot disagree about what a valid one is.
+.models <- function(x) {
+  structure(.learner_list(x), class = "timesift_models")
+}
+
 .as_learner <- function(learner) {
   if (inherits(learner, "timesift_learner")) {
     return(learner)

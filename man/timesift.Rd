@@ -45,11 +45,11 @@ what a unit carrying several targets through time needs.}
 \item{static}{Columns of \code{targets} carried alongside the representation, as a tidyselect
 expression. None by default.}
 
-\item{models}{A list of learners. Defaults to \code{list(elasticnet())}.}
+\item{models}{A learner, a set of them from \code{\link[=c]{c()}}, or a list. Defaults to \code{\link[=elasticnet]{elasticnet()}}.}
 
 \item{sift}{The representations a learner without a \verb{data =} of its own is run across.
-A \code{\link[=grains]{grains()}} or \code{\link[=lookbacks]{lookbacks()}} set, a bare vector of grain names, a single representation, or a
-list of them. Defaults to \code{grains("auto")}.}
+A \code{\link[=grains]{grains()}} or \code{\link[=lookbacks]{lookbacks()}} set, a set from \code{\link[=c]{c()}}, a bare vector of grain names, a single
+representation, or a list of them. Defaults to \code{grains("auto")}.}
 
 \item{ensemble}{\code{TRUE} for the default stack, \code{FALSE} for none, or an \code{\link[=ensemble]{ensemble()}} spec.}
 

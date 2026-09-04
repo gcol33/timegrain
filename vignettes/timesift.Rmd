@@ -124,7 +124,7 @@ how many it has.
 
 ```{r compatibility, error = TRUE}
 timesift(targets, series, y = starts_with("sp"), id = plot, time = t,
-         models = list(elasticnet()), sift = native())
+         models = elasticnet(), sift = native())
 ```
 
 Inside a set such a pair is skipped and listed as `not applicable` by `summary()`; named through a
@@ -184,7 +184,7 @@ nearest_neighbour <- learner(
 )
 
 both <- timesift(targets, series, y = starts_with("sp"), id = plot, time = t,
-                 models = list(elasticnet(), nearest_neighbour),
+                 models = c(elasticnet(), nearest_neighbour),
                  sift = grains("week", "month"), resampling = cv(v = 5), verbose = FALSE)
 summary(both)
 ```
