@@ -183,7 +183,7 @@ array says how many it has.
 ``` r
 
 timesift(targets, series, y = starts_with("sp"), id = plot, time = t,
-         models = list(elasticnet()), sift = native())
+         models = elasticnet(), sift = native())
 #> Error:
 #> ! no learner can read any representation in the sift:
 #>   `elasticnet()` reads a tabular representation; `native()` gives it one column per reading. Use `grain()`, `multigrain()` or `lookback()`.
@@ -295,7 +295,7 @@ nearest_neighbour <- learner(
 )
 
 both <- timesift(targets, series, y = starts_with("sp"), id = plot, time = t,
-                 models = list(elasticnet(), nearest_neighbour),
+                 models = c(elasticnet(), nearest_neighbour),
                  sift = grains("week", "month"), resampling = cv(v = 5), verbose = FALSE)
 summary(both)
 #> timesift  60 targets, 6 responses, 5-fold random CV, tss

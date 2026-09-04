@@ -10,16 +10,71 @@ rows. It builds each candidate representation, fits the learners you name on eve
 read, scores them all on one set of held-out folds, and stacks the out-of-fold predictions into an
 ensemble. What comes back says how much of the record the prediction actually needed.
 
+The same calls exist in both languages over one shared C++ core, and the fixtures under
+`inst/spec/fixtures/` hold the two to the same numbers.
+
+<table class="lang-split">
+<tr>
+<td width="50%" valign="top">
+
+### R
+
+```r
+pak::pak("gcol33/timesift")
+```
+
 ```r
 fit <- timesift(
   plots, logger,
   y = starts_with("sp_"),
-  id = plot_id,
-  time = datetime,
-  models = list(elasticnet(), forest()),
-  sift = grains("day", "week", "month"),
-  resampling = cv(v = 5)
+  id = plot_id, time = datetime,
+  models = c(elasticnet(), forest()),
+  sift = grains("day", "week", "month")
 )
+```
+
+</td>
+<td width="50%" valign="top">
+
+### Python
+
+```bash
+pip install \
+  git+https://github.com/gcol33/timesift
+```
+
+```python
+fit = ts.timesift(
+    plots, logger,
+    y="sp_*",
+    id="plot_id", time="datetime",
+    models=[ts.elasticnet(), ts.forest()],
+    sift=ts.grains("day", "week", "month"),
+)
+```
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+[Get started](https://gillescolling.com/timesift/articles/timesift.html) ·
+[Reference](https://gillescolling.com/timesift/reference/index.html)
+
+</td>
+<td valign="top">
+
+[Get started](https://gillescolling.com/timesift/articles/python.html) ·
+[Reference](https://gillescolling.com/timesift/articles/python.html#the-pages)
+
+</td>
+</tr>
+</table>
+
+`fit` prints every candidate it fitted, the score each reached on the held-out folds, and the
+weights the stack gave them:
+
+```r
 fit
 #> timesift  80 targets, 4 responses, 5-fold random CV, tss
 #>
@@ -148,8 +203,10 @@ because both arms carry the same bias on the same cell.
 
 `inst/spec/representation.md` is normative, and `inst/spec/fixtures/` holds a synthetic series with
 the digest of every grain-by-statistic combination. Both test suites assert the same digests, so R
-and Python cannot drift apart on the one thing the package is about. `python/README.md` is the
-Python side.
+and Python cannot drift apart on the one thing the package is about.
+[The Python pages](https://gillescolling.com/timesift/articles/python.html) are that side, and
+[the contract](https://gillescolling.com/timesift/articles/contract.html) says what each language
+carries.
 
 ## Reproducing the study
 
@@ -157,12 +214,6 @@ Python side.
 asserts the plot count, the species count, the cell count and the bin count of every grain before
 fitting anything. `vignette("reproducing-schrankogel")` says which setting corresponds to which
 part of that grid.
-
-## Installation
-
-```r
-pak::pak("gcol33/timesift")
-```
 
 ## License
 

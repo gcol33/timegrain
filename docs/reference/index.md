@@ -7,6 +7,11 @@ that follows from it.
 
 - [`timesift()`](https://gillescolling.com/timesift/reference/timesift.md)
   : Fit and compare representations of time-varying data
+- [`c(`*`<timesift_learner>`*`)`](https://gillescolling.com/timesift/reference/combine.md)
+  [`c(`*`<timesift_models>`*`)`](https://gillescolling.com/timesift/reference/combine.md)
+  [`c(`*`<timesift_representation>`*`)`](https://gillescolling.com/timesift/reference/combine.md)
+  [`c(`*`<timesift_sift>`*`)`](https://gillescolling.com/timesift/reference/combine.md)
+  : Combine learners, or representations, into a set
 - [`summary(`*`<timesift>`*`)`](https://gillescolling.com/timesift/reference/timesift_report.md)
   [`print(`*`<timesift>`*`)`](https://gillescolling.com/timesift/reference/timesift_report.md)
   [`print(`*`<timesift_summary>`*`)`](https://gillescolling.com/timesift/reference/timesift_report.md)

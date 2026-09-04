@@ -665,10 +665,15 @@ the difference is recorded here rather than found at a call site.
 |----|----|----|
 | a learner’s own training settings | a `control` field holding a partly specified [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md) | its `params`, beside the architecture |
 | the occlusion profile | [`occlusion()`](https://gillescolling.com/timesift/reference/occlusion.md), an S3 generic with methods on a run and on a ladder | [`occlusion()`](https://gillescolling.com/timesift/reference/occlusion.md), one function taking either |
+| a set of learners, or of representations | [`c()`](https://rdrr.io/r/base/c.html), an S3 method on each spec class | a `list`, and `+` between two of them |
 
-Both are shapes rather than behaviours: a setting given to a learner
-beats the run’s control on both sides, and the profile is one
-implementation on both sides.
+All three are shapes rather than behaviours: a setting given to a
+learner beats the run’s control on both sides, the profile is one
+implementation on both sides, and a set is the same set.
+[`c()`](https://rdrr.io/r/base/c.html) is a method rather than a second
+constructor because R’s own way to combine things of one kind is
+[`c()`](https://rdrr.io/r/base/c.html); a Python list already
+concatenates, so nothing is added there.
 
 ### Present in one language only
 

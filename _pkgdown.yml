@@ -5,6 +5,12 @@ template:
   light-switch: yes
   includes:
     in_header: |
+      <style>
+      .lang-split { table-layout: fixed; width: 100%; border: 0; }
+      .lang-split > tbody > tr > td { border: 0; padding: 0 1rem 0 0; }
+      .lang-split > tbody > tr > td:last-child { padding-right: 0; }
+      .lang-split pre { overflow-x: auto; }
+      </style>
       <script>
       (function () {
         var D = String.fromCharCode(36);
@@ -26,17 +32,25 @@ figures:
 navbar:
   structure:
     left:
-    - intro
-    - reference
+    - r
     - python
     - contract
-    - articles
     - news
     right:
     - search
     - github
     - lightswitch
   components:
+    r:
+      text: R
+      menu:
+      - text: Get started
+        href: articles/timesift.html
+      - text: Reference
+        href: reference/index.html
+      - text: '-------'
+      - text: Reproducing the study
+        href: articles/reproducing-schrankogel.html
     python:
       text: Python
       menu:
@@ -66,6 +80,7 @@ reference:
     Two tables to a scored comparison of representations, and the prediction that follows from it.
   contents:
   - timesift
+  - combine
   - timesift_report
   - predict.timesift
   - plot.timesift

@@ -12,7 +12,7 @@ predictions.
 ``` r
 
 fit <- timesift(plots, logger, y = starts_with("sp_"), id = plot_id, time = datetime,
-                models = list(elasticnet(), forest(), cnn()),
+                models = c(elasticnet(), forest(), cnn()),
                 sift = grains("day", "week", "month"))
 summary(fit)
 ```
@@ -63,6 +63,12 @@ reproduces from `inst/reproduce/schrankogel.R`.
   [`lookbacks()`](https://gillescolling.com/timesift/reference/grains.md)
   are sets of them, and `grains("auto")` reads off the record every
   named grain it gives at least two bins.
+- [`c()`](https://rdrr.io/r/base/c.html) combines learners, or
+  representations, into a set: `c(elasticnet(), forest())` and
+  `c(grains("day", "week"), lookback("30 days"))`. A set handed back to
+  [`c()`](https://rdrr.io/r/base/c.html) splices, so a set can be added
+  to rather than rewritten. `models` and `sift` take that, a bare spec,
+  or a list.
 - [`lookback()`](https://gillescolling.com/timesift/reference/native.md)
   is a fixed span of record ending a fixed lag before each target’s own
   instant, which is what a unit carrying several targets through time

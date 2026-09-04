@@ -40,8 +40,9 @@ summary(object, ...)
 
 - learners:
 
-  A learner, a list of them, or names of registered ones. An unnamed
-  list is labelled by each learner's own name.
+  A learner, a set of them from [`c()`](https://rdrr.io/r/base/c.html),
+  a list, or names of registered ones. An unnamed set is labelled by
+  each learner's own name.
 
 - folds:
 

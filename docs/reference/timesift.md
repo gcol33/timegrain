@@ -74,7 +74,9 @@ timesift(
 
 - models:
 
-  A list of learners. Defaults to `list(elasticnet())`.
+  A learner, a set of them from [`c()`](https://rdrr.io/r/base/c.html),
+  or a list. Defaults to
+  [`elasticnet()`](https://gillescolling.com/timesift/reference/elasticnet.md).
 
 - sift:
 
@@ -83,8 +85,9 @@ timesift(
   [`grains()`](https://gillescolling.com/timesift/reference/grains.md)
   or
   [`lookbacks()`](https://gillescolling.com/timesift/reference/grains.md)
-  set, a bare vector of grain names, a single representation, or a list
-  of them. Defaults to `grains("auto")`.
+  set, a set from [`c()`](https://rdrr.io/r/base/c.html), a bare vector
+  of grain names, a single representation, or a list of them. Defaults
+  to `grains("auto")`.
 
 - ensemble:
 
