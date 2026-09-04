@@ -13,6 +13,7 @@ is the boundary: resolving the columns, resolving the zone, and putting the resu
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -25,9 +26,29 @@ GRAINS = ("native", "halfday", "day", "week", "month", "season", "year")
 DAY_LEVEL_STATS = ("cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
 STATS = ("mean", "min", "max") + DAY_LEVEL_STATS
 
+# A year is 365 days and a month is 30 days here. A lookback of a fixed length is a fixed length,
+# not a calendar step: every target has to read the same amount of record for the representations
+# to be comparable, which a February and a leap year would take away.
+DURATION_SECONDS = {"second": 1, "seconds": 1, "minute": 60, "minutes": 60, "hour": 3600,
+                    "hours": 3600, "day": 86400, "days": 86400, "week": 604800, "weeks": 604800,
+                    "month": 2592000, "months": 2592000, "year": 31536000, "years": 31536000}
+
+
+class _Channels:
+    """What every representation carries, whatever its second dimension counts."""
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        """Rows, bins and channels."""
+        return self.values.shape
+
+    def channel(self, name: str) -> np.ndarray:
+        """One statistic as a `[row, bin]` matrix."""
+        return self.values[:, :, self.stats.index(name)]
+
 
 @dataclass(frozen=True)
-class GrainMatrix:
+class GrainMatrix(_Channels):
     """A ``[unit, bin, channel]`` representation and the binning that produced it."""
 
     values: np.ndarray
@@ -41,15 +62,6 @@ class GrainMatrix:
     bin_n: np.ndarray = field(repr=False)
     bin_partial: np.ndarray = field(repr=False)
 
-    @property
-    def shape(self) -> tuple[int, int, int]:
-        """Units, bins and channels."""
-        return self.values.shape
-
-    def channel(self, name: str) -> np.ndarray:
-        """One statistic as a `[unit, bin]` matrix."""
-        return self.values[:, :, self.stats.index(name)]
-
     def take_units(self, index) -> "GrainMatrix":
         """The representation restricted to a subset of its units, in the order given."""
         index = np.asarray(index)
@@ -59,6 +71,30 @@ class GrainMatrix:
     def __repr__(self) -> str:  # pragma: no cover - display only
         n_u, n_b, n_c = self.values.shape
         return (f"<timesift matrix> {n_u} units x {n_b} bins x {n_c} channels\n"
+                f"grain: {self.grain}  stats: {', '.join(self.stats)}\n"
+                f"from  : {self.bins[0]} to {self.bins[-1]}")
+
+
+@dataclass(frozen=True)
+class WindowMatrix(_Channels):
+    """A ``[target, bin, channel]`` lookback and the window that produced it.
+
+    Its rows are the rows of the ``at`` table, in that table's own order, and its bins are named by
+    where each one opens relative to the anchor rather than by an instant no two targets share.
+    """
+
+    values: np.ndarray
+    targets: tuple[str, ...]
+    bins: tuple[str, ...]
+    stats: tuple[str, ...]
+    grain: str
+    span: int
+    lag: int
+    bin_n: np.ndarray = field(repr=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - display only
+        n_t, n_b, n_c = self.values.shape
+        return (f"<timesift matrix> {n_t} targets x {n_b} bins x {n_c} channels\n"
                 f"grain: {self.grain}  stats: {', '.join(self.stats)}\n"
                 f"from  : {self.bins[0]} to {self.bins[-1]}")
 
@@ -200,6 +236,127 @@ def _drop_partial(x: GrainMatrix) -> GrainMatrix:
     return replace(x, values=x.values[:, keep, :], bins=tuple(x.bins[i] for i in keep),
                    bin_start=x.bin_start[keep], bin_end=x.bin_end[keep],
                    bin_n=x.bin_n[:, keep], bin_partial=x.bin_partial[keep])
+
+
+def window_matrix(data=None, id=None, time=None, value=None, at=None, span=None, *,
+                  lag="0 days", bins=1, stats="mean", tz=None):
+    """Read a fixed length of record ending a fixed lag before each target's own instant.
+
+    It is the reduction a calendar cannot express: two targets on the same unit a fortnight apart
+    read two different stretches of the same series, so the bins are relative to the target rather
+    than to a month or a week.
+
+    ``at`` is a mapping with an ``"id"`` array of units and a ``"time"`` array of anchor instants,
+    one row per target; a unit may carry any number of them. Bin ``b`` of a target anchored at
+    ``a`` covers ``[a - lag - span + b * step, a - lag - span + (b + 1) * step)``, with ``step`` the
+    span divided by ``bins`` and ``b`` counted from zero. Only the readings of the target's own
+    unit are read, and every ``(target, bin)`` cell must hold at least one: a window reaching past
+    the record is an error naming the target, never a padded row.
+
+    ``span`` and ``lag`` are read from a count and a unit -- ``"30 days"``, ``"12 hours"``,
+    ``"1 year"`` -- or from a bare number of seconds. A year is 365 days and a month is 30 days
+    here, because a lookback of a fixed length is a fixed length rather than a calendar step.
+
+    ``tz`` names the calendar, as it does for :func:`grain_matrix`. The anchors are instants and
+    are read as a clock in that same calendar, so one record is binned by one calendar.
+    """
+    unit, when, reading = _columns(data, id, time, value)
+    span = _parse_duration(span, "span")
+    lag = _parse_duration(lag, "lag")
+    bins = _check_bins(bins)
+    stats = _check_stats(stats, "window")
+    zone = _zone(tz)
+
+    instant = np.ascontiguousarray(when.astype("datetime64[s]").astype(np.int64))
+    units, unit_ix = np.unique(unit, return_inverse=True)
+    unit_ix = np.ascontiguousarray(unit_ix.astype(np.int32))
+    _check_readings(units, unit_ix, instant, when, reading)
+    local = _naive_seconds(instant, zone)
+
+    target_unit, anchor, labels = _targets(at, units, zone)
+    values, bin_n = _core.reduce_windows(
+        unit_ix, reading, local, [str(u) for u in units], target_unit, anchor, list(labels),
+        span, lag, bins, list(stats))
+
+    n_t = len(labels)
+    return WindowMatrix(
+        values=np.ascontiguousarray(values.reshape(len(stats), bins, n_t).transpose(2, 1, 0)),
+        targets=labels, bins=_bin_offsets(span, lag, bins), stats=tuple(stats),
+        grain="window", span=span, lag=lag, bin_n=bin_n.reshape(bins, n_t).T)
+
+
+def _targets(at, units, zone):
+    """A target is a unit and an instant, and its identity is its position in ``at``: a unit may
+    carry several targets, so the unit cannot name a row. The anchors go through the same boundary
+    the readings do, so both are read as a clock in the series' own calendar."""
+    if at is None or "id" not in at or "time" not in at:
+        raise ValueError('`at` must give an "id" and a "time" for every target')
+    who = np.asarray([str(v) for v in at["id"]])
+    anchor = np.asarray(at["time"], dtype="datetime64[s]")
+    if len(who) != len(anchor):
+        raise ValueError("`at` must give one anchor per target")
+    if not len(who):
+        raise ValueError("`at` holds no target")
+    if np.isnat(anchor).any():
+        raise ValueError("missing values in `at`. "
+                         "Fill or drop them before building a representation.")
+
+    index = np.searchsorted(units, who)
+    unknown = (index >= len(units)) | (units[np.minimum(index, len(units) - 1)] != who)
+    if unknown.any():
+        n = int(unknown.sum())
+        raise ValueError(f"{n} target{'s' if n > 1 else ''} name a unit the series does not "
+                         f"carry, first: {who[np.flatnonzero(unknown)[0]]}.")
+
+    seconds = _naive_seconds(np.ascontiguousarray(anchor.astype(np.int64)), zone)
+    return (np.ascontiguousarray(index.astype(np.int32)), np.ascontiguousarray(seconds),
+            tuple(str(i + 1) for i in range(len(who))))
+
+
+def _check_bins(bins):
+    if isinstance(bins, bool) or not isinstance(bins, (int, np.integer)) or int(bins) < 1:
+        raise ValueError("`bins` must be a positive whole number")
+    return int(bins)
+
+
+def _parse_duration(x, arg):
+    if isinstance(x, bool) or x is None:
+        raise ValueError(f'`{arg}` must be a whole number of seconds or a count and a unit, '
+                         f'like "30 days"')
+    if isinstance(x, (int, np.integer)):
+        return int(x)
+    if isinstance(x, (float, np.floating)):
+        if not np.isfinite(x) or float(x) != int(x):
+            raise ValueError(f'`{arg}` must be a whole number of seconds or a count and a unit, '
+                             f'like "30 days"')
+        return int(x)
+    if not isinstance(x, str):
+        raise ValueError(f'`{arg}` must be a whole number of seconds or a count and a unit, '
+                         f'like "30 days"')
+    parts = re.fullmatch(r" *([0-9]+) *([A-Za-z]*) *", x)
+    if parts is None:
+        raise ValueError(f'`{arg}` must be a count and a unit, like "30 days", got "{x}"')
+    if not parts.group(2):
+        return int(parts.group(1))
+    size = DURATION_SECONDS.get(parts.group(2).lower())
+    if size is None:
+        raise ValueError(f'unknown duration unit "{parts.group(2)}" in `{arg}`. Available: '
+                         "seconds, minutes, hours, days, weeks, months, years")
+    return int(parts.group(1)) * size
+
+
+def _bin_offsets(span, lag, bins):
+    """The second dimension is the lookback itself, so a bin is named by where it opens relative to
+    the anchor rather than by an instant no two targets share."""
+    step = span // bins
+    return tuple(_format_duration(b * step - lag - span) for b in range(bins))
+
+
+def _format_duration(x: int) -> str:
+    for name, size in (("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1)):
+        if x % size == 0:
+            n = x // size
+            return f"{n} {name}" + ("" if abs(n) == 1 else "s")
 
 
 def calendar_channels(x: GrainMatrix) -> GrainMatrix:

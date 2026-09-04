@@ -131,6 +131,98 @@ def oracle_bin_extent(when, bin_ix, n_b):
     return np.maximum.reduceat(seconds[order], starts).astype("datetime64[s]")
 
 
+def oracle_duration(x):
+    """A count and a unit, or a bare count of seconds. A year is 365 days and a month is 30 days:
+    a lookback of a fixed length is a fixed length rather than a calendar step."""
+    if not isinstance(x, str):
+        return int(x)
+    size = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800,
+            "month": 2592000, "year": 31536000}
+    parts = x.strip().split()
+    if len(parts) == 1:
+        return int(parts[0])
+    return int(parts[0]) * size[parts[1].lower().rstrip("s")]
+
+
+def oracle_bin_offsets(span, lag, bins):
+    step = span // bins
+    out = []
+    for b in range(bins):
+        x = b * step - lag - span
+        for name, size in (("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1)):
+            if x % size == 0:
+                n = x // size
+                out.append(f"{n} {name}" + ("" if abs(n) == 1 else "s"))
+                break
+    return tuple(out)
+
+
+def oracle_cell_stat(name, v, t):
+    """The seven statistics over the readings of one cell. The four day-level ones reduce each
+    calendar day first and reduce again over the days of the cell, oldest first, which is what
+    keeps an extreme day distinct from an extreme reading."""
+    if name == "mean":
+        return float(v.mean())
+    if name == "min":
+        return float(v.min())
+    if name == "max":
+        return float(v.max())
+    parts = np.split(v, np.flatnonzero(np.diff(t // 86400)) + 1)
+    if name == "cold_day":
+        return float(min(p.mean() for p in parts))
+    if name == "warm_day":
+        return float(max(p.mean() for p in parts))
+    if name == "mean_daily_min":
+        return float(np.mean([p.min() for p in parts]))
+    return float(np.mean([p.max() for p in parts]))
+
+
+def oracle_window_matrix(data, id, time, value, at, span, lag="0 days", bins=1, stats=("mean",)):
+    """The lookback window, from the section of ``inst/spec/representation.md`` that describes it.
+
+    It reads whole seconds and knows no zone, so it answers for a series already expressed in the
+    calendar to bin by; that is what the tests hand it.
+    """
+    span = oracle_duration(span)
+    lag = oracle_duration(lag)
+    step = span // bins
+    stats = [stats] if isinstance(stats, str) else list(stats)
+    unit = np.asarray([str(v) for v in data[id]])
+    when = np.asarray(data[time], dtype="datetime64[s]").astype(np.int64)
+    reading = np.asarray(data[value], dtype=np.float64)
+    who = np.asarray([str(v) for v in at["id"]])
+    anchor = np.asarray(at["time"], dtype="datetime64[s]").astype(np.int64)
+    n_t = len(anchor)
+
+    # A day-level statistic is defined only where every calendar day lies whole inside one bin,
+    # which for a window is a step of whole days and a window opening on a day boundary.
+    if any(s in DAY_LEVEL_STATS for s in stats):
+        if step % 86400:
+            raise ValueError("needs bins of a calendar day or coarser")
+        off = np.flatnonzero((anchor - lag - span) % 86400)
+        if len(off):
+            raise ValueError(f"needs bins that open on a day boundary: target {off[0] + 1}")
+
+    out = np.empty((n_t, bins, len(stats)), dtype=np.float64)
+    count = np.zeros((n_t, bins), dtype=np.int64)
+    for i in range(n_t):
+        opens = int(anchor[i]) - lag - span
+        inside = (unit == who[i]) & (when >= opens) & (when < opens + span)
+        order = np.argsort(when[inside], kind="stable")
+        t = when[inside][order]
+        v = reading[inside][order]
+        b = (t - opens) // step
+        for k in range(bins):
+            take = b == k
+            if not take.any():
+                raise ValueError(f"(target, bin) cell holds no readings, first: target {i + 1}")
+            count[i, k] = int(take.sum())
+            for j, s in enumerate(stats):
+                out[i, k, j] = oracle_cell_stat(s, v[take], t[take])
+
+    return {"values": out, "bins": oracle_bin_offsets(span, lag, bins), "bin_n": count}
+
+
 def oracle_grain_matrix(data, id, time, value, *, grain="day", stats=("mean",),
                          year_start="09-01"):
     unit = np.asarray([str(v) for v in data[id]])

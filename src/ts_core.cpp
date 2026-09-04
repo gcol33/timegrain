@@ -14,20 +14,135 @@ constexpr seconds kDay = 86400;
 // one instead. A record has to span some 1,900 years hourly, or 45,000 years daily, to reach it.
 constexpr std::int64_t kMaxSlots = 1 << 24;
 
+constexpr double kInf = std::numeric_limits<double>::infinity();
+
 struct Grouping {
   std::vector<seconds> bins;          // sorted distinct bin starts
   std::vector<std::int32_t> bin_of;   // one per reading
 };
 
-std::string name_of(const Request& req, std::size_t unit) {
-  if (req.unit_name != nullptr && req.unit_name[unit] != nullptr) {
-    return std::string(req.unit_name[unit]);
+// What a guard calls a unit or a target: the name the caller gave it, or its position where the
+// caller gave none.
+std::string label_of(const char* const* names, std::size_t i) {
+  if (names != nullptr && names[i] != nullptr) {
+    return std::string(names[i]);
   }
-  return std::to_string(unit + 1);
+  return std::to_string(i + 1);
 }
 
 std::string plural(std::size_t n, const char* word) {
   return std::to_string(n) + " " + word + (n == 1 ? "" : "s");
+}
+
+// Which of the three per-day quantities the requested statistics need. A day-level statistic
+// reduces each calendar day first and reduces again over the days of a bin; nothing else reads a
+// day at all.
+struct DayNeed {
+  bool mean = false;
+  bool min = false;
+  bool max = false;
+  bool any() const { return mean || min || max; }
+};
+
+DayNeed day_need(const std::vector<Stat>& stats) {
+  DayNeed need;
+  for (Stat s : stats) {
+    switch (s) {
+      case Stat::cold_day: case Stat::warm_day: need.mean = true; break;
+      case Stat::mean_daily_min: need.min = true; break;
+      case Stat::mean_daily_max: need.max = true; break;
+      default: break;
+    }
+  }
+  return need;
+}
+
+// The day-level statistics a guard names, with the verb agreeing with how many there are.
+std::string day_level_named(const std::vector<Stat>& stats) {
+  std::string which;
+  std::size_t named = 0;
+  for (Stat s : stats) {
+    if (!is_day_level(s)) continue;
+    if (!which.empty()) which += " and ";
+    which += stat_name(s);
+    ++named;
+  }
+  return which + (named == 1 ? " needs" : " need");
+}
+
+// The first stage of a day-level statistic: every (unit, calendar day) the record holds reduced to
+// its own mean, its own minimum and its own maximum. Both reductions read a day this way; what
+// they differ in is which bin owns a day, which each decides for itself.
+struct DayTable {
+  std::vector<std::int32_t> count;
+  std::vector<double> sum;
+  std::vector<double> low;
+  std::vector<double> high;
+
+  DayTable(std::size_t n_dcell, DayNeed need)
+      : count(n_dcell, 0), sum(n_dcell, 0.0),
+        low(need.min ? n_dcell : 0, kInf), high(need.max ? n_dcell : 0, -kInf) {}
+
+  void read(std::size_t c, double v, DayNeed need) {
+    count[c] += 1;
+    sum[c] += v;
+    if (need.min && v < low[c]) low[c] = v;
+    if (need.max && v > high[c]) high[c] = v;
+  }
+};
+
+// The second stage: the days of one bin reduced again, which is what keeps an extreme day distinct
+// from an extreme reading. Days are folded in oldest first, so the mean of the daily extremes
+// accumulates in the same order wherever it is read.
+struct DayFold {
+  std::vector<double> low, high, min_sum, max_sum;
+  std::vector<std::int32_t> n_day;
+
+  DayFold(std::size_t n_cell, DayNeed need)
+      : low(need.mean ? n_cell : 0, kInf), high(need.mean ? n_cell : 0, -kInf),
+        min_sum(need.min ? n_cell : 0, 0.0), max_sum(need.max ? n_cell : 0, 0.0),
+        n_day(n_cell, 0) {}
+
+  void add(const DayTable& day, std::size_t dcell, std::size_t cell, DayNeed need) {
+    n_day[cell] += 1;
+    if (need.mean) {
+      const double m = day.sum[dcell] / day.count[dcell];
+      if (m < low[cell]) low[cell] = m;
+      if (m > high[cell]) high[cell] = m;
+    }
+    if (need.min) min_sum[cell] += day.low[dcell];
+    if (need.max) max_sum[cell] += day.high[dcell];
+  }
+};
+
+// One channel of the output, read off the accumulators both reductions fill.
+void write_channel(Stat s, double* channel, std::size_t n_cell,
+                   const std::vector<std::int32_t>& count, const std::vector<double>& sum,
+                   const std::vector<double>& low, const std::vector<double>& high,
+                   const DayFold& day) {
+  switch (s) {
+    case Stat::mean:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = sum[c] / count[c];
+      break;
+    case Stat::min:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = low[c];
+      break;
+    case Stat::max:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = high[c];
+      break;
+    case Stat::cold_day:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day.low[c];
+      break;
+    case Stat::warm_day:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day.high[c];
+      break;
+    case Stat::mean_daily_min:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day.min_sum[c] / day.n_day[c];
+      break;
+    case Stat::mean_daily_max:
+      for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day.max_sum[c] / day.n_day[c];
+      break;
+  }
 }
 
 // Bins whose starts the caller supplied, or whose slots span more of the calendar than a table can
@@ -104,7 +219,7 @@ void check_full_grid(const std::vector<std::int32_t>& count, const std::vector<s
   }
   if (empty == 0) return;
   throw Error(plural(empty, "(unit, bin) cell") + " hold no readings, first: unit " +
-              name_of(req, first % n_unit) + " at " + iso8601(bins[first / n_unit]) +
+              label_of(req.unit_name, first % n_unit) + " at " + iso8601(bins[first / n_unit]) +
               ". Every unit must span every bin; gaps are not padded.");
 }
 
@@ -165,26 +280,21 @@ Result reduce(const Request& req) {
     check_contiguous(bins, req);
   }
 
-  bool need_day = false;
   bool need_sum = false, need_min = false, need_max = false;
-  bool need_day_mean = false, need_day_min = false, need_day_max = false;
   for (Stat s : req.stats) {
     switch (s) {
       case Stat::mean: need_sum = true; break;
       case Stat::min: need_min = true; break;
       case Stat::max: need_max = true; break;
-      case Stat::cold_day: case Stat::warm_day: need_day_mean = true; break;
-      case Stat::mean_daily_min: need_day_min = true; break;
-      case Stat::mean_daily_max: need_day_max = true; break;
+      default: break;
     }
-    need_day = need_day || is_day_level(s);
   }
+  const DayNeed need = day_need(req.stats);
 
-  const double inf = std::numeric_limits<double>::infinity();
   std::vector<double> sum, low, high;
   if (need_sum) sum.assign(n_cell, 0.0);
-  if (need_min) low.assign(n_cell, inf);
-  if (need_max) high.assign(n_cell, -inf);
+  if (need_min) low.assign(n_cell, kInf);
+  if (need_max) high.assign(n_cell, -kInf);
 
   for (std::size_t i = 0; i < n; ++i) {
     const std::size_t c = static_cast<std::size_t>(bin_of[i]) * n_unit +
@@ -198,98 +308,41 @@ Result reduce(const Request& req) {
   // The day-level stage: reduce every (unit, calendar day) to its own mean, minimum and maximum,
   // then reduce again over the days of a bin. That second reduction is what keeps an extreme day
   // distinct from an extreme reading.
-  std::vector<double> day_low, day_high, day_min_sum, day_max_sum;
-  std::vector<std::int32_t> n_day;
-  if (need_day) {
+  DayFold day(need.any() ? n_cell : 0, need);
+  if (need.any()) {
     const Grouping calendar = group_by_grain(req.local, n, Grain::day, req.year_start);
     const std::size_t n_days = calendar.bins.size();
 
     std::vector<std::int32_t> day_bin(n_days, -1);
     const std::size_t n_dcell = n_unit * n_days;
-    std::vector<std::int32_t> dcount(n_dcell, 0);
-    std::vector<double> dsum(n_dcell, 0.0);
-    std::vector<double> dlow(need_day_min ? n_dcell : 0, inf);
-    std::vector<double> dhigh(need_day_max ? n_dcell : 0, -inf);
+    DayTable table(n_dcell, need);
 
     for (std::size_t i = 0; i < n; ++i) {
       const std::int32_t d = calendar.bin_of[i];
       if (day_bin[d] < 0) {
         day_bin[d] = bin_of[i];
       } else if (day_bin[d] != bin_of[i]) {
-        std::string which;
-        std::size_t named = 0;
-        for (Stat s : req.stats) {
-          if (!is_day_level(s)) continue;
-          if (!which.empty()) which += " and ";
-          which += stat_name(s);
-          ++named;
-        }
-        which += named == 1 ? " needs" : " need";
-        throw Error(which + " bins of a calendar day or coarser: the day beginning " +
+        throw Error(day_level_named(req.stats) +
+                    " bins of a calendar day or coarser: the day beginning " +
                     iso8601(calendar.bins[d]) + " is split between the bins beginning " +
                     iso8601(bins[day_bin[d]]) + " and " + iso8601(bins[bin_of[i]]) + ".");
       }
-      const std::size_t c = static_cast<std::size_t>(d) * n_unit +
-                            static_cast<std::size_t>(req.unit[i]);
-      const double v = req.value[i];
-      dcount[c] += 1;
-      dsum[c] += v;
-      if (need_day_min && v < dlow[c]) dlow[c] = v;
-      if (need_day_max && v > dhigh[c]) dhigh[c] = v;
+      table.read(static_cast<std::size_t>(d) * n_unit + static_cast<std::size_t>(req.unit[i]),
+                 req.value[i], need);
     }
 
-    // Walked in day-cell order, so the days of a bin are summed oldest first and the mean of the
-    // daily extremes accumulates in the same order in both languages.
-    n_day.assign(n_cell, 0);
-    if (need_day_mean) {
-      day_low.assign(n_cell, inf);
-      day_high.assign(n_cell, -inf);
-    }
-    if (need_day_min) day_min_sum.assign(n_cell, 0.0);
-    if (need_day_max) day_max_sum.assign(n_cell, 0.0);
-
+    // Walked in day-cell order, so the days of a bin are folded in oldest first.
     for (std::size_t c = 0; c < n_dcell; ++c) {
-      if (dcount[c] == 0) continue;
-      const std::size_t cell = static_cast<std::size_t>(day_bin[c / n_unit]) * n_unit +
-                               (c % n_unit);
-      n_day[cell] += 1;
-      if (need_day_mean) {
-        const double m = dsum[c] / dcount[c];
-        if (m < day_low[cell]) day_low[cell] = m;
-        if (m > day_high[cell]) day_high[cell] = m;
-      }
-      if (need_day_min) day_min_sum[cell] += dlow[c];
-      if (need_day_max) day_max_sum[cell] += dhigh[c];
+      if (table.count[c] == 0) continue;
+      day.add(table, c,
+              static_cast<std::size_t>(day_bin[c / n_unit]) * n_unit + (c % n_unit), need);
     }
   }
 
   Result out;
   out.values.assign(n_cell * req.stats.size(), 0.0);
   for (std::size_t k = 0; k < req.stats.size(); ++k) {
-    double* channel = out.values.data() + k * n_cell;
-    switch (req.stats[k]) {
-      case Stat::mean:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = sum[c] / count[c];
-        break;
-      case Stat::min:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = low[c];
-        break;
-      case Stat::max:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = high[c];
-        break;
-      case Stat::cold_day:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day_low[c];
-        break;
-      case Stat::warm_day:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day_high[c];
-        break;
-      case Stat::mean_daily_min:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day_min_sum[c] / n_day[c];
-        break;
-      case Stat::mean_daily_max:
-        for (std::size_t c = 0; c < n_cell; ++c) channel[c] = day_max_sum[c] / n_day[c];
-        break;
-    }
+    write_channel(req.stats[k], out.values.data() + k * n_cell, n_cell, count, sum, low, high, day);
   }
 
   out.bin_start = bins;
@@ -333,16 +386,186 @@ Result reduce(const Request& req) {
     for (std::size_t c = 0; c < n_cell; ++c) {
       const double m = sum[c] / count[c];
       if (low[c] > m + 1e-9) throw Error("min above the mean at cell " + std::to_string(c) + ".");
-      if (need_day_min && day_min_sum[c] / n_day[c] < low[c] - 1e-9) {
+      if (need.min && day.min_sum[c] / day.n_day[c] < low[c] - 1e-9) {
         throw Error("mean_daily_min below the min at cell " + std::to_string(c) + ".");
       }
-      if (need_day_mean && day_low[c] < low[c] - 1e-9) {
+      if (need.mean && day.low[c] < low[c] - 1e-9) {
         throw Error("cold_day below the min at cell " + std::to_string(c) + ".");
       }
     }
   }
 #endif
 
+  return out;
+}
+
+WindowResult reduce_windows(const WindowRequest& req) {
+  const std::size_t n = req.n;
+  const std::size_t n_target = req.n_target;
+  if (n == 0) throw Error("no readings to reduce.");
+  if (n_target == 0) throw Error("no targets to reduce to.");
+  if (req.n_unit == 0) throw Error("no units to reduce.");
+  if (req.stats.empty()) throw Error("no statistic to compute.");
+  if (req.span <= 0) throw Error("a window spans a positive number of seconds.");
+  if (req.lag < 0) throw Error("a window's lag cannot be negative.");
+  if (req.n_bin < 1) throw Error("a window holds at least one bin.");
+  if (req.span % req.n_bin != 0) {
+    throw Error("a span of " + std::to_string(req.span) + " seconds does not divide into " +
+                std::to_string(req.n_bin) + " bins.");
+  }
+  const seconds step = req.span / req.n_bin;
+  const std::size_t n_bin = static_cast<std::size_t>(req.n_bin);
+  const std::size_t n_cell = n_target * n_bin;
+
+  for (std::size_t i = 0; i < n; ++i) {
+    if (req.unit[i] < 0 || static_cast<std::size_t>(req.unit[i]) >= req.n_unit) {
+      throw Error("a reading carries a unit index outside the units given.");
+    }
+  }
+  for (std::size_t i = 0; i < n_target; ++i) {
+    if (req.target_unit[i] < 0 ||
+        static_cast<std::size_t>(req.target_unit[i]) >= req.n_unit) {
+      throw Error("a target carries a unit index outside the units given.");
+    }
+  }
+
+  // A day-level statistic is a state a calendar day was in, so it is defined only where each day
+  // lies whole inside one bin. The window's bins are a fixed length from a fixed instant rather
+  // than a calendar, so that is two conditions: the step is a whole number of days, and the window
+  // opens on a day boundary. The first holds for every target or for none.
+  const DayNeed need = day_need(req.stats);
+  if (need.any() && floor_mod(step, kDay) != 0) {
+    throw Error(day_level_named(req.stats) + " bins of a calendar day or coarser: target " +
+                label_of(req.target_name, 0) + "'s bins are " + std::to_string(step) +
+                " seconds long.");
+  }
+
+  // Sorted once by (unit, local), so each target's readings are a range found by binary search
+  // rather than a pass over the record.
+  std::vector<std::size_t> order(n);
+  for (std::size_t i = 0; i < n; ++i) order[i] = i;
+  std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+    if (req.unit[a] != req.unit[b]) return req.unit[a] < req.unit[b];
+    return req.local[a] < req.local[b];
+  });
+
+  std::vector<seconds> when(n);
+  std::vector<double> reading(n);
+  std::vector<std::int32_t> holder(n);
+  std::vector<std::size_t> start(req.n_unit + 1, 0);
+  for (std::size_t k = 0; k < n; ++k) {
+    when[k] = req.local[order[k]];
+    reading[k] = req.value[order[k]];
+    holder[k] = req.unit[order[k]];
+    start[static_cast<std::size_t>(holder[k]) + 1] += 1;
+  }
+  for (std::size_t u = 0; u < req.n_unit; ++u) start[u + 1] += start[u];
+
+  // The calendar days of the whole record, reduced once, whatever windows read them afterwards.
+  std::int64_t day_lo = 0;
+  std::vector<std::int32_t> day_ix;
+  DayTable table(0, need);
+  if (need.any()) {
+    day_lo = floor_div(when[0], kDay);
+    std::int64_t day_hi = day_lo;
+    for (std::size_t k = 1; k < n; ++k) {
+      const std::int64_t s = floor_div(when[k], kDay);
+      if (s < day_lo) day_lo = s;
+      if (s > day_hi) day_hi = s;
+    }
+    const std::int64_t n_slot = day_hi - day_lo + 1;
+    if (n_slot > kMaxSlots) {
+      throw Error("the record spans too many days for a day-level statistic.");
+    }
+    day_ix.resize(n);
+    table = DayTable(req.n_unit * static_cast<std::size_t>(n_slot), need);
+    for (std::size_t k = 0; k < n; ++k) {
+      day_ix[k] = static_cast<std::int32_t>(floor_div(when[k], kDay) - day_lo);
+      table.read(static_cast<std::size_t>(day_ix[k]) * req.n_unit +
+                     static_cast<std::size_t>(holder[k]),
+                 reading[k], need);
+    }
+  }
+
+  bool need_sum = false, need_min = false, need_max = false;
+  for (Stat s : req.stats) {
+    switch (s) {
+      case Stat::mean: need_sum = true; break;
+      case Stat::min: need_min = true; break;
+      case Stat::max: need_max = true; break;
+      default: break;
+    }
+  }
+  std::vector<std::int32_t> count(n_cell, 0);
+  std::vector<double> sum, low, high;
+  if (need_sum) sum.assign(n_cell, 0.0);
+  if (need_min) low.assign(n_cell, kInf);
+  if (need_max) high.assign(n_cell, -kInf);
+  DayFold day(need.any() ? n_cell : 0, need);
+
+  for (std::size_t i = 0; i < n_target; ++i) {
+    const std::size_t u = static_cast<std::size_t>(req.target_unit[i]);
+    const seconds open = req.target_at[i] - req.lag - req.span;
+    if (need.any() && floor_mod(open, kDay) != 0) {
+      throw Error(day_level_named(req.stats) + " bins that open on a day boundary: target " +
+                  label_of(req.target_name, i) + "'s window opens at " + iso8601(open) +
+                  " and a calendar day falls in two of its bins.");
+    }
+    const auto first = when.begin() + static_cast<std::ptrdiff_t>(start[u]);
+    const auto last = when.begin() + static_cast<std::ptrdiff_t>(start[u + 1]);
+    const std::size_t lo =
+        static_cast<std::size_t>(std::lower_bound(first, last, open) - when.begin());
+    const std::size_t hi =
+        static_cast<std::size_t>(std::lower_bound(first, last, open + req.span) - when.begin());
+
+    for (std::size_t k = lo; k < hi; ++k) {
+      const std::size_t c = static_cast<std::size_t>((when[k] - open) / step) * n_target + i;
+      const double v = reading[k];
+      count[c] += 1;
+      if (need_sum) sum[c] += v;
+      if (need_min && v < low[c]) low[c] = v;
+      if (need_max && v > high[c]) high[c] = v;
+    }
+
+    // The readings of a unit are in time order, so its days arrive oldest first and each is folded
+    // into the one bin that holds it whole.
+    if (need.any()) {
+      std::int32_t seen = -1;
+      for (std::size_t k = lo; k < hi; ++k) {
+        if (day_ix[k] == seen) continue;
+        seen = day_ix[k];
+        const seconds day_start = (day_lo + seen) * kDay;
+        day.add(table, static_cast<std::size_t>(seen) * req.n_unit + u,
+                static_cast<std::size_t>((day_start - open) / step) * n_target + i, need);
+      }
+    }
+  }
+
+  // A window reaching past the record is a target the record cannot answer for, and padding it
+  // would put an invented value in front of a model.
+  std::size_t empty = 0;
+  std::size_t missing = 0;
+  for (std::size_t c = 0; c < n_cell; ++c) {
+    if (count[c] == 0) {
+      if (empty == 0) missing = c;
+      ++empty;
+    }
+  }
+  if (empty > 0) {
+    const std::size_t i = missing % n_target;
+    const seconds from = req.target_at[i] - req.lag - req.span +
+                         static_cast<seconds>(missing / n_target) * step;
+    throw Error(plural(empty, "(target, bin) cell") + " hold no readings, first: target " +
+                label_of(req.target_name, i) + " over [" + iso8601(from) + ", " +
+                iso8601(from + step) + "). A window reaching past the record is not padded.");
+  }
+
+  WindowResult out;
+  out.values.assign(n_cell * req.stats.size(), 0.0);
+  for (std::size_t k = 0; k < req.stats.size(); ++k) {
+    write_channel(req.stats[k], out.values.data() + k * n_cell, n_cell, count, sum, low, high, day);
+  }
+  out.bin_n.assign(count.begin(), count.end());
   return out;
 }
 

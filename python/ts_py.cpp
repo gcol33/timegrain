@@ -83,6 +83,39 @@ NB_MODULE(_core, m) {
         nb::arg("unit_names"), nb::arg("grain"), nb::arg("year_month"), nb::arg("year_day"),
         nb::arg("stats"), nb::arg("sampling_step"));
 
+  m.def("reduce_windows",
+        [](ConstI32 unit, ConstF64 value, ConstI64 local,
+           const std::vector<std::string>& unit_names, ConstI32 target_unit, ConstI64 target_at,
+           const std::vector<std::string>& target_names, std::int64_t span, std::int64_t lag,
+           std::int32_t bins, const std::vector<std::string>& stats) {
+          std::vector<const char*> units, targets;
+          units.reserve(unit_names.size());
+          for (const std::string& s : unit_names) units.push_back(s.c_str());
+          targets.reserve(target_names.size());
+          for (const std::string& s : target_names) targets.push_back(s.c_str());
+
+          timesift::WindowRequest req;
+          req.unit = unit.data();
+          req.value = value.data();
+          req.local = local.data();
+          req.n = value.size();
+          req.n_unit = unit_names.size();
+          req.target_unit = target_unit.data();
+          req.target_at = target_at.data();
+          req.target_name = targets.empty() ? nullptr : targets.data();
+          req.n_target = target_at.size();
+          req.span = span;
+          req.lag = lag;
+          req.n_bin = bins;
+          req.stats = parse_stats(stats);
+
+          timesift::WindowResult out = timesift::reduce_windows(req);
+          return nb::make_tuple(give(std::move(out.values)), give(std::move(out.bin_n)));
+        },
+        nb::arg("unit"), nb::arg("value"), nb::arg("local"), nb::arg("unit_names"),
+        nb::arg("target_unit"), nb::arg("target_at"), nb::arg("target_names"), nb::arg("span"),
+        nb::arg("lag"), nb::arg("bins"), nb::arg("stats"));
+
   m.def("bin_starts",
         [](ConstI64 local, const std::string& grain, int year_month, int year_day) {
           std::vector<timesift::seconds> out(local.size());

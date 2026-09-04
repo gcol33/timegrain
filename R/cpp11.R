@@ -4,6 +4,10 @@ ts_reduce_ <- function(unit, value, when, local, custom, unit_names, grain, year
   .Call(`_timesift_ts_reduce_`, unit, value, when, local, custom, unit_names, grain, year_month, year_day, stats, sampling_step)
 }
 
+ts_reduce_windows_ <- function(unit, value, local, unit_names, target_unit, target_at, target_names, span, lag, bins, stats) {
+  .Call(`_timesift_ts_reduce_windows_`, unit, value, local, unit_names, target_unit, target_at, target_names, span, lag, bins, stats)
+}
+
 ts_bin_starts_ <- function(local, grain, year_month, year_day) {
   .Call(`_timesift_ts_bin_starts_`, local, grain, year_month, year_day)
 }

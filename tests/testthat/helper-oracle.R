@@ -140,6 +140,100 @@ oracle_anniversary <- function(offset, ys, tz) {
              tz = tz)
 }
 
+# The lookback window, from the section of `inst/spec/representation.md` that describes it rather
+# than from the C++ underneath. It reads whole seconds and knows no zone, so it answers for a series
+# already expressed in the calendar to bin by; that is what the tests hand it.
+
+oracle_duration <- function(x) {
+  if (is.numeric(x)) {
+    return(as.numeric(x))
+  }
+  size <- c(second = 1, minute = 60, hour = 3600, day = 86400, week = 604800,
+            month = 2592000, year = 31536000)
+  parts <- strsplit(trimws(x), " +")[[1L]]
+  if (length(parts) == 1L) {
+    return(as.numeric(parts))
+  }
+  as.numeric(parts[1L]) * unname(size[[sub("s$", "", tolower(parts[2L]))]])
+}
+
+oracle_bin_offsets <- function(span, lag, bins) {
+  step <- span / bins
+  size <- c(day = 86400, hour = 3600, minute = 60, second = 1)
+  vapply(seq_len(bins) - 1L, function(b) {
+    x <- b * step - lag - span
+    unit <- names(size)[which(x %% size == 0)[1L]]
+    n <- x / size[[unit]]
+    paste0(n, " ", unit, if (abs(n) == 1) "" else "s")
+  }, character(1L))
+}
+
+# The seven statistics over the readings of one cell. The four day-level ones reduce each calendar
+# day first and reduce again over the days of the cell, oldest first, which is what keeps an
+# extreme day distinct from an extreme reading.
+oracle_cell_stat <- function(name, v, t) {
+  if (name == "mean") return(mean(v))
+  if (name == "min") return(min(v))
+  if (name == "max") return(max(v))
+  key <- floor(t / 86400)
+  day <- split(v, factor(key, levels = unique(key)))
+  switch(name,
+         cold_day = min(vapply(day, mean, numeric(1L))),
+         warm_day = max(vapply(day, mean, numeric(1L))),
+         mean_daily_min = mean(vapply(day, min, numeric(1L))),
+         mean_daily_max = mean(vapply(day, max, numeric(1L))))
+}
+
+oracle_window_matrix <- function(data, id, time, value, at, span, lag = "0 days", bins = 1L,
+                                 stats = "mean") {
+  span <- oracle_duration(span)
+  lag <- oracle_duration(lag)
+  step <- span / bins
+  unit <- as.character(data[[id]])
+  when <- as.numeric(data[[time]])
+  reading <- as.numeric(data[[value]])
+  who <- as.character(at[[1L]])
+  anchor <- as.numeric(at[[2L]])
+  n_t <- length(anchor)
+
+  # A day-level statistic is defined only where every calendar day lies whole inside one bin,
+  # which for a window is a step of whole days and a window opening on a day boundary.
+  if (any(stats %in% c("cold_day", "warm_day", "mean_daily_min", "mean_daily_max"))) {
+    if (step %% 86400 != 0) {
+      stop("needs bins of a calendar day or coarser", call. = FALSE)
+    }
+    off <- which((anchor - lag - span) %% 86400 != 0)
+    if (length(off)) {
+      stop("needs bins that open on a day boundary: target ", off[1L], call. = FALSE)
+    }
+  }
+
+  out <- array(NA_real_, dim = c(n_t, bins, length(stats)),
+               dimnames = list(as.character(seq_len(n_t)),
+                               oracle_bin_offsets(span, lag, bins), stats))
+  count <- matrix(0L, nrow = n_t, ncol = bins)
+
+  for (i in seq_len(n_t)) {
+    open <- anchor[i] - lag - span
+    inside <- unit == who[i] & when >= open & when < open + span
+    t <- when[inside]
+    v <- reading[inside]
+    o <- order(t, method = "radix")
+    t <- t[o]
+    v <- v[o]
+    b <- floor((t - open) / step) + 1L
+    for (k in seq_len(bins)) {
+      take <- b == k
+      if (!any(take)) {
+        stop("(target, bin) cell holds no readings, first: target ", i, call. = FALSE)
+      }
+      count[i, k] <- sum(take)
+      out[i, k, ] <- vapply(stats, oracle_cell_stat, numeric(1L), v = v[take], t = t[take])
+    }
+  }
+  list(values = out, bin_n = count)
+}
+
 oracle_grain_matrix <- function(data, id, time, value, grain = "day", stats = "mean",
                                  year_start = "09-01") {
   unit <- as.character(data[[id]])

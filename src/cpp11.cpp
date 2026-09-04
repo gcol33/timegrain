@@ -13,6 +13,13 @@ extern "C" SEXP _timesift_ts_reduce_(SEXP unit, SEXP value, SEXP when, SEXP loca
   END_CPP11
 }
 // ts_r.cpp
+cpp11::list ts_reduce_windows_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles local, cpp11::strings unit_names, cpp11::integers target_unit, cpp11::doubles target_at, cpp11::strings target_names, double span, double lag, int bins, cpp11::strings stats);
+extern "C" SEXP _timesift_ts_reduce_windows_(SEXP unit, SEXP value, SEXP local, SEXP unit_names, SEXP target_unit, SEXP target_at, SEXP target_names, SEXP span, SEXP lag, SEXP bins, SEXP stats) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(ts_reduce_windows_(cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(unit), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(value), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(local), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(unit_names), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(target_unit), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(target_at), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(target_names), cpp11::as_cpp<cpp11::decay_t<double>>(span), cpp11::as_cpp<cpp11::decay_t<double>>(lag), cpp11::as_cpp<cpp11::decay_t<int>>(bins), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(stats)));
+  END_CPP11
+}
+// ts_r.cpp
 cpp11::doubles ts_bin_starts_(cpp11::doubles local, std::string grain, int year_month, int year_day);
 extern "C" SEXP _timesift_ts_bin_starts_(SEXP local, SEXP grain, SEXP year_month, SEXP year_day) {
   BEGIN_CPP11
@@ -29,9 +36,10 @@ extern "C" SEXP _timesift_ts_bin_nexts_(SEXP bins, SEXP grain, SEXP year_month, 
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_timesift_ts_bin_nexts_",  (DL_FUNC) &_timesift_ts_bin_nexts_,   4},
-    {"_timesift_ts_bin_starts_", (DL_FUNC) &_timesift_ts_bin_starts_,  4},
-    {"_timesift_ts_reduce_",     (DL_FUNC) &_timesift_ts_reduce_,     11},
+    {"_timesift_ts_bin_nexts_",      (DL_FUNC) &_timesift_ts_bin_nexts_,       4},
+    {"_timesift_ts_bin_starts_",     (DL_FUNC) &_timesift_ts_bin_starts_,      4},
+    {"_timesift_ts_reduce_",         (DL_FUNC) &_timesift_ts_reduce_,         11},
+    {"_timesift_ts_reduce_windows_", (DL_FUNC) &_timesift_ts_reduce_windows_, 11},
     {NULL, NULL, 0}
 };
 }

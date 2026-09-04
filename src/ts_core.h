@@ -92,6 +92,36 @@ struct Result {
 // and for a bin shorter than a calendar day under a day-level statistic.
 Result reduce(const Request& req);
 
+// The second reduction: a lookback window anchored on each target, which no calendar expresses.
+// A target is a thing to predict, carrying the unit whose record it reads and the instant it is
+// anchored at, and the window is a fixed length of time ending a fixed lag before that instant.
+// Naive local seconds here as everywhere below the wrappers.
+struct WindowRequest {
+  const std::int32_t* unit = nullptr;         // series unit index, one per reading
+  const double* value = nullptr;              // one per reading
+  const seconds* local = nullptr;             // naive local seconds, one per reading
+  std::size_t n = 0;
+  std::size_t n_unit = 0;
+  const std::int32_t* target_unit = nullptr;  // unit index, one per target
+  const seconds* target_at = nullptr;         // anchor instant in naive local seconds, per target
+  const char* const* target_name = nullptr;   // for the guards; may be null
+  std::size_t n_target = 0;
+  seconds span = 0;                           // the window's length
+  seconds lag = 0;                            // the gap between the anchor and the window's end
+  std::int32_t n_bin = 1;                     // sub-bins inside the window, oldest first
+  std::vector<Stat> stats;
+};
+
+struct WindowResult {
+  std::vector<double> values;       // [target, bin, channel], target fastest
+  std::vector<std::int32_t> bin_n;  // [target, bin], target fastest
+};
+
+// Throws Error for a span that does not divide into the bins asked for, for a (target, bin) cell
+// holding no readings, and for a day-level statistic over bins that do not each hold whole
+// calendar days.
+WindowResult reduce_windows(const WindowRequest& req);
+
 }  // namespace timesift
 
 #endif  // TIMESIFT_TS_CORE_H
