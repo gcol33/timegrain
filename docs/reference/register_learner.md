@@ -1,7 +1,7 @@
 # Register a learner
 
 Makes a learner available by name to
-[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+[`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
 and to `learners()`. The learners that ship are registered the same way,
 so there is no list of names inside the fitting code.
 
@@ -22,7 +22,7 @@ learners()
 - constructor:
 
   A function returning a
-  [`learner()`](https://gillescolling.com/climgrain/reference/learner.md).
+  [`learner()`](https://gillescolling.com/timesift/reference/learner.md).
 
 - overwrite:
 

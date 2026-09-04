@@ -127,3 +127,12 @@ def test_a_setting_no_learner_and_no_control_carries_is_refused():
     x, y, _ = fixture(n_unit=20, days=40)
     with pytest.raises(TypeError, match="no setting called kernal"):
         fit_learner(cnn(epochs=2), x, y, kernal=3)
+
+
+def test_no_training_batch_holds_one_row():
+    """Batch normalisation has no variance to standardise a single row by, and the layer's running
+    statistics take a NaN from it. The batches are as equal as they can be for that reason."""
+    for n in (17, 20, 33, 65):
+        parts = np.array_split(np.arange(n), max(1, n // 8))
+        assert all(len(p) > 1 for p in parts)
+        assert sum(len(p) for p in parts) == n

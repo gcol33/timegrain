@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Python: the representation • climgrain</title>
+<title>Python: the representation • timesift</title>
 <script src="../lightswitch.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -33,9 +33,9 @@
 
     <nav class="navbar navbar-expand-lg fixed-top " aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="../index.html">climgrain</a>
+    <a class="navbar-brand me-2" href="../index.html">timesift</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,7 +44,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../articles/climgrain.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/timesift.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-python" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Python</button>
@@ -75,7 +75,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/climgrain/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/timesift/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -100,38 +100,165 @@
       <h1>Python: the representation</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/gcol33/climgrain/blob/HEAD/vignettes/articles/python-representation.Rmd" class="external-link"><code>vignettes/articles/python-representation.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/gcol33/timesift/blob/HEAD/vignettes/articles/python-representation.Rmd" class="external-link"><code>vignettes/articles/python-representation.Rmd</code></a></small>
       <div class="d-none name"><code>python-representation.Rmd</code></div>
     </div>
 
     
     
 <!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
-<p>Readings in long form to the array a model is fitted on, at one grain
-or at every grain of a ladder.</p>
+<p>What a representation is before any record has been read, and the
+array it becomes.</p>
 <div class="section level2">
-<h2 id="window_matrix">
-<code>window_matrix()</code><a class="anchor" aria-label="anchor" href="#window_matrix"></a>
+<h2 id="native">
+<code>native()</code><a class="anchor" aria-label="anchor" href="#native"></a>
 </h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>window_matrix(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>    data<span class="op">=</span><span class="va">None</span>,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>    <span class="bu">id</span><span class="op">=</span><span class="va">None</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>    time<span class="op">=</span><span class="va">None</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>    value<span class="op">=</span><span class="va">None</span>,</span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>    window<span class="op">=</span><span class="st">'day'</span>,</span>
-<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>    stats<span class="op">=</span>(<span class="st">'mean'</span>,),</span>
-<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a>    year_start<span class="op">=</span><span class="st">'09-01'</span>,</span>
-<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a>    partial<span class="op">=</span><span class="st">'keep'</span>,</span>
-<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a>    tz<span class="op">=</span><span class="va">None</span>,</span>
-<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>native(stats<span class="op">=</span><span class="st">'mean'</span>, year_start<span class="op">=</span><span class="st">'09-01'</span>)</span></code></pre></div>
+<p>The record unreduced: one bin per reading.</p>
+</div>
+<div class="section level2">
+<h2 id="grain">
+<code>grain()</code><a class="anchor" aria-label="anchor" href="#grain"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>grain(g: <span class="bu">str</span>, stats<span class="op">=</span><span class="st">'mean'</span>, year_start<span class="op">=</span><span class="st">'09-01'</span>)</span></code></pre></div>
+<p>One calendar grain.</p>
+</div>
+<div class="section level2">
+<h2 id="multigrain">
+<code>multigrain()</code><a class="anchor" aria-label="anchor" href="#multigrain"></a>
+</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>multigrain(grains<span class="op">=</span><span class="va">None</span>, stats<span class="op">=</span><span class="st">'mean'</span>, year_start<span class="op">=</span><span class="st">'09-01'</span>)</span></code></pre></div>
+<p>Several grains flattened and bound side by side into one block of
+features.</p>
+<p>Left at <code>None</code> the grains are the ones the record
+supports, the set <code>auto_grains</code> names. A caller who does not
+want the record unreduced among them names the grains instead.</p>
+</div>
+<div class="section level2">
+<h2 id="lookback">
+<code>lookback()</code><a class="anchor" aria-label="anchor" href="#lookback"></a>
+</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>lookback(span, lag<span class="op">=</span><span class="st">'0 days'</span>, bins<span class="op">=</span><span class="dv">1</span>, stats<span class="op">=</span><span class="st">'mean'</span>)</span></code></pre></div>
+<p>A stretch of record of fixed length, ending a fixed lag before each
+target’s own instant.</p>
+</div>
+<div class="section level2">
+<h2 id="grains">
+<code>grains()</code><a class="anchor" aria-label="anchor" href="#grains"></a>
+</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>grains(<span class="op">*</span>g, stats<span class="op">=</span><span class="st">'mean'</span>, year_start<span class="op">=</span><span class="st">'09-01'</span>)</span></code></pre></div>
+<p>A sift over calendar grains, named or read off the record with
+<code>"auto"</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="lookbacks">
+<code>lookbacks()</code><a class="anchor" aria-label="anchor" href="#lookbacks"></a>
+</h2>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>lookbacks(<span class="op">*</span>spans, lag<span class="op">=</span><span class="st">'0 days'</span>, bins<span class="op">=</span><span class="dv">1</span>, stats<span class="op">=</span><span class="st">'mean'</span>)</span></code></pre></div>
+<p>A sift over lookbacks of several lengths, all sharing a lag and a
+number of bins.</p>
+</div>
+<div class="section level2">
+<h2 id="representation">
+<code>Representation</code><a class="anchor" aria-label="anchor" href="#representation"></a>
+</h2>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>Representation(label, kind, stats, grain, grains, span, lag, bins, sequence, year_start)</span></code></pre></div>
+<p>One reduction, named but not yet built.</p>
+<p><code>sequence</code> says whether the bins are ordered in time and
+mean something to a convolution: the record unreduced, a calendar grain
+and a lookback cut into several bins are sequences; a block of features
+bound side by side is not.</p>
+<p>Attributes:</p>
+<ul>
+<li>
+<code>label</code> - str</li>
+<li>
+<code>kind</code> - str</li>
+<li>
+<code>stats</code> - tuple[str, …]</li>
+<li>
+<code>grain</code> - str | None</li>
+<li>
+<code>grains</code> - tuple[str, …] | None</li>
+<li>
+<code>span</code> - object</li>
+<li>
+<code>lag</code> - object</li>
+<li>
+<code>bins</code> - int</li>
+<li>
+<code>sequence</code> - bool</li>
+<li>
+<code>year_start</code> - str</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="sift">
+<code>Sift</code><a class="anchor" aria-label="anchor" href="#sift"></a>
+</h2>
+<p>The representations a set of candidates runs across, as a mapping of
+label to spec.</p>
+</div>
+<div class="section level2">
+<h2 id="as_sift">
+<code>as_sift()</code><a class="anchor" aria-label="anchor" href="#as_sift"></a>
+</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>as_sift(x)</span></code></pre></div>
+<p>A sift, whether it arrived as one, as a representation, as a grain
+name, or as a list.</p>
+</div>
+<div class="section level2">
+<h2 id="expand_sift">
+<code>expand_sift()</code><a class="anchor" aria-label="anchor" href="#expand_sift"></a>
+</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>expand_sift(sift, series, spec: TimesiftSpec)</span></code></pre></div>
+<p>The sift with <code>"auto"</code> replaced by the grains the record
+supports.</p>
+</div>
+<div class="section level2">
+<h2 id="auto_grains">
+<code>auto_grains()</code><a class="anchor" aria-label="anchor" href="#auto_grains"></a>
+</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>auto_grains(series, spec: TimesiftSpec, stats<span class="op">=</span>(<span class="st">'mean'</span>,), year_start<span class="op">=</span><span class="st">'09-01'</span>)</span></code></pre></div>
+<p>The named grains that give the record at least two bins, from the
+finest to the coarsest.</p>
+<p>The count comes from the calendar in the core rather than from
+arithmetic here, so a grain is admitted on the same rule that will bin
+it. It is read off one reading per distinct instant, which carries the
+record’s whole span and its gaps at the cost of a single unit’s
+memory.</p>
+</div>
+<div class="section level2">
+<h2 id="build_representation">
+<code>build_representation()</code><a class="anchor" aria-label="anchor" href="#build_representation"></a>
+</h2>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>build_representation(rep: Representation, series, targets, spec: TimesiftSpec)</span></code></pre></div>
+<p>The array one representation names, for these targets, in their own
+row order.</p>
+</div>
+<div class="section level2">
+<h2 id="grain_matrix">
+<code>grain_matrix()</code><a class="anchor" aria-label="anchor" href="#grain_matrix"></a>
+</h2>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>grain_matrix(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>    data<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>    <span class="bu">id</span><span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>    time<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>    value<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>    grain<span class="op">=</span><span class="st">'day'</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>    stats<span class="op">=</span>(<span class="st">'mean'</span>,),</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>    year_start<span class="op">=</span><span class="st">'09-01'</span>,</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>    partial<span class="op">=</span><span class="st">'keep'</span>,</span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>    tz<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>)</span></code></pre></div>
 <p>Bin readings by the calendar and summarise every bin.</p>
 <p><code>data</code> is a mapping of column name to sequence, or any
 object with <code>__getitem__</code> over the three column names given
 by <code>id</code>, <code>time</code> and <code>value</code>. Naming two
-or more windows returns a <code>ClimgrainSet</code>; naming one, whether
+or more grains returns a <code>TimesiftSet</code>; naming one, whether
 as a string or as a sequence of one, returns the representation itself.
-<code>window</code> may also be a callable, which is handed the reading
+<code>grain</code> may also be a callable, which is handed the reading
 instants and must return the start of each reading’s bin.</p>
 <p><code>tz</code> names the calendar to bin by. Left at
 <code>None</code> the instants are taken as already expressed in that
@@ -150,11 +277,54 @@ binning declares its own bins, so the package cannot know where the last
 one was meant to end and takes the record’s end as its end.</p>
 </div>
 <div class="section level2">
-<h2 id="climgrain_set">
-<code>climgrain_set()</code><a class="anchor" aria-label="anchor" href="#climgrain_set"></a>
+<h2 id="lookback_matrix">
+<code>lookback_matrix()</code><a class="anchor" aria-label="anchor" href="#lookback_matrix"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>climgrain_set(x)</span></code></pre></div>
-<p>Every entry point that fits across windows takes a representation, a
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>lookback_matrix(</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>    data<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>    <span class="bu">id</span><span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>    time<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>    value<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>    at<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>    span<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>    lag<span class="op">=</span><span class="st">'0 days'</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>    bins<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>    stats<span class="op">=</span><span class="st">'mean'</span>,</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>    tz<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>)</span></code></pre></div>
+<p>Read a fixed length of record ending a fixed lag before each target’s
+own instant.</p>
+<p>It is the reduction a calendar cannot express: two targets on the
+same unit a fortnight apart read two different stretches of the same
+series, so the bins are relative to the target rather than to a month or
+a week.</p>
+<p><code>at</code> is a mapping with an <code>"id"</code> array of units
+and a <code>"time"</code> array of anchor instants, one row per target;
+a unit may carry any number of them. Bin <code>b</code> of a target
+anchored at <code>a</code> covers
+<code>[a - lag - span + b * step, a - lag - span + (b + 1) * step)</code>,
+with <code>step</code> the span divided by <code>bins</code> and
+<code>b</code> counted from zero. Only the readings of the target’s own
+unit are read, and every <code>(target, bin)</code> cell must hold at
+least one: a lookback reaching past the record is an error naming the
+target, never a padded row.</p>
+<p><code>span</code> and <code>lag</code> are read from a count and a
+unit – <code>"30 days"</code>, <code>"12 hours"</code>,
+<code>"1 year"</code> – or from a bare number of seconds. A year is 365
+days and a month is 30 days here, because a lookback of a fixed length
+is a fixed length rather than a calendar step.</p>
+<p><code>tz</code> names the calendar, as it does for
+<code>grain_matrix</code>. The anchors are instants and are read as a
+clock in that same calendar, so one record is binned by one
+calendar.</p>
+</div>
+<div class="section level2">
+<h2 id="timesift_set">
+<code>timesift_set()</code><a class="anchor" aria-label="anchor" href="#timesift_set"></a>
+</h2>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>timesift_set(x)</span></code></pre></div>
+<p>Every entry point that fits across grains takes a representation, a
 set, or a bare mapping, and works on a set. One coercion, so no caller
 repeats the three cases.</p>
 </div>
@@ -162,7 +332,7 @@ repeats the three cases.</p>
 <h2 id="calendar_channels">
 <code>calendar_channels()</code><a class="anchor" aria-label="anchor" href="#calendar_channels"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>calendar_channels(x: WindowMatrix)</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>calendar_channels(x: TimesiftMatrix)</span></code></pre></div>
 <p>Where in the year each bin sits, as the sine and cosine of its
 fractional position.</p>
 </div>
@@ -170,7 +340,7 @@ fractional position.</p>
 <h2 id="bind_channels">
 <code>bind_channels()</code><a class="anchor" aria-label="anchor" href="#bind_channels"></a>
 </h2>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>bind_channels(<span class="op">*</span>parts: WindowMatrix)</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>bind_channels(<span class="op">*</span>parts: TimesiftMatrix)</span></code></pre></div>
 <p>Put the channels of several representations of the same units and
 bins side by side.</p>
 </div>
@@ -178,7 +348,7 @@ bins side by side.</p>
 <h2 id="feature_matrix">
 <code>feature_matrix()</code><a class="anchor" aria-label="anchor" href="#feature_matrix"></a>
 </h2>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>feature_matrix(m, units<span class="op">=</span><span class="va">None</span>, features<span class="op">=</span><span class="va">None</span>, label: <span class="bu">str</span> <span class="op">=</span> <span class="st">'features'</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a>feature_matrix(m, units<span class="op">=</span><span class="va">None</span>, features<span class="op">=</span><span class="va">None</span>, label: <span class="bu">str</span> <span class="op">=</span> <span class="st">'features'</span>)</span></code></pre></div>
 <p>Bring an already-reduced feature table into a ladder as a one-channel
 representation.</p>
 <p>It carries no time axis, because it has none: the reduction already
@@ -186,23 +356,29 @@ happened, elsewhere, and what reaches the model is a list of numbers per
 unit. That is the whole point of comparing against it.</p>
 </div>
 <div class="section level2">
-<h2 id="windowmatrix">
-<code>WindowMatrix</code><a class="anchor" aria-label="anchor" href="#windowmatrix"></a>
+<h2 id="timesiftmatrix">
+<code>TimesiftMatrix</code><a class="anchor" aria-label="anchor" href="#timesiftmatrix"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>WindowMatrix(</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>    values,</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>    units,</span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>    bins,</span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>    stats,</span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    window,</span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    year_start,</span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>    bin_start,</span>
-<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>    bin_end,</span>
-<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>    bin_n,</span>
-<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>    bin_partial,</span>
-<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>)</span></code></pre></div>
-<p>A <code>[unit, bin, channel]</code> representation and the binning
+<div class="sourceCode" id="cb18"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>TimesiftMatrix(</span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>    values,</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>    units,</span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>    bins,</span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>    stats,</span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>    grain,</span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>    year_start,</span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>    bin_start,</span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a>    bin_end,</span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a>    bin_n,</span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a>    bin_partial,</span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a>    span,</span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a>    lag,</span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a>)</span></code></pre></div>
+<p>A <code>[row, bin, channel]</code> representation and the reduction
 that produced it.</p>
+<p>A row is a unit where the calendar did the binning and a target where
+a lookback did, since a unit carrying several targets cannot name a row
+on its own. <code>span</code> and <code>lag</code> are set by a lookback
+alone, and are what rebuilding one for new targets reads.</p>
 <p>Attributes:</p>
 <ul>
 <li>
@@ -214,9 +390,9 @@ that produced it.</p>
 <li>
 <code>stats</code> - tuple[str, …]</li>
 <li>
-<code>window</code> - str</li>
+<code>grain</code> - str</li>
 <li>
-<code>year_start</code> - str</li>
+<code>year_start</code> - str | None</li>
 <li>
 <code>bin_start</code> - np.ndarray</li>
 <li>
@@ -225,62 +401,66 @@ that produced it.</p>
 <code>bin_n</code> - np.ndarray</li>
 <li>
 <code>bin_partial</code> - np.ndarray</li>
+<li>
+<code>span</code> - int | None</li>
+<li>
+<code>lag</code> - int | None</li>
 </ul>
 <div class="section level3">
 <h3 id="shape">
 <code>shape</code><a class="anchor" aria-label="anchor" href="#shape"></a>
 </h3>
-<p>Units, bins and channels.</p>
+<p>Rows, bins and channels.</p>
 </div>
 <div class="section level3">
 <h3 id="channel">
 <code>channel()</code><a class="anchor" aria-label="anchor" href="#channel"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>channel(<span class="va">self</span>, name: <span class="bu">str</span>)</span></code></pre></div>
-<p>One statistic as a <code>[unit, bin]</code> matrix.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a>channel(<span class="va">self</span>, name: <span class="bu">str</span>)</span></code></pre></div>
+<p>One statistic as a <code>[row, bin]</code> matrix.</p>
 </div>
 <div class="section level3">
 <h3 id="take_units">
 <code>take_units()</code><a class="anchor" aria-label="anchor" href="#take_units"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>take_units(<span class="va">self</span>, index)</span></code></pre></div>
-<p>The representation restricted to a subset of its units, in the order
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>take_units(<span class="va">self</span>, index)</span></code></pre></div>
+<p>The representation restricted to a subset of its rows, in the order
 given.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="climgrainset">
-<code>ClimgrainSet</code><a class="anchor" aria-label="anchor" href="#climgrainset"></a>
+<h2 id="timesiftset">
+<code>TimesiftSet</code><a class="anchor" aria-label="anchor" href="#timesiftset"></a>
 </h2>
-<p>A ladder of representations, one per window.</p>
-<p>Naming several windows in <code>window_matrix</code> returns one of
+<p>A ladder of representations, one per grain.</p>
+<p>Naming several grains in <code>grain_matrix</code> returns one of
 these: representations of the same units, differing only in how coarsely
-the record was read. It is what <code>window_ladder</code> fits across,
-and it reads as a mapping of window name to representation.</p>
+the record was read. It is what <code>grain_ladder</code> fits across,
+and it reads as a mapping of grain name to representation.</p>
 <div class="section level3">
 <h3 id="units">
 <code>units</code><a class="anchor" aria-label="anchor" href="#units"></a>
 </h3>
-<p>The units the set covers, which every window in it shares.</p>
+<p>The units the set covers, which every grain in it shares.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="windows">
-<code>WINDOWS</code><a class="anchor" aria-label="anchor" href="#windows"></a>
+<h2 id="grains-1">
+<code>GRAINS</code><a class="anchor" aria-label="anchor" href="#grains-1"></a>
 </h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>WINDOWS <span class="op">=</span> (<span class="st">'hour'</span>, <span class="st">'halfday'</span>, <span class="st">'day'</span>, <span class="st">'week'</span>, <span class="st">'month'</span>, <span class="st">'season'</span>, <span class="st">'year'</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a>GRAINS <span class="op">=</span> (<span class="st">'native'</span>, <span class="st">'halfday'</span>, <span class="st">'day'</span>, <span class="st">'week'</span>, <span class="st">'month'</span>, <span class="st">'season'</span>, <span class="st">'year'</span>)</span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="stats">
 <code>STATS</code><a class="anchor" aria-label="anchor" href="#stats"></a>
 </h2>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>STATS <span class="op">=</span> (<span class="st">'mean'</span>, <span class="st">'min'</span>, <span class="st">'max'</span>) <span class="op">+</span> DAY_LEVEL_STATS</span></code></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a>STATS <span class="op">=</span> (<span class="st">'mean'</span>, <span class="st">'min'</span>, <span class="st">'max'</span>) <span class="op">+</span> DAY_LEVEL_STATS</span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="day_level_stats">
 <code>DAY_LEVEL_STATS</code><a class="anchor" aria-label="anchor" href="#day_level_stats"></a>
 </h2>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>DAY_LEVEL_STATS <span class="op">=</span> (<span class="st">'cold_day'</span>, <span class="st">'warm_day'</span>, <span class="st">'mean_daily_min'</span>, <span class="st">'mean_daily_max'</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a>DAY_LEVEL_STATS <span class="op">=</span> (<span class="st">'cold_day'</span>, <span class="st">'warm_day'</span>, <span class="st">'mean_daily_min'</span>, <span class="st">'mean_daily_max'</span>)</span></code></pre></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

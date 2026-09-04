@@ -3,14 +3,76 @@
 One fold map read by everything that scores, and the cells a score is
 defined on, computed with no model involved.
 
+## `cv()`
+
+``` python
+cv(v: int = 10, seed: int = 1, strata: int = 5)
+```
+
+Hold out single targets, balanced within equal-count strata of the
+response.
+
+## `grouped_cv()`
+
+``` python
+grouped_cv(group, v: int = 10, seed: int = 1)
+```
+
+Keep every target sharing a value of the `group` column in one fold.
+
+It is what repeated targets on the same unit need: two visits to a plot
+a fortnight apart are not two independent held-out units, and splitting
+them across folds scores a model on a unit it has already read.
+
+## `Resampling`
+
+``` python
+Resampling(kind, v, seed, strata, group, folds)
+```
+
+How the targets are split, named but not yet drawn.
+
+Attributes:
+
+- `kind` - str
+- `v` - int
+- `seed` - int
+- `strata` - int
+- `group` - str \| None
+- `folds` - object
+
+## `as_resampling()`
+
+``` python
+as_resampling(x)
+```
+
+A resampling spec, or a fold map somebody else built, read as a spec
+that returns it.
+
+## `resolve_folds()`
+
+``` python
+resolve_folds(resampling, y, targets, spec)
+```
+
+Draw the fold map a resampling spec names, in the row order of the
+response.
+
 ## `fold_map()`
 
 ``` python
-fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None)
+fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None, group=None)
 ```
 
 Assign units to folds, balanced within equal-count strata of a
 stratifying value.
+
+`group` keeps every unit sharing a value in one fold, which is what
+repeated targets on the same physical unit need: two visits to a plot
+are not two independent held-out units. The deal is then made over the
+groups rather than over the units, and a group carries the mean of the
+stratifying value of the units in it.
 
 The stream is numpy’s, so a map built here is not the map the R side
 builds from the same seed. Where both languages must see identical
@@ -80,6 +142,19 @@ take_units(self, index)
 
 The response restricted to a subset of its units, in the order given.
 
+### `take_variables()`
+
+``` python
+take_variables(self, index)
+```
+
+The response restricted to a subset of its variables, in the order
+given.
+
+A learner covering one response at a time is handed them through this,
+so the matrix a candidate emits is assembled from the same names each
+part was fitted on.
+
 ### `align()`
 
 ``` python
@@ -100,7 +175,7 @@ Error unless every value is 0 or 1 and none is missing.
 ## `Folds`
 
 ``` python
-Folds(fold, units)
+Folds(fold, units, grouped)
 ```
 
 Which fold each unit is held out in, named by unit.
@@ -113,6 +188,7 @@ Attributes:
 
 - `fold` - np.ndarray
 - `units` - tuple\[str, …\]
+- `grouped` - bool
 
 ### `v`
 

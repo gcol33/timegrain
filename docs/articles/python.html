@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Python • climgrain</title>
+<title>Python • timesift</title>
 <script src="../lightswitch.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -33,9 +33,9 @@
 
     <nav class="navbar navbar-expand-lg fixed-top " aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="../index.html">climgrain</a>
+    <a class="navbar-brand me-2" href="../index.html">timesift</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,7 +44,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../articles/climgrain.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="../articles/timesift.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-python" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Python</button>
@@ -75,7 +75,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/climgrain/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/timesift/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -100,34 +100,41 @@
       <h1>Python</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/gcol33/climgrain/blob/HEAD/vignettes/articles/python.Rmd" class="external-link"><code>vignettes/articles/python.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/gcol33/timesift/blob/HEAD/vignettes/articles/python.Rmd" class="external-link"><code>vignettes/articles/python.Rmd</code></a></small>
       <div class="d-none name"><code>python.Rmd</code></div>
     </div>
 
     
     
 <!-- Written by tools/python_reference.py from the Python sources. Do not edit. -->
-<p>The binning, the statistics and the array assembly are
-<code>src/</code>, compiled into both languages and answering to <a href="contract.html">the representation contract</a>.
-<code><a href="../reference/window_matrix.html">window_matrix()</a></code> here and <code><a href="../reference/window_matrix.html">window_matrix()</a></code> in R
-return the same numbers from the same input, and the fixtures under
-<code>inst/spec/fixtures/</code> hold them to it.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/gcol33/climgrain</span></code></pre></div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="im">import</span> climgrain <span class="im">as</span> tg</span>
+<p><code><a href="../reference/timesift.html">timesift()</a></code> here and <code><a href="../reference/timesift.html">timesift()</a></code> in R take
+the same two tables and do the same thing: build every candidate
+representation, fit the learners that can read each one, score them all
+on one set of held-out folds, and stack the out-of-fold predictions. The
+binning, the statistics and the array assembly are <code>src/</code>,
+compiled into both languages and answering to <a href="contract.html">the representation contract</a>, and the fixtures
+under <code>inst/spec/fixtures/</code> hold the two to the same
+numbers.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/gcol33/timesift</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="im">import</span> timesift <span class="im">as</span> ts</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>x <span class="op">=</span> tg.window_matrix(readings, <span class="bu">id</span><span class="op">=</span><span class="st">"plot"</span>, time<span class="op">=</span><span class="st">"t"</span>, value<span class="op">=</span><span class="st">"temp"</span>,</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>                     window<span class="op">=</span><span class="st">"week"</span>, stats<span class="op">=</span>(<span class="st">"cold_day"</span>, <span class="st">"mean"</span>, <span class="st">"warm_day"</span>))</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>lad <span class="op">=</span> tg.window_ladder(x, y, learners<span class="op">=</span>[tg.mlp_learner(), tg.cnn_learner()])</span></code></pre></div>
-<p>The contract’s last section says what each language carries, so a
-difference between the two is a recorded decision.</p>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>fit <span class="op">=</span> ts.timesift(plots, logger, y<span class="op">=</span><span class="st">"sp_*"</span>, <span class="bu">id</span><span class="op">=</span><span class="st">"plot_id"</span>, time<span class="op">=</span><span class="st">"datetime"</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>                  models<span class="op">=</span>[ts.elasticnet(), ts.forest()],</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>                  sift<span class="op">=</span>ts.grains(<span class="st">"day"</span>, <span class="st">"week"</span>, <span class="st">"month"</span>))</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="bu">print</span>(ts.summary(fit))</span></code></pre></div>
+<p><code>y</code>, <code>x</code> and <code>static</code> are selections
+over their own table: a column name, a list of names, a glob such as
+<code>"sp_*"</code>, or a function of a name. The contract’s last
+section says what each language carries, so a difference between the two
+is a recorded decision.</p>
 <div class="section level2">
 <h2 id="the-pages">The pages<a class="anchor" aria-label="anchor" href="#the-pages"></a>
 </h2>
 <dl>
 <dt><a href="python-representation.html">The representation</a></dt>
 <dd>
-<p>Readings in long form to the array a model is fitted on, at one grain
-or at every grain of a ladder.</p>
+<p>What a representation is before any record has been read, and the
+array it becomes.</p>
 </dd>
 <dt><a href="python-split.html">The split and the cells</a></dt>
 <dd>
@@ -136,18 +143,19 @@ defined on, computed with no model involved.</p>
 </dd>
 <dt><a href="python-fitting.html">Fitting</a></dt>
 <dd>
-<p>Fitting one learner at one grain, fitting every grain of a ladder,
-and reading the grain a ladder saturates at.</p>
+<p>The run from targets and series, the combiner over its candidates,
+and fitting across a set of grains on its own.</p>
 </dd>
 <dt><a href="python-learners.html">Learners</a></dt>
 <dd>
-<p>The arms that ship, and the interface a learner of your own goes
-through.</p>
+<p>The arms that ship, how they are trained, and the interface a learner
+of your own goes through.</p>
 </dd>
 <dt><a href="python-scoring.html">Scoring and comparison</a></dt>
 <dd>
-<p>The metrics, the paired contrast between two learners on matched
-cells, and the inflation of a score read at its own best threshold.</p>
+<p>The metrics, the paired contrast between two arms on matched cells,
+the inflation of a score read at its own best threshold, and what a
+fitted model read.</p>
 </dd>
 <dt><a href="python-extending.html">Extending</a></dt>
 <dd>

@@ -88,6 +88,11 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
 # One arm's cells, scored. The label is a representation, which a calendar grain is one kind of,
 # so the column is named for the general case and a grain ladder relabels it below.
 .score_arm <- function(representation, learner, y, p, f, levels, cells, score) {
+  cbind(representation = representation, learner = learner,
+        .score_cells(y, p, f, levels, cells, score), stringsAsFactors = FALSE)
+}
+
+.score_cells <- function(y, p, f, levels, cells, score) {
   grid <- expand.grid(variable = colnames(y), fold = levels,
                       KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   key <- paste(grid$variable, grid$fold)
@@ -98,8 +103,45 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
     rows <- f == grid$fold[i]
     value[i] <- score(y[rows, grid$variable[i]], p[rows, grid$variable[i]])
   }
-  data.frame(representation = representation, learner = learner, variable = grid$variable,
-             fold = grid$fold, score = value, scorable = ok, stringsAsFactors = FALSE)
+  data.frame(variable = grid$variable, fold = grid$fold, score = value, scorable = ok,
+             stringsAsFactors = FALSE)
+}
+
+#' Score held-out predictions on the cells the mask allows
+#'
+#' The scoring every arm of a ladder and every candidate of a run goes through, reachable on its
+#' own for a prediction matrix that came from somewhere else: a combination of arms, a model fitted
+#' outside the package, predictions read back from a file.
+#'
+#' A cell is one response in one fold. Scoring only the cells the mask allows is what keeps two
+#' arms comparable, so the mask is computed from the response and the fold map alone and never from
+#' a model.
+#'
+#' @param y The response, as a matrix of units by variables.
+#' @param p Held-out predictions for the same units and variables.
+#' @param folds A [fold_map()] result, or one fold per unit.
+#' @param cells A [scorable_cells()] mask. Computed from `y` and `folds` when left unset.
+#' @param metric Name of the registered metric to read the cells by.
+#'
+#' @return A data frame of one row per variable and fold, carrying the score and whether the cell
+#'   was scorable.
+#'
+#' @examples
+#' set.seed(1)
+#' y <- matrix(rbinom(120, 1, 0.4), nrow = 30,
+#'             dimnames = list(sprintf("p%02d", 1:30), paste0("sp", 1:4)))
+#' p <- matrix(runif(120), nrow = 30, dimnames = dimnames(y))
+#' head(score_predictions(y, p, fold_map(y, v = 3)))
+#'
+#' @export
+score_predictions <- function(y, p, folds, cells = NULL, metric = "tss") {
+  y <- .as_response(y)
+  f <- .as_folds(folds, rownames(y))
+  p <- as.matrix(p)[rownames(y), colnames(y), drop = FALSE]
+  if (is.null(cells)) {
+    cells <- scorable_cells(y, stats::setNames(f, rownames(y)))
+  }
+  .score_cells(y, p, f, sort(unique(f)), cells, .metrics_reg$get(metric))
 }
 
 # A ladder's levels are calendar grains, and `grain` is the column paired_contrast(),

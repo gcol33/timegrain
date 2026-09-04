@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from timesift.control import train_control
-from timesift.learners import (Learner, elasticnet, fit_learner, flatten, rf, stepwise,
+from timesift.learners import (Learner, elasticnet, fit_learner, flatten, forest, stepwise,
                                _apply_basis, _logistic, _poly_basis)
 from timesift.metrics import roc_auc
 from timesift.representation import grain_matrix
@@ -126,8 +126,8 @@ def test_the_settings_a_learner_carries_are_the_ones_it_reports():
 
 def test_every_learner_declares_what_it_reads_and_how_it_covers_the_responses():
     declared = {"elasticnet": ("tabular", "separate"), "stepwise": ("tabular", "separate"),
-                "rf": ("tabular", "separate")}
-    for build in (elasticnet, stepwise, rf):
+                "forest": ("tabular", "separate")}
+    for build in (elasticnet, stepwise, forest):
         learner = build()
         assert (learner.reads, learner.multi) == declared[learner.name]
         assert learner.data is None
@@ -151,7 +151,7 @@ def test_a_learner_names_the_install_it_needs():
 @needs_sklearn
 def test_the_forest_fits_predicts_and_finds_the_planted_signal():
     x, y = planted()
-    fit = fit_learner(rf(trees=50), x, y)
+    fit = fit_learner(forest(trees=50), x, y)
     p = fit.predict(x)
     assert p.shape == (len(y.units), 2)
     assert np.all((p >= 0) & (p <= 1))
@@ -161,7 +161,7 @@ def test_the_forest_fits_predicts_and_finds_the_planted_signal():
 @needs_sklearn
 def test_the_forest_reads_the_flattened_representation_and_refuses_another_shape():
     x, y = planted(n_unit=24, days=28)
-    fit = fit_learner(rf(trees=20), x, y)
+    fit = fit_learner(forest(trees=20), x, y)
     assert fit.model["n_col"] == flatten(x).shape[1]
     with pytest.raises(ValueError, match="different channels or bins"):
         fit.predict(grain_matrix(
@@ -173,13 +173,16 @@ def test_the_forest_reads_the_flattened_representation_and_refuses_another_shape
 
 
 @needs_sklearn
-def test_the_forest_takes_its_seed_from_the_control_and_repeats_itself():
+def test_the_forest_carries_its_own_seed_and_repeats_itself():
     x, y = planted(n_unit=24, days=28)
-    a = fit_learner(rf(trees=30), x, y, control=train_control(seed=4)).predict(x)
-    b = fit_learner(rf(trees=30), x, y, control=train_control(seed=4)).predict(x)
-    c = fit_learner(rf(trees=30), x, y, control=train_control(seed=9)).predict(x)
+    a = fit_learner(forest(trees=30, seed=4), x, y).predict(x)
+    b = fit_learner(forest(trees=30, seed=4), x, y).predict(x)
+    c = fit_learner(forest(trees=30, seed=9), x, y).predict(x)
     assert np.allclose(a, b)
     assert not np.allclose(a, c)
+    # The run's control carries the seed of the encoders' optimiser, not the forest's bootstrap.
+    d = fit_learner(forest(trees=30, seed=4), x, y, control=train_control(seed=9)).predict(x)
+    assert np.allclose(a, d)
 
 
 @needs_sklearn
@@ -187,7 +190,7 @@ def test_a_response_with_one_outcome_is_its_share_whichever_model_covers_it():
     x, y = planted(n_unit=24, days=28)
     flat = Response(np.column_stack([y.values[:, 0], np.ones(len(y.units))]),
                     y.units, ("sp1", "everywhere"))
-    for learner in (rf(trees=20), elasticnet()):
+    for learner in (forest(trees=20), elasticnet()):
         p = fit_learner(learner, x, flat).predict(x)
         assert np.allclose(p[:, 1], 1.0)
 

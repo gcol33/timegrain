@@ -5,9 +5,9 @@ Fit one learner at one grain
 ## Usage
 
 ``` r
-fit_learner(learner, x, y, response = "presence_absence", ...)
+fit_learner(learner, x, y, response = "presence_absence", control = NULL, ...)
 
-# S3 method for class 'climgrain_fit'
+# S3 method for class 'timesift_fit'
 predict(object, newdata, ...)
 ```
 
@@ -16,13 +16,13 @@ predict(object, newdata, ...)
 - learner:
 
   A
-  [`learner()`](https://gillescolling.com/climgrain/reference/learner.md),
+  [`learner()`](https://gillescolling.com/timesift/reference/learner.md),
   or the name of a registered one.
 
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
+  [`grain_matrix()`](https://gillescolling.com/timesift/reference/grain_matrix.md)
   result.
 
 - y:
@@ -33,13 +33,20 @@ predict(object, newdata, ...)
 
   Name of the registered response head. `"presence_absence"` ships.
 
+- control:
+
+  The run's
+  [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md).
+  The learner's own control overrides it on the settings that control
+  names, and a setting given in `...` overrides both.
+
 - ...:
 
   Passed to the learner's `fit`.
 
 - object:
 
-  A `climgrain_fit`.
+  A `timesift_fit`.
 
 - newdata:
 
@@ -47,7 +54,7 @@ predict(object, newdata, ...)
 
 ## Value
 
-A `climgrain_fit`, which
+A `timesift_fit`, which
 [`stats::predict()`](https://rdrr.io/r/stats/predict.html) takes a new
 representation.
 
@@ -59,8 +66,8 @@ t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 12
 units <- sprintf("p%02d", 1:40)
 d <- data.frame(plot = rep(units, each = length(t)), t = rep(t, length(units)),
                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
-x <- window_matrix(d, plot, t, temp, window = "month")
+x <- grain_matrix(d, plot, t, temp, grain = "month")
 y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
-fit <- fit_learner(elasticnet_learner(), x, y)
+fit <- fit_learner(elasticnet(), x, y)
 dim(stats::predict(fit, x))
 ```

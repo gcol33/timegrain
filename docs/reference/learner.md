@@ -9,7 +9,17 @@ or the scoring.
 ## Usage
 
 ``` r
-learner(name, fit, predict, needs = character(), params = list())
+learner(
+  name,
+  fit,
+  predict,
+  data = NULL,
+  reads = c("tabular", "sequence"),
+  multi = c("separate", "joint"),
+  control = NULL,
+  needs = character(),
+  params = list()
+)
 ```
 
 ## Arguments
@@ -22,12 +32,35 @@ learner(name, fit, predict, needs = character(), params = list())
 
   A function of `(x, y, ...)`, where `x` is a `[unit, bin, channel]`
   array and `y` the response matrix for the same units, returning a
-  fitted object.
+  fitted object. A `fit` that declares a `control` argument is handed
+  the resolved
+  [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md).
 
 - predict:
 
   A function of `(model, x)` returning a `[unit, variable]` matrix of
   predictions for the units of `x`, in that order.
+
+- data:
+
+  A representation the learner is pinned to, or `NULL` to run across
+  every representation of the run.
+
+- reads:
+
+  `"tabular"` or `"sequence"`.
+
+- multi:
+
+  `"separate"` where one model is fitted per response, `"joint"` where
+  one model covers them all.
+
+- control:
+
+  A
+  [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md)
+  for this learner alone. The settings it names override the control the
+  run was given; everything else is taken from that one.
 
 - needs:
 
@@ -40,7 +73,20 @@ learner(name, fit, predict, needs = character(), params = list())
 
 ## Value
 
-A `climgrain_learner`.
+A `timesift_learner`.
+
+## Details
+
+A learner declares what it can be handed and how it covers several
+responses. `reads` is `"tabular"` where the bins reach it as a block of
+predictors and `"sequence"` where their order in time is what it reads,
+and `multi` is `"joint"` where one fitted model covers every response
+and `"separate"` where one is fitted per response. Either way a
+candidate emits one `[target, response]` matrix, so nothing above the
+learner layer has to know which it was.
+
+`data` pins a learner to one representation. Left `NULL` the learner
+runs across every representation of the run.
 
 ## Examples
 

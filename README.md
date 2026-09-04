@@ -4,23 +4,84 @@
 [![pytest](https://github.com/gcol33/timesift/actions/workflows/pytest.yaml/badge.svg)](https://github.com/gcol33/timesift/actions/workflows/pytest.yaml)
 [![contract](https://github.com/gcol33/timesift/actions/workflows/contract.yaml/badge.svg)](https://github.com/gcol33/timesift/actions/workflows/contract.yaml)
 
-A logger records every hour for years. Before any model sees it, that record gets reduced: to
-monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited.
-`timesift` makes the reduction an argument. Build the representation at any grain, fit at each
-grain, and read off where predictive skill saturates.
-
-On 894 alpine plots and three years of hourly soil temperature, the full hourly record was the
-best input for none of three architectures, skill peaked at the weekly average, and a week's
-coldest and warmest **day** carried more than its mean, by more the coarser the grain.
+`timesift` fits and compares representations of time-varying data against a prediction target.
+Give it one row per thing to predict and a long table of time-stamped readings belonging to those
+rows. It builds each candidate representation, fits the learners you name on every one they can
+read, scores them all on one set of held-out folds, and stacks the out-of-fold predictions into an
+ensemble. What comes back says how much of the record the prediction actually needed.
 
 ```r
-x   <- grain_matrix(readings, plot, datetime, temperature,
-                     grain = c("day", "week", "month"),
-                     stats = c("cold_day", "mean", "warm_day"))
-lad <- grain_ladder(x, y, list(cnn_learner(), elasticnet_learner()), folds = fold_map(y))
-plot(lad)
-paired_contrast(lad, "week|cnn", "week|elasticnet")
+fit <- timesift(
+  plots, logger,
+  y = starts_with("sp_"),
+  id = plot_id,
+  time = datetime,
+  models = list(elasticnet(), forest()),
+  sift = grains("day", "week", "month"),
+  resampling = cv(v = 5)
+)
+fit
+#> timesift  80 targets, 4 responses, 5-fold random CV, tss
+#>
+#> candidate                    mean    won  responses
+#> elasticnet / month          0.261      0  separate
+#> forest / month              0.364      0  separate
+#> forest / week               0.391      1  separate
+#> elasticnet / day            0.445      2  separate
+#> elasticnet / week           0.464      0  separate
+#> forest / day                0.504      1  separate
+#> ensemble                    0.524      -
+#>
+#> weights  forest / day 0.59   elasticnet / day 0.28   elasticnet / week 0.13
 ```
+
+`predict(fit, new_plots, new_logger)` rebuilds every member's representation for the new rows and
+predicts through the ensemble.
+
+## Four things, and one contract
+
+**targets** is one row per thing to predict, carrying the response and optionally predictors that
+do not move in time. **series** is the long record: an identifier, an instant, and one or more
+value columns. A **representation** is how that record becomes the array a model reads. A
+**learner** is a fit and a predict pair that declares what it can be handed.
+
+A candidate is one representation paired with one learner, and every candidate emits an
+out-of-fold prediction for every scorable cell over the same folds. Comparison, ensembling and
+importance read those predictions and nothing else, which is what lets a penalised regression on
+monthly features and a convolution on the unreduced record be compared and then combined.
+
+## Representations
+
+```r
+native()                        # the record as it was recorded
+grain("week")                   # one calendar grain
+multigrain(c("month", "year"))  # several grains side by side as one block of features
+lookback("30 days", bins = 3)   # a fixed span ending at each target's own instant
+```
+
+`grains("day", "week", "month")` and `lookbacks("30 days", "90 days")` are sets of them, and
+`grains("auto")` reads off the record every named grain it gives at least two bins. A learner runs
+across the whole set, or across one representation it is pinned to:
+
+```r
+cnn()                      # every representation of the run
+cnn(data = native())       # the record unreduced only
+cnn(data = grain("week"))  # weekly only
+```
+
+`lookback()` is what a unit carrying several targets through time needs: two targets a fortnight
+apart on one sensor read two different stretches of the same series, anchored by `target_time`.
+
+## Learners
+
+`elasticnet()` and `stepwise()` read a block of features, `forest()` grows a probability forest over
+one, and the `torch` encoders `mlp()`, `cnn()` and `rescnn()` read a sequence with a joint
+multi-label head. `learner()` takes a fit and a predict pair of your own, which then goes through
+the same folds, the same cells and the same scoring.
+
+Architecture belongs to the constructor and training belongs to `train_control()`, so
+`train_control(epochs = 200, device = "cuda")` reaches every neural learner of a run at once and a
+learner given its own control overrides that on the settings it names.
 
 ## Calendar bins, not blocks of hours
 
@@ -35,9 +96,7 @@ attr(grain_matrix(d, plot, t, temp, grain = "month"), "bin_n")[1, 1:3]
 ```
 
 A calendar of your own is a function: pass one that returns each reading's bin start, and seasons
-cut at the equinoxes bin like any named grain. They are a different calendar from the named
-`season`, not a different reading of it: three years from 1 September are twelve bins of three
-calendar months and thirteen cut at the equinoxes, because the record begins inside one of those.
+cut at the equinoxes bin like any named grain.
 
 A record that begins away from a bin boundary gives a bin the calendar does not fill. `bin_partial`
 marks those bins and `partial = "drop"` removes them, so the choice between a short bin and a lost
@@ -49,42 +108,48 @@ end of the record is one the caller makes.
 reduce each day to its own mean first, then take the extreme over days. `mean_daily_min` and
 `mean_daily_max` take the mean of the daily extremes, the exposure a typical day of the bin
 brought. One hour at -50 sets `min` to -50 outright and reaches the day-level statistics only
-through its twenty-fourth of that day's mean, and on soil temperature it is the day-level pair
-that predicts.
+through its twenty-fourth of that day's mean.
 
-## What is in the box
+## The ensemble
 
-- **`grain_matrix()`**: readings in long form to a `[unit, bin, channel]` array, at one of
-  `native`, `halfday`, `day`, `week`, `month`, `season`, `year`, or at all of them at once.
-- **`fold_map()`, `scorable_cells()`**: one split read by everything that scores, and the mask of
-  cells a score is defined on, computed from the response and the fold map with no model involved.
-- **`grain_ladder()`, `plot()`, `paired_contrast()`**: fit every learner at every grain on one
-  split and one mask, draw the curve, and compare two arms inside each cell both scored.
-- **Learners**: `elasticnet_learner()`, `stepwise_learner()`, and the `torch` encoders
-  `mlp_learner()`, `cnn_learner()`, `rescnn_learner()`, all joint multi-label.
-  `ensemble_learner()` averages members before the threshold is chosen. `learner()` takes a fit
-  and a predict pair of your own, which then goes through the same folds, cells and scoring.
-- **`grain_contrasts()`**: a mixed model on the per-cell scores, comparing every grain against a
-  learner's best by Dunnett's procedure, so a difference of 0.015 can be read where absolute skill
-  varies across species by ten times as much.
-- **`occlusion()`**: hold each bin of the record back and rescore, so a fitted model says which
-  part of the year its skill rests on.
-- **`tss_inflation()`**, **`implied_skill()`**: how much the self-selected threshold inflates a
-  level at your own presence counts, and what population skill a level you read is consistent
-  with.
+`ensemble()` combines the candidates by stacking: non-negative weights summing to one, fitted on
+the out-of-fold predictions alone, minimising the response head's own loss over the scorable cells.
+`"mean"`, `"median"` and `"weighted"` combine without fitting. The combiner is handed the
+predictions, the response, the fold map and the mask, and never a model.
+
+```r
+ensemble_weights(fit)
+```
+
+## Ecology, and what the study found
+
+Species distribution modelling from microclimate loggers is the application the package was built
+for and the setting it ships defaults for: presence-absence, a joint multi-label head, and the true
+skill statistic. On 894 alpine plots, 101 species and three years of hourly soil temperature:
+
+- The full hourly series was the best input for none of three architectures. Reading every hour
+  cost the convolutional network 0.048 TSS against its own best grain.
+- Skill peaked at the weekly average and fell from monthly on, by 0.080 at yearly.
+- A window's coldest and warmest **day** carried more than its mean, and by more as the window
+  widened: 0.006 weekly to 0.046 yearly.
+- A fully connected network on the same series was level with a penalised logistic model on 188
+  hand-built features (-0.002 TSS, p = 0.63), so the gain came from convolution reading the series
+  at a coarse grain rather than from the model being a network.
 
 ## The score you report is an upper bound
 
 TSS is read at the threshold that maximises it, chosen on the same held-out units the score is read
-on. That inflates the level where presences are thin: on the Schrankogel design, by +0.110 when the
-truth is 0.60. `tss_inflation()` measures it for your design, and `paired_contrast()` is where it
-cancels, because both arms carry the same bias on the same cell.
+on. That inflates the level where presences are thin: on the Schrankogel design, by 0.110 when the
+truth is 0.60. `tss_inflation()` measures it for your design, `implied_skill()` says what
+population skill a level you read is consistent with, and `paired_contrast()` is where it cancels,
+because both arms carry the same bias on the same cell.
 
 ## The two languages agree
 
-`inst/spec/representation.md` is normative, and `inst/spec/fixtures/` holds a synthetic series with the
-digest of every grain-by-statistic combination. Both test suites assert the same digests, so R and
-Python cannot drift apart on the one thing the package is about.
+`inst/spec/representation.md` is normative, and `inst/spec/fixtures/` holds a synthetic series with
+the digest of every grain-by-statistic combination. Both test suites assert the same digests, so R
+and Python cannot drift apart on the one thing the package is about. `python/README.md` is the
+Python side.
 
 ## Reproducing the study
 

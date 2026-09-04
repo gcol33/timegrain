@@ -244,11 +244,18 @@ rescnn <- function(data = NULL, channels = c(32L, 64L, 128L, 256L), blocks_per_s
   invisible(net)
 }
 
+# As many batches as `size` divides the rows into, of as equal a length as they can be, which is
+# what NumPy's array_split gives the Python side. Cutting fixed-length batches instead leaves a
+# remainder, and a remainder of one row has no variance for batch normalisation to standardise by:
+# the layer's running statistics take a NaN and every prediction after it is NaN.
 .batches <- function(idx, size, shuffle) {
   if (shuffle) {
     idx <- sample(idx)
   }
-  split(idx, ceiling(seq_along(idx) / size))
+  n <- length(idx)
+  k <- max(1L, n %/% size)
+  rest <- n %% k
+  split(idx, rep(seq_len(k), rep(n %/% k, k) + c(rep(1L, rest), rep(0L, k - rest))))
 }
 
 .index <- function(torch, b, device) {

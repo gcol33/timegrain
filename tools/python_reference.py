@@ -31,42 +31,49 @@ SECTIONS = (
     dict(
         slug="python-representation",
         title="Python: the representation",
-        desc="Readings in long form to the array a model is fitted on, at one grain or at every "
-             "grain of a ladder.",
-        names=("grain_matrix", "timesift_set", "calendar_channels", "bind_channels",
-               "feature_matrix", "GrainMatrix", "TimesiftSet", "GRAINS", "STATS",
-               "DAY_LEVEL_STATS"),
+        desc="What a representation is before any record has been read, and the array it becomes.",
+        names=("native", "grain", "multigrain", "lookback", "grains", "lookbacks",
+               "Representation", "Sift", "as_sift", "expand_sift", "auto_grains",
+               "build_representation", "grain_matrix", "lookback_matrix", "timesift_set",
+               "calendar_channels", "bind_channels", "feature_matrix", "TimesiftMatrix",
+               "TimesiftSet", "GRAINS", "STATS", "DAY_LEVEL_STATS"),
     ),
     dict(
         slug="python-split",
         title="Python: the split and the cells",
         desc="One fold map read by everything that scores, and the cells a score is defined on, "
              "computed with no model involved.",
-        names=("fold_map", "scorable_cells", "align_folds", "as_response", "Response", "Folds",
-               "Cells", "PRESENCE_ABSENCE"),
+        names=("cv", "grouped_cv", "Resampling", "as_resampling", "resolve_folds", "fold_map",
+               "scorable_cells", "align_folds", "as_response", "Response", "Folds", "Cells",
+               "PRESENCE_ABSENCE"),
     ),
     dict(
         slug="python-fitting",
         title="Python: fitting",
-        desc="Fitting one learner at one grain, fitting every grain of a ladder, and reading the "
-             "grain a ladder saturates at.",
-        names=("grain_ladder", "fit_learner", "select_grain", "Ladder", "Fit", "Selection"),
+        desc="The run from targets and series, the combiner over its candidates, and fitting "
+             "across a set of grains on its own.",
+        names=("timesift", "Timesift", "TimesiftSpec", "CandidateFit", "n_targets",
+               "target_labels", "select_columns", "column_names", "summary", "candidate_table",
+               "ensemble_row", "ensemble", "ensemble_fit", "ensemble_combine",
+               "ensemble_weights", "EnsembleSpec", "Stack", "grain_ladder", "fit_learner",
+               "select_grain", "Ladder", "Fit", "Selection"),
     ),
     dict(
         slug="python-learners",
         title="Python: learners",
-        desc="The arms that ship, and the interface a learner of your own goes through.",
-        names=("elasticnet_learner", "stepwise_learner", "mlp_learner", "cnn_learner",
-               "rescnn_learner", "ensemble_learner", "Learner", "flatten"),
+        desc="The arms that ship, how they are trained, and the interface a learner of your own "
+             "goes through.",
+        names=("elasticnet", "stepwise", "forest", "mlp", "cnn", "rescnn", "Learner",
+               "train_control", "TrainControl", "flatten"),
     ),
     dict(
         slug="python-scoring",
         title="Python: scoring and comparison",
-        desc="The metrics, the paired contrast between two learners on matched cells, and the "
-             "inflation of a score read at its own best threshold.",
+        desc="The metrics, the paired contrast between two arms on matched cells, the inflation "
+             "of a score read at its own best threshold, and what a fitted model read.",
         names=("tss", "roc_auc", "kappa_score", "cohen_kappa", "decision_threshold",
-               "model_agreement", "paired_contrast", "tss_inflation", "implied_skill",
-               "bin_occlusion"),
+               "model_agreement", "score_predictions", "paired_contrast", "tss_inflation",
+               "implied_skill", "occlusion"),
     ),
     dict(
         slug="python-extending",
@@ -86,25 +93,29 @@ SECTIONS = (
     ),
 )
 
-OVERVIEW = """The binning, the statistics and the array assembly are `src/`, compiled into both
-languages and answering to [the representation contract](contract.html). `grain_matrix()` here
-and `grain_matrix()` in R return the same numbers from the same input, and the fixtures under
-`inst/spec/fixtures/` hold them to it.
+OVERVIEW = """`timesift()` here and `timesift()` in R take the same two tables and do the same
+thing: build every candidate representation, fit the learners that can read each one, score them
+all on one set of held-out folds, and stack the out-of-fold predictions. The binning, the
+statistics and the array assembly are `src/`, compiled into both languages and answering to
+[the representation contract](contract.html), and the fixtures under `inst/spec/fixtures/` hold the
+two to the same numbers.
 
 ```bash
 pip install git+https://github.com/gcol33/timesift
 ```
 
 ```python
-import timesift as tg
+import timesift as ts
 
-x = tg.grain_matrix(readings, id="plot", time="t", value="temp",
-                     grain="week", stats=("cold_day", "mean", "warm_day"))
-lad = tg.grain_ladder(x, y, learners=[tg.mlp_learner(), tg.cnn_learner()])
+fit = ts.timesift(plots, logger, y="sp_*", id="plot_id", time="datetime",
+                  models=[ts.elasticnet(), ts.forest()],
+                  sift=ts.grains("day", "week", "month"))
+print(ts.summary(fit))
 ```
 
-The contract's last section says what each language carries, so a difference between the two is a
-recorded decision.
+`y`, `x` and `static` are selections over their own table: a column name, a list of names, a glob
+such as `"sp_*"`, or a function of a name. The contract's last section says what each language
+carries, so a difference between the two is a recorded decision.
 """
 
 

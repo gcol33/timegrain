@@ -152,8 +152,8 @@ features <- feature_matrix(as.matrix(agg[rownames(y), setdiff(names(agg), "logge
 
 baseline <- grain_ladder(
   features, y,
-  list(elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5, squares = TRUE),
-       stepwise = stepwise_learner(max_terms = 3, degree = 2)),
+  list(elastic_net = elasticnet(alpha = 0.5, n_inner = 5, squares = TRUE),
+       stepwise = stepwise(max_terms = 3, degree = 2)),
   folds = folds)
 ```
 
@@ -162,30 +162,33 @@ footing the encoders are fitted on. The encoders are the three the paper reports
 reports them at, which are the defaults here:
 
 ```{r encoders}
-encoders <- list(mlp = mlp_learner(), cnn = cnn_learner(), rescnn = rescnn_learner())
+encoders <- list(mlp = mlp(), cnn = cnn(), rescnn = rescnn())
 ```
 
-`cnn_learner()` is four blocks of a one-dimensional convolution of kernel width 7, batch
-normalisation, a rectified linear activation and max pooling by two, at 16, 32, 64 and 128 channels,
-then global average pooling and dropout at 0.3. `rescnn_learner()` is a convolutional stem and four
-stages of 32, 64, 128 and 256 channels holding two dilated residual blocks each, dilations 1, 2, 4
-and 8, with squeeze-excitation gates, pooling average and maximum together. `mlp_learner()` flattens
-the channels through two hidden layers of 512 and 256 units. All three train with AdamW at a
-learning rate of 1e-3 and weight decay of 1e-4, cosine annealing over 60 epochs, early stopping on
-an inner validation split of 15 percent of the fitting plots, and a per-species positive-class
-weight capped at 50.
+`cnn()` is four blocks of a one-dimensional convolution of kernel width 7, batch normalisation, a
+rectified linear activation and max pooling by two, at 16, 32, 64 and 128 channels, then global
+average pooling and dropout at 0.3. `rescnn()` is a convolutional stem and four stages of 32, 64,
+128 and 256 channels holding two dilated residual blocks each, dilations 1, 2, 4 and 8, with
+squeeze-excitation gates, pooling average and maximum together. `mlp()` flattens the channels
+through two hidden layers of 512 and 256 units.
 
-The eleven-member ensemble the paper reports is the same members averaged before scoring, trained
-with weight averaging over the tail of the epoch budget:
+How all three are trained is `train_control()`. Its defaults are AdamW at a learning rate of 1e-3
+with weight decay 1e-4, cosine annealing over 60 epochs, early stopping after ten epochs without an
+improvement on an inner validation split of 15 percent of the fitting plots, and a per-species
+positive-class weight capped at 50. The encoders of the study read batches of 32 plots, which the
+grid asks for; the default is 64.
+
+The eleven members of the paper's ensemble are the same architectures at three widths, three kernel
+widths and three seeds, trained with weight averaging over the tail of the epoch budget:
 
 ```{r ensemble}
 members <- c(
   lapply(list(c(16L, 32L, 64L, 128L), c(32L, 64L, 128L, 256L), c(16L, 32L, 64L)),
-         function(ch) cnn_learner(channels = ch, swa = TRUE)),
-  lapply(c(5L, 7L, 9L), function(k) cnn_learner(kernel = k, swa = TRUE)),
-  lapply(c(1L, 2L, 3L), function(s) cnn_learner(swa = TRUE, seed = s)),
-  lapply(c(1L, 2L), function(s) rescnn_learner(swa = TRUE, seed = s)))
-ensemble <- ensemble_learner(stats::setNames(members, sprintf("m%02d", seq_along(members))))
+         function(ch) cnn(channels = ch, swa = TRUE)),
+  lapply(c(5L, 7L, 9L), function(k) cnn(kernel = k, swa = TRUE)),
+  lapply(c(1L, 2L, 3L), function(s) cnn(swa = TRUE, seed = s)),
+  lapply(c(1L, 2L), function(s) rescnn(swa = TRUE, seed = s)))
+names(members) <- sprintf("m%02d", seq_along(members))
 ```
 
 ## The grid
@@ -199,9 +202,26 @@ ladder_input <- timesift_set(lapply(binning, function(w) {
   bind_channels(x, calendar_channels(x))
 }))
 
-grid <- grain_ladder(ladder_input, y, c(encoders, list(ensemble = ensemble)), folds = folds)
+grid <- grain_ladder(ladder_input, y, encoders, folds = folds)
 summary(grid)
 ```
+
+The ensemble is one further arm on the same rungs. Each member runs as an arm of its own, and their
+held-out predictions are averaged: a member's out-of-fold prediction on a fold is its held-out
+prediction there, so averaging the eleven and choosing a threshold afterwards is the set scored as
+one model rather than as a vote between eleven decisions.
+
+```{r ensemble-arm}
+lad <- grain_ladder(ladder_input, y, members, folds = folds)
+oof <- attr(lad, "predictions")
+arms <- paste("week", names(members), sep = "|")
+
+stack <- ensemble_fit(oof[arms], y, attr(lad, "cells"), folds, spec = ensemble("mean"))
+combined <- ensemble_combine(stack, oof[arms])
+```
+
+`combined` is then scored on the same cells and by the same metric as every other arm, which is
+what the driver appends to the grid under the name `ensemble`.
 
 ## The grain contrast
 
@@ -228,7 +248,7 @@ system.file("reproduce", "schrankogel.R", package = "timesift")
 ```
 Rscript schrankogel.R <deposit_dir> <out_dir> \
   --stages=contract,representation,baseline,networks,contrasts,inflation \
-  --grains=day,week,month,season,year --learners=cnn,rescnn,mlp --folds=folds.csv
+  --grains=day,week,month,season,year --learners=cnn,rescnn,mlp,ensemble --folds=folds.csv
 ```
 
 It writes one CSV per stage and asserts the input at every step: the plot count, the species count,

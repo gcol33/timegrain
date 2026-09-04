@@ -82,10 +82,10 @@ bench_scale <- function(scale) {
 
 bench_learner <- function(block) {
   switch(block,
-         elasticnet = timesift::elasticnet_learner(squares = BENCH$elasticnet_squares,
-                                            n_inner = BENCH$elasticnet_n_inner),
-         cnn = timesift::cnn_learner(epochs = BENCH$cnn_epochs,
-                                      device = Sys.getenv("TIMESIFT_DEVICE", unset = "cpu")),
+         elasticnet = timesift::elasticnet(squares = BENCH$elasticnet_squares,
+                                           n_inner = BENCH$elasticnet_n_inner),
+         cnn = timesift::cnn(epochs = BENCH$cnn_epochs,
+                             device = Sys.getenv("TIMESIFT_DEVICE", unset = "cpu")),
          stop("unknown block: ", block))
 }
 

@@ -29,6 +29,6 @@ argument.
 t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 60)
 d <- data.frame(plot = rep(c("a", "b"), each = length(t)), t = rep(t, 2),
                 temp = rnorm(2 * length(t)))
-x <- window_matrix(d, plot, t, temp, window = "week")
+x <- grain_matrix(d, plot, t, temp, grain = "week")
 dimnames(bind_channels(x, calendar_channels(x)))[[3]]
 ```

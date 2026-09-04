@@ -86,15 +86,15 @@ Instants are read at whole seconds. Two readings a fraction of a second
 apart are the same reading twice, and are reported as a duplicated
 `(id, time)` pair.
 
-## Windows
+## Grains
 
 Bin membership is read from the calendar rather than from a running
 count of hours, so a bin is a real week or a real month rather than a
 drifting block of 168 or 730 hours.
 
-| window    | bin                                              |
+| grain     | bin                                              |
 |-----------|--------------------------------------------------|
-| `hour`    | the reading itself, no reduction                 |
+| `native`  | the reading itself, no reduction                 |
 | `halfday` | 00:00-11:59 and 12:00-23:59 of each calendar day |
 | `day`     | the calendar day                                 |
 | `week`    | ISO week, Monday to Sunday                       |
@@ -116,13 +116,13 @@ both halves of that are asserted:
 - every `(id, bin)` cell holds at least one reading, which is what makes
   a bin the same span for every id and a record that stops early an
   error rather than a padded row;
-- consecutive bin starts are one bin apart on the window’s own calendar.
+- consecutive bin starts are one bin apart on the grain’s own calendar.
   A bin no id reaches is never built, so a February missing from every
   logger would otherwise give four “adjacent” monthly bins with February
   simply gone, and a convolution would read January and March as
   neighbours.
 
-The second is not asserted for `hour`, where the bin is the reading
+The second is not asserted for `native`, where the bin is the reading
 itself and the bin sequence is the record’s own sampling grid rather
 than a calendar, nor for a supplied calendar, which declares its own bin
 lengths and is contiguous by construction. It is asserted in local time,
@@ -139,19 +139,19 @@ reaches outside that. Only a bin at an end of the record can, because
 every id is required to hold readings in every bin between them.
 
 Which bins those are follows from where the record starts and stops
-against the calendar, not from the window alone. Three years of hourly
+against the calendar, not from the grain alone. Three years of hourly
 readings from 1 September on a `"09-01"` boundary carry no partial
 month, season or year, and a partial week at each end, because 1
 September 2021 is a Wednesday. A record from an arbitrary deployment
-date carries one at each end of almost every window.
+date carries one at each end of almost every grain.
 
-[`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
+[`grain_matrix()`](https://gillescolling.com/timesift/reference/grain_matrix.md)
 reports the verdict as `bin_partial` and takes a `partial` argument
 saying what becomes of such a bin: `"keep"`, the default, returns it
 alongside the full bins; `"drop"` removes it, and errors rather than
 returning an empty representation if that leaves no bin. Dropping is a
 choice about the record, not about the implementation: it discards up to
-three months of readings at each end of a seasonal window, while keeping
+three months of readings at each end of a seasonal grain, while keeping
 gives a bin whose mean is taken over fewer readings and whose `cold_day`
 and `warm_day` are drawn from fewer days, so they sit closer to that
 bin’s mean than a full bin’s would. `bin_n` gives the count each bin was
@@ -162,26 +162,26 @@ settings.
 
 ## Statistics
 
-Each named statistic becomes one channel of the output. A window may
+Each named statistic becomes one channel of the output. A grain may
 carry any subset, and the channel order in the output is the order given
 by the caller.
 
 | name | definition | defined for |
 |----|----|----|
-| `mean` | arithmetic mean of the readings in the bin | every window |
-| `min` | smallest single reading in the bin | every window |
-| `max` | largest single reading in the bin | every window |
+| `mean` | arithmetic mean of the readings in the bin | every grain |
+| `min` | smallest single reading in the bin | every grain |
+| `max` | largest single reading in the bin | every grain |
 | `cold_day` | smallest daily mean among the days in the bin | `day` and coarser |
 | `warm_day` | largest daily mean among the days in the bin | `day` and coarser |
 | `mean_daily_min` | mean over the bin’s days of each day’s smallest reading | `day` and coarser |
 | `mean_daily_max` | mean over the bin’s days of each day’s largest reading | `day` and coarser |
 
-“A day or coarser” is decided from the bins rather than from the
-window’s name: a day-level statistic requires every calendar day of the
-record to lie entirely inside one bin. Naming `hour` or `halfday` is
-refused before any data is read; a supplied calendar that cuts inside a
-day is refused once the bins are in hand, naming the day it splits and
-the two bins it splits it between.
+“A day or coarser” is decided from the bins rather than from the grain’s
+name: a day-level statistic requires every calendar day of the record to
+lie entirely inside one bin. Naming `native` or `halfday` is refused
+before any data is read; a supplied calendar that cuts inside a day is
+refused once the bins are in hand, naming the day it splits and the two
+bins it splits it between.
 
 The four day-level statistics reduce each calendar day first and then
 reduce again over the days of the bin. `cold_day` and `warm_day` take
@@ -198,20 +198,20 @@ are not ordered against each other, and a bin whose days differ widely
 in level is where they part: a bin of one day at 0 and one at 10 has
 `cold_day` 0 and `mean_daily_min` 5.
 
-At the `day` window `cold_day`, `warm_day` and `mean` coincide by
+At the `day` grain `cold_day`, `warm_day` and `mean` coincide by
 construction, as do `mean_daily_min` with `min` and `mean_daily_max`
 with `max`. Requesting them there is allowed and returns the identical
 channels.
 
 ## Custom bins
 
-A caller may supply the binning instead of naming a window, as a
-function of the reading instants returning the start of each reading’s
-bin. Everything downstream is unchanged: the bins are still required to
-tile the record, and the output still carries the bin starts as its
-second dimension’s names. This is how a calendar the package does not
-carry is used, such as seasons cut at the equinoxes and solstices rather
-than on the first of a month.
+A caller may supply the binning instead of naming a grain, as a function
+of the reading instants returning the start of each reading’s bin.
+Everything downstream is unchanged: the bins are still required to tile
+the record, and the output still carries the bin starts as its second
+dimension’s names. This is how a calendar the package does not carry is
+used, such as seasons cut at the equinoxes and solstices rather than on
+the first of a month.
 
 Such a calendar owns its own bin lengths. A record beginning inside one
 of its seasons gives a leading bin of a few weeks beside neighbours of
@@ -247,7 +247,7 @@ Attributes carried on the array:
 
 | attribute | content |
 |----|----|
-| `window` | the window name |
+| `grain` | the grain name |
 | `stats` | the statistic names, in channel order |
 | `year_start` | the `"MM-DD"` boundary used |
 | `bin_start` | the bin start instants, resolved from local time as **The time zone** describes |
@@ -260,10 +260,119 @@ property of a fit and belongs to the fold it is computed on, never to
 the representation, because computing it over all ids would leak the
 held-out units into the training input.
 
+## The lookback
+
+The second reduction, and the one no calendar expresses. Its input is a
+table of **targets** beside the readings: one row per thing to predict,
+carrying the unit whose record it reads and the instant it is anchored
+at. Two targets on the same unit a fortnight apart read two different
+stretches of that unit’s series, which is why the bins are placed
+relative to the target rather than to a month or a week.
+
+| column | type                | meaning                                 |
+|--------|---------------------|-----------------------------------------|
+| id     | character or factor | the unit, which the readings must carry |
+| at     | POSIXct             | the instant the target is anchored at   |
+
+A target’s identity is its position in that table. A unit may carry any
+number of targets, so the unit cannot name a row, and the output is in
+the table’s own row order rather than in a sorted one.
+
+### The bin arithmetic
+
+Three numbers describe a lookback: `span`, its length; `lag`, the gap
+between the anchor and the end of the lookback; and `bins`, how many
+sub-bins it is cut into, oldest first. With `a` the target’s anchor and
+`step = span / bins`, bin `b`, counted from zero, covers naive local
+
+    [a - lag - span + b * step,  a - lag - span + (b + 1) * step)
+
+closed at the left and open at the right, so a reading on a boundary
+belongs to the later bin. `span` must divide by `bins` exactly; one that
+does not is an error rather than a rounded step. Only the readings whose
+unit is the target’s are read: a lookback is a stretch of one unit’s
+record.
+
+Nothing else changes. The statistics are the seven **Statistics**
+defines, computed over the readings of a cell exactly as they are over
+the readings of a grain’s cell, and the day-level pair reduces the days
+of a bin oldest first.
+
+### The two guards
+
+- Every `(target, bin)` cell holds at least one reading. A lookback
+  reaching past either end of the record is an error naming the target
+  and the interval, never a padded row, for the reason a grain’s empty
+  cell is one: an invented value in front of a model is worse than a
+  target the record cannot answer for.
+- The four day-level statistics reduce each calendar day first, so they
+  are defined only where every calendar day lies whole inside one bin. A
+  calendar settles that by itself; a lookback has to be asked, and the
+  answer is two conditions rather than one. `step` must be a whole
+  number of days, which holds for every target or for none, and
+  `a - lag - span` must fall on a day boundary, which is a property of
+  the anchor: a table of anchors on the hour rules the four statistics
+  out where the same anchors at midnight allow them. Either failing is
+  an error naming the target.
+
+### Durations
+
+`span` and `lag` are a count and a unit, or a bare count of seconds. **A
+year is 365 days and a month is 30 days.** A lookback of a fixed length
+is a fixed length rather than a calendar step: comparing two targets’
+representations means each read the same amount of record, and a
+February or a leap year takes that away. Where the calendar is what
+matters, a grain is the reduction that follows it.
+
+| unit                | seconds  |
+|---------------------|----------|
+| `second`, `seconds` | 1        |
+| `minute`, `minutes` | 60       |
+| `hour`, `hours`     | 3600     |
+| `day`, `days`       | 86400    |
+| `week`, `weeks`     | 604800   |
+| `month`, `months`   | 2592000  |
+| `year`, `years`     | 31536000 |
+
+A string is a count, optional space, and one of those names, upper or
+lower case: `"30 days"`, `"12 hours"`, `"1 year"`. A string of digits
+alone is seconds, and so is a number. Nothing else parses, and a
+duration that does not parse is an error naming the argument.
+
+### The output of a lookback
+
+A numeric array of shape `[n_target, n_bin, n_channel]`, traversed and
+digested exactly as a grain’s is, target fastest.
+
+- Dimension 1 is named by the target’s own row label where the target
+  table carries one, and by its position, from 1, where it does not. R
+  takes the row names of the `at` data frame; Python has no row names
+  and always names by position.
+- Dimension 2 is named by where the bin opens relative to the anchor,
+  oldest first, written as a signed count and the coarsest of `day`,
+  `hour`, `minute` and `second` that divides it exactly, singular at
+  one: `-30 days`, `-1 day`, `-12 hours`. In a grain an instant names a
+  bin; here no two targets share one.
+- Dimension 3 is named by the statistic.
+
+Attributes carried on the array:
+
+| attribute | content |
+|----|----|
+| `grain` | `"lookback"` |
+| `span`, `lag` | the durations, resolved to seconds |
+| `bins` | how many bins the lookback was cut into |
+| `stats` | the statistic names, in channel order |
+| `bin_n` | a `[target, bin]` matrix of how many readings fell in each cell |
+
+There is no `bin_start`, no `bin_end` and no `bin_partial`. A bin is a
+position relative to an anchor rather than a span of the calendar, and a
+cell the record does not cover is an error rather than a verdict.
+
 ## What crosses the language boundary, and what does not
 
-The binning and the reduction are one implementation: `src/cg_core.cpp`
-and `src/cg_calendar.cpp`, compiled into the R package by R itself and
+The binning and the reduction are one implementation: `src/ts_core.cpp`
+and `src/ts_calendar.cpp`, compiled into the R package by R itself and
 into the Python extension by CMake. What each language holds above it is
 the boundary, which resolves the columns, resolves the zone and wraps
 the result. The two agree by construction rather than by two
@@ -352,10 +461,10 @@ Three series, because a record that starts on a bin boundary cannot tell
 two binning rules apart and a record in UTC cannot tell two readings of
 a zone apart. `spec/fixtures/series.csv` is a synthetic three-unit,
 400-day hourly series beginning at midnight on the default anniversary,
-so every coarse window is in phase with it from the first reading.
+so every coarse grain is in phase with it from the first reading.
 `series_offset.csv` is a two-unit, 200-day series beginning at 05:00 on
 17 October, which is what a logger deployed when someone could walk to
-it gives, and puts every window out of phase. `series_zoned.csv` is a
+it gives, and puts every grain out of phase. `series_zoned.csv` is a
 two-unit, 10-day series across 4 November 2018, the night
 `America/Sao_Paulo` moved its clock at midnight, which is the record
 that tells a calendar read by arithmetic apart from one read by writing
@@ -364,17 +473,36 @@ and solstice boundaries that make each series a caller-supplied
 calendar, which is the only path the manuscript’s seasonal rung ever
 took.
 
-`digests.csv` holds one row per series, window, time zone, `year_start`,
-`partial` setting and statistic, covering every window-by-statistic
+`digests.csv` holds one row per series, grain, time zone, `year_start`,
+`partial` setting and statistic, covering every grain-by-statistic
 combination, each of the three-channel schemes (`min+mean+max`,
 `mean_daily_min+mean+mean_daily_max`, `cold_day+mean+warm_day`), the
-coarse windows at anniversaries other than the default, both `partial`
-settings, the supplied calendar, and the zone: every window of the
+coarse grains at anniversaries other than the default, both `partial`
+settings, the supplied calendar, and the zone: every grain of the
 aligned series read as a `Europe/Vienna` clock, which moves twice inside
 that record, and the short series read as an `America/Sao_Paulo` clock,
 which moves at midnight inside it, including a `year_start` landing on
 the night it moves. Each row carries `n_unit`, `n_bin`, the first and
 last bin start, how many bins are partial, and the digest.
+
+The lookback reads the same three series and three files of its own.
+`lookback_targets.csv` holds the anchors, in named sets rather than one
+set per series, because an anchor that is a local midnight in one zone
+is not one in another and an anchor on the hour rules out the day-level
+statistics that a midnight allows: `aligned` and `offset` sit on day
+boundaries in UTC, `hourly` sits on the hour, and `zoned` sits on local
+midnights in `America/Sao_Paulo`. `lookback_digests.csv` holds one row
+per target set, zone, span, lag, bin count and statistic, covering every
+statistic and each of the three-channel schemes, lags of none and of a
+day and of half a day, one and three and four and seven bins, a step
+that is a whole number of days and one that is not, a span written as a
+bare count of seconds, and the zoned set read both as UTC and as the
+clock that moves inside it. Each row carries `n_target`, `n_bin`, the
+first and last bin’s offset, the unit of the first and last target, and
+the digest. `lookback_guards.csv` holds one case per guard – a lookback
+reaching past the record, a day-level statistic over bins shorter than a
+day, and one over bins that do not open on a day boundary – with the
+substring of the message the two implementations must both raise.
 
 Both test suites read the series, rebuild every row and assert all of
 it. The shape is asserted before the digest, so two implementations that
@@ -456,7 +584,7 @@ the complementary error function accurate to about 1.2e-7 relative. The
 fixture stays on the exact branch; where a caller lands on the other,
 the two agree to 1e-6 and no closer.
 
-[`tss_inflation()`](https://gillescolling.com/climgrain/reference/tss_inflation.md)
+[`tss_inflation()`](https://gillescolling.com/timesift/reference/tss_inflation.md)
 cannot be pinned as a digest, because it draws replicates from each
 language’s own random stream, and aligning those streams would be the
 wrong fix for the same reason it is the wrong fix for a fold map. Its
@@ -477,23 +605,33 @@ the difference is recorded here rather than found at a call site.
 
 | concept | the name, on both sides |
 |----|----|
-| the penalised learner | [`elasticnet_learner()`](https://gillescolling.com/climgrain/reference/elasticnet_learner.md) |
-| the forward selector | [`stepwise_learner()`](https://gillescolling.com/climgrain/reference/stepwise_learner.md) |
-| a set of representations | [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md), which reads as a mapping of window name to representation |
+| the whole run | [`timesift()`](https://gillescolling.com/timesift/reference/timesift.md), from a table of targets and a table of series to a scored comparison |
+| what a representation is | [`native()`](https://gillescolling.com/timesift/reference/native.md), [`grain()`](https://gillescolling.com/timesift/reference/native.md), [`multigrain()`](https://gillescolling.com/timesift/reference/native.md), [`lookback()`](https://gillescolling.com/timesift/reference/native.md), and the sets [`grains()`](https://gillescolling.com/timesift/reference/grains.md) and [`lookbacks()`](https://gillescolling.com/timesift/reference/grains.md) |
+| the target-anchored array | [`lookback_matrix()`](https://gillescolling.com/timesift/reference/lookback_matrix.md) |
+| building one representation | [`build_representation()`](https://gillescolling.com/timesift/reference/build_representation.md) |
+| the penalised learner | [`elasticnet()`](https://gillescolling.com/timesift/reference/elasticnet.md) |
+| the forward selector | [`stepwise()`](https://gillescolling.com/timesift/reference/stepwise.md) |
+| the forest | [`forest()`](https://gillescolling.com/timesift/reference/forest.md) |
+| the encoders | [`mlp()`](https://gillescolling.com/timesift/reference/torch_learners.md), [`cnn()`](https://gillescolling.com/timesift/reference/torch_learners.md), [`rescnn()`](https://gillescolling.com/timesift/reference/torch_learners.md) |
+| how an encoder is trained | [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md) |
+| the resampling | [`cv()`](https://gillescolling.com/timesift/reference/cv.md) and [`grouped_cv()`](https://gillescolling.com/timesift/reference/cv.md) |
+| the combiner | [`ensemble()`](https://gillescolling.com/timesift/reference/ensemble.md), [`ensemble_fit()`](https://gillescolling.com/timesift/reference/ensemble_fit.md), [`ensemble_combine()`](https://gillescolling.com/timesift/reference/ensemble_combine.md) and [`ensemble_weights()`](https://gillescolling.com/timesift/reference/ensemble_weights.md) |
+| scoring held-out predictions | [`score_predictions()`](https://gillescolling.com/timesift/reference/score_predictions.md), on the cells the mask allows |
+| a set of representations | [`timesift_set()`](https://gillescolling.com/timesift/reference/timesift_set.md), which reads as a mapping of grain name to representation |
 | folds of the inner cross-validation | `n_inner` |
-| the digest | [`digest_array()`](https://gillescolling.com/climgrain/reference/digest_array.md), exported |
-| the three registries | [`register_learner()`](https://gillescolling.com/climgrain/reference/register_learner.md) and [`learners()`](https://gillescolling.com/climgrain/reference/register_learner.md), [`register_metric()`](https://gillescolling.com/climgrain/reference/register_metric.md) and [`metrics()`](https://gillescolling.com/climgrain/reference/register_metric.md), [`register_response()`](https://gillescolling.com/climgrain/reference/register_response.md) and [`responses()`](https://gillescolling.com/climgrain/reference/register_response.md) |
+| the digest | [`digest_array()`](https://gillescolling.com/timesift/reference/digest_array.md), exported |
+| the three registries | [`register_learner()`](https://gillescolling.com/timesift/reference/register_learner.md) and [`learners()`](https://gillescolling.com/timesift/reference/register_learner.md), [`register_metric()`](https://gillescolling.com/timesift/reference/register_metric.md) and [`metrics()`](https://gillescolling.com/timesift/reference/register_metric.md), [`register_response()`](https://gillescolling.com/timesift/reference/register_response.md) and [`responses()`](https://gillescolling.com/timesift/reference/register_response.md) |
 
 ### The same call does the same thing
 
-- Naming one window returns the representation and naming two or more
+- Naming one grain returns the representation and naming two or more
   returns a set, whether the one is named as a string or as a sequence
   of one.
-- [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+- [`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
   and
-  [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
+  [`select_grain()`](https://gillescolling.com/timesift/reference/select_grain.md)
   left without a fold map build one with the defaults of
-  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md).
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md).
   The two languages draw different maps from the same seed, so where
   both must see one split, write it and read it back as the section
   above describes.
@@ -508,17 +646,36 @@ the difference is recorded here rather than found at a call site.
   the averaging begins and is then held flat, the averaged weights get
   their own pass to rebuild the batch-normalisation statistics, and the
   default is off, so a default recipe is the same recipe on both sides.
-- [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
-  searches the candidates in the order the windows and the learners were
+- [`select_grain()`](https://gillescolling.com/timesift/reference/select_grain.md)
+  searches the candidates in the order the grains and the learners were
   declared in, so which candidate an exact tie on the inner score falls
   to does not depend on how the names sort.
+- A learner left without a `data =` runs across every representation of
+  the run, and one given a representation there runs at that one alone.
+  A pairing the learner cannot read is skipped and reported by name
+  inside a set, and is an error where the caller named it.
+- A candidate is reported as `learner / representation`, and every
+  candidate emits an out-of-fold prediction for every scorable cell over
+  the same folds. The combiner is handed those predictions, the
+  response, the mask and the fold map, and never a model.
+
+### The same thing, shaped differently
+
+| concept | in R | in Python |
+|----|----|----|
+| a learner’s own training settings | a `control` field holding a partly specified [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md) | its `params`, beside the architecture |
+| the occlusion profile | [`occlusion()`](https://gillescolling.com/timesift/reference/occlusion.md), an S3 generic with methods on a run and on a ladder | [`occlusion()`](https://gillescolling.com/timesift/reference/occlusion.md), one function taking either |
+
+Both are shapes rather than behaviours: a setting given to a learner
+beats the run’s control on both sides, and the profile is one
+implementation on both sides.
 
 ### Present in one language only
 
 | in R only | why |
 |----|----|
-| [`window_contrasts()`](https://gillescolling.com/climgrain/reference/window_contrasts.md) | fits a mixed model over the whole ladder and reads Dunnett’s comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
-| [`simulate_records()`](https://gillescolling.com/climgrain/reference/simulate_records.md) | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
+| [`grain_contrasts()`](https://gillescolling.com/timesift/reference/grain_contrasts.md) | fits a mixed model over the whole ladder and reads Dunnett’s comparisons off it, on lme4, lmerTest and emmeans. The Python twin would need a mixed-model fitter of its own or a scientific stack the wheel does not depend on, and nothing in the contract reads it. |
+| [`simulate_records()`](https://gillescolling.com/timesift/reference/simulate_records.md) | generates a record with a planted grain, for the vignette and the recovery tests. The Python suite builds its records in its own fixtures. |
 | [`plot()`](https://rdrr.io/r/graphics/plot.default.html) on a ladder and on a selection | the wheel depends on numpy alone, and every number a plot draws is on the object it is called on. |
 
 | in Python only | what it is |

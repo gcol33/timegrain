@@ -8,16 +8,16 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/gcol33/climgrain/blob/HEAD/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/gcol33/timesift/blob/HEAD/DESCRIPTION)
 
-Colling G (2026). *climgrain: Temporal Climate Resolution for Ecological
-Prediction*. R package version 0.3.0,
-<https://gillescolling.com/climgrain/>.
+Colling G (2026). *timesift: Learn Predictive Representations of
+Time-Varying Data*. R package version 0.1.0,
+<https://gillescolling.com/timesift/>.
 
     @Manual{,
-      title = {climgrain: Temporal Climate Resolution for Ecological Prediction},
+      title = {timesift: Learn Predictive Representations of Time-Varying Data},
       author = {Gilles Colling},
       year = {2026},
-      note = {R package version 0.3.0},
-      url = {https://gillescolling.com/climgrain/},
+      note = {R package version 0.1.0},
+      url = {https://gillescolling.com/timesift/},
     }

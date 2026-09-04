@@ -129,3 +129,16 @@ test_that("the device is resolved once, from the control", {
   expect_equal(.torch_device("cpu"), "cpu")
   expect_equal(train_control()$device, "auto")
 })
+
+test_that("no training batch holds one row, which batch normalisation cannot standardise", {
+  for (n in c(17L, 20L, 33L, 65L)) {
+    expect_true(all(lengths(.batches(seq_len(n), 8L, shuffle = FALSE)) > 1L))
+  }
+  expect_equal(sort(unlist(.batches(seq_len(17L), 8L, shuffle = FALSE), use.names = FALSE)), 1:17)
+  skip_if_no_torch()
+  # Twenty units and a fifteenth held back leaves seventeen to fit on, which fixed-length batches
+  # of eight would cut into eight, eight and one.
+  f <- torch_fixture(n_unit = 20L, days = 40L)
+  fit <- fit_learner(cnn(epochs = 1L), f$x, f$y, control = train_control(batch_size = 8L))
+  expect_true(all(is.finite(stats::predict(fit, f$x))))
+})

@@ -1,36 +1,65 @@
 # timesift (Python)
 
-The Python side of `timesift`. It answers to `../inst/spec/representation.md`, the same document the R
-package answers to, and its test suite asserts the digests in `../inst/spec/fixtures/digests.csv`.
+The Python side of `timesift`. It fits and compares representations of time-varying data against a
+prediction target, from the same one call the R package offers, and it answers to
+`../inst/spec/representation.md`, the document both implementations answer to.
 
 ```python
-import timesift as tg
+import timesift as ts
 
-x = tg.grain_matrix(readings, "logger_ID", "datetime", "temperature",
-                     grain=["day", "week", "month"],
-                     stats=["cold_day", "mean", "warm_day"])
-
-folds = tg.read_folds(fold_csv, x["week"].units)
-lad = tg.grain_ladder(x, y, [tg.cnn_learner(), tg.elasticnet_learner()], folds=folds)
-print(lad)
-tg.paired_contrast(lad, "week|cnn", "week|elasticnet")
+fit = ts.timesift(plots, logger, y="sp_*", id="plot_id", time="datetime",
+                  models=[ts.elasticnet(), ts.forest()],
+                  sift=ts.grains("day", "week", "month"),
+                  resampling=ts.cv(v=5))
+print(ts.summary(fit))
 ```
+
+```
+timesift  80 targets, 4 responses, 5-fold random CV, tss
+
+candidate                    mean    won  responses
+forest / week               0.503      0  separate
+elasticnet / month          0.504      0  separate
+forest / month              0.507      1  separate
+elasticnet / day            0.515      1  separate
+elasticnet / week           0.528      1  separate
+forest / day                0.535      1  separate
+ensemble                    0.571      -
+
+weights  elasticnet / week 0.37   elasticnet / day 0.22   forest / month 0.17   elasticnet / month 0.12   forest / day 0.09   forest / week 0.04
+```
+
+`targets` and `series` are mappings of column name to array, which a data frame satisfies. `y`, `x`
+and `static` are selections over their own table: a column name, a list of names, a glob such as
+`"sp_*"`, or a function of a name. `fit.predict(targets, series)` rebuilds each member's
+representation for the new rows and combines them.
 
 ## What is here
 
-- `grain_matrix`, `calendar_channels`, `bind_channels`: the representation, at one grain or at
-  every grain of a ladder.
-- `Response`, `fold_map`, `read_folds`, `scorable_cells`: the response, the split, and which cells
-  admit a score.
+- `timesift`, `Timesift`: the entry point and the fitted run, carrying its candidates, its scores,
+  its out-of-fold predictions and its stack.
+- `native`, `grain`, `multigrain`, `lookback` and the sets `grains` and `lookbacks`: what a
+  representation is, before any record has been read. `build_representation` turns one into the
+  array a learner is handed.
+- `grain_matrix`, `lookback_matrix`, `calendar_channels`, `bind_channels`, `feature_matrix`,
+  `timesift_set`: the arrays themselves, reachable without the fitting layer.
+- `cv`, `grouped_cv`, `fold_map`, `read_folds`, `scorable_cells`: the split, and which cells admit
+  a score.
+- `elasticnet`, `stepwise`, `forest` (scikit-learn), `mlp`, `cnn`, `rescnn` (torch), and `Learner`
+  for one of your own. `train_control` carries how any of the neural ones is trained.
+- `ensemble`, `ensemble_fit`, `ensemble_combine`, `ensemble_weights`: the stack over the
+  candidates' out-of-fold predictions.
 - `tss`, `roc_auc`, `kappa_score`, `model_agreement`, `decision_threshold`: the metrics.
-- `grain_ladder`, `paired_contrast`, `tss_inflation`: fitting at every grain, comparing two arms
-  cell by cell, and how much a self-selected threshold inflates a level.
-- `ladder_occlusion`: hold each bin or each channel back and rescore, without refitting.
-- `feature_matrix`: bring an already-reduced feature table in as an arm of the same ladder.
-- `mlp_learner`, `cnn_learner`, `rescnn_learner` (torch), `elasticnet_learner` (scikit-learn),
-  `ensemble_learner`, and `Learner` for one of your own.
+- `grain_ladder`, `select_grain`, `paired_contrast`, `tss_inflation`, `implied_skill`: fitting
+  across a set of grains on its own, comparing two arms cell by cell, and reading a level that was
+  taken at its own best threshold.
+- `occlusion`: hold each bin or each channel back and rescore, without refitting. It takes a run or
+  a ladder.
+- `register_learner`, `register_metric`, `register_response`: the three registries the fitting path
+  reads.
 
 The mixed-model grain contrast the R side offers as `grain_contrasts()` has no counterpart here.
+The contract's last section carries the rest of what each language holds.
 
 The binning and the reduction are not written here. They are `../src/ts_core.cpp`, the same
 implementation the R package compiles, reached through the `_core` extension that `../CMakeLists.txt`

@@ -11,8 +11,9 @@
 #   --stages    which stages to run, comma-separated: contract, representation, baseline,
 #               networks, contrasts, grains, inflation. Default all but networks.
 #   --grains   which grains the network grid covers. Default day,week,month,season,year.
-#   --learners  which encoders the network grid covers, plus `ensemble` for the
-#               convolutional-plus-residual set averaged before scoring. Default cnn.
+#   --learners  which encoders the network grid covers, plus `ensemble` for the eleven-member
+#               set, whose members run as arms of their own and whose held-out predictions are
+#               averaged into one further arm. Default cnn.
 #   --baseline  which aggregated-feature arms to fit: elastic_net, stepwise, or both. Default
 #               elastic_net. Forward selection over 188 columns is three glm fits per candidate
 #               per species per fold and takes many hours single-threaded.
@@ -74,6 +75,7 @@ DROP_TAXA <- c("Alchemilla vulgaris agg.", "Taraxacum sp.", "Festuca halleri agg
 CV_FOLDS <- 10L
 CV_SEED <- 1L
 REPORTED_STATS <- c("cold_day", "mean", "warm_day")
+METRIC_NAME <- "tss"
 
 # ---- the response, the folds and the cells ----------------------------------------------------
 
@@ -167,14 +169,32 @@ if ("baseline" %in% stages) {
   features <- feature_matrix(agg, label = "aggregates")
   say("fitting the aggregated-feature arms, selection redone inside every fold")
   arms <- list(
-    elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5L, squares = TRUE, seed = CV_SEED),
-    stepwise = stepwise_learner(max_terms = 3L, degree = 2L))[baseline_arms]
-  baseline <- grain_ladder(features, y, arms, folds = folds)
+    elastic_net = elasticnet(alpha = 0.5, n_inner = 5L, squares = TRUE, seed = CV_SEED),
+    stepwise = stepwise(max_terms = 3L, degree = 2L))[baseline_arms]
+  baseline <- grain_ladder(features, y, arms, folds = folds, metric = METRIC_NAME)
   write_out(baseline, "baseline.csv")
   print(summary(baseline))
 }
 
 # ---- the network grid ---------------------------------------------------------------------
+
+# The member set as arms of the run, and their held-out predictions averaged into one further arm
+# per grain. A member's out-of-fold prediction on a fold is its held-out prediction there, so
+# averaging the eleven and then choosing a threshold is the set scored as one model rather than as
+# a vote between eleven decisions.
+ensemble_arm <- function(set, y, folds, members) {
+  lad <- grain_ladder(set, y, members, folds = folds, metric = METRIC_NAME)
+  oof <- attr(lad, "predictions")
+  cells <- attr(lad, "cells")
+  combined <- lapply(names(set), function(w) {
+    arms <- paste(w, names(members), sep = "|")
+    stack <- ensemble_fit(oof[arms], y, cells, folds, spec = ensemble("mean"))
+    cbind(grain = w, learner = "ensemble",
+          score_predictions(y, ensemble_combine(stack, oof[arms]), folds, cells,
+                            METRIC_NAME), stringsAsFactors = FALSE)
+  })
+  rbind(as.data.frame(lad), do.call(rbind, combined))
+}
 
 if ("networks" %in% stages) {
   # The eleven-member set of the study spans two architectures, three widths and three seeds, and
@@ -182,15 +202,19 @@ if ("networks" %in% stages) {
   # architectural diversity, never on the held-out folds.
   members <- c(
     lapply(list(c(16L, 32L, 64L, 128L), c(32L, 64L, 128L, 256L), c(16L, 32L, 64L)),
-           function(ch) cnn_learner(channels = ch, epochs = epochs, swa = TRUE)),
-    lapply(c(5L, 7L, 9L), function(k) cnn_learner(kernel = k, epochs = epochs, swa = TRUE)),
-    lapply(c(1L, 2L, 3L), function(sd) cnn_learner(epochs = epochs, swa = TRUE, seed = sd)),
-    lapply(c(1L, 2L), function(sd) rescnn_learner(epochs = epochs, swa = TRUE, seed = sd)))
+           function(ch) cnn(channels = ch, epochs = epochs, batch_size = 32L, swa = TRUE)),
+    lapply(c(5L, 7L, 9L),
+           function(k) cnn(kernel = k, epochs = epochs, batch_size = 32L, swa = TRUE)),
+    lapply(c(1L, 2L, 3L),
+           function(sd) cnn(epochs = epochs, batch_size = 32L, swa = TRUE, seed = sd)),
+    lapply(c(1L, 2L),
+           function(sd) rescnn(epochs = epochs, batch_size = 32L, swa = TRUE, seed = sd)))
   names(members) <- sprintf("m%02d", seq_along(members))
 
-  encoders <- list(mlp = mlp_learner(epochs = epochs), cnn = cnn_learner(epochs = epochs),
-                   rescnn = rescnn_learner(epochs = epochs),
-                   ensemble = ensemble_learner(members))[grid_learners]
+  encoders <- list(mlp = mlp(epochs = epochs),
+                   cnn = cnn(epochs = epochs, batch_size = 32L),
+                   rescnn = rescnn(epochs = epochs, batch_size = 32L))[intersect(grid_learners,
+                                                               c("mlp", "cnn", "rescnn"))]
   for (statistic in c("mean", "extremeday")) {
     grains <- if (statistic == "mean") grid_grains else
       intersect(grid_grains, c("week", "month", "season", "year"))
@@ -204,7 +228,16 @@ if ("networks" %in% stages) {
         x <- build(w, stats_used)
         bind_channels(x, calendar_channels(x))
       }), grains))
-    grid <- grain_ladder(set, y, encoders, folds = folds, keep_fits = FALSE)
+    rows <- list()
+    if (length(encoders)) {
+      rows$encoders <- as.data.frame(
+        grain_ladder(set, y, encoders, folds = folds, metric = METRIC_NAME, keep_fits = FALSE))
+    }
+    if ("ensemble" %in% grid_learners) {
+      rows$ensemble <- ensemble_arm(set, y, folds, members)
+    }
+    grid <- structure(do.call(rbind, rows), class = c("timesift_ladder", "data.frame"),
+                      metric = METRIC_NAME, response = "presence_absence")
     write_out(grid, paste0("networks_", statistic, ".csv"))
     print(summary(grid))
   }
@@ -219,7 +252,7 @@ if ("contrasts" %in% stages) {
   } else {
     ladder <- do.call(rbind, lapply(parts, utils::read.csv, stringsAsFactors = FALSE))
     ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
-                        metric = "tss", response = "presence_absence")
+                        metric = METRIC_NAME, response = "presence_absence")
     arms <- unique(paste(ladder$grain, ladder$learner, sep = "|"))
     pairs <- utils::combn(arms, 2L, simplify = FALSE)
     out <- do.call(rbind, lapply(pairs, function(p) paired_contrast(ladder, p[1L], p[2L])))
@@ -236,7 +269,7 @@ if ("grains" %in% stages) {
   } else {
     ladder <- utils::read.csv(parts[1L], stringsAsFactors = FALSE)
     ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
-                        metric = "tss", response = "presence_absence")
+                        metric = METRIC_NAME, response = "presence_absence")
     out <- do.call(rbind, lapply(unique(ladder$learner), function(l)
       grain_contrasts(ladder, learner = l)))
     out$p_bh <- stats::p.adjust(out$p_value, method = "BH")
@@ -259,7 +292,7 @@ if ("inflation" %in% stages) {
   if (length(levels_read)) {
     ladder <- do.call(rbind, lapply(levels_read, utils::read.csv, stringsAsFactors = FALSE))
     ladder <- structure(ladder, class = c("timesift_ladder", "data.frame"),
-                        metric = "tss", response = "presence_absence")
+                        metric = METRIC_NAME, response = "presence_absence")
     reported <- summary(ladder)
     back <- implied_skill(y, folds, observed = reported$score, replicates = 500L, seed = CV_SEED)
     write_out(cbind(reported[c("learner", "grain")], back), "implied_skill.csv")

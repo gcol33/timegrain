@@ -15,7 +15,7 @@ test_that("a learner of one's own needs nothing but a fit and a predict", {
 })
 
 test_that("a registered learner can be asked for by name", {
-  expect_true(all(c("elasticnet", "stepwise", "rf", "mlp", "cnn", "rescnn") %in% learners()))
+  expect_true(all(c("elasticnet", "stepwise", "forest", "mlp", "cnn", "rescnn") %in% learners()))
   expect_s3_class(.as_learner("elasticnet"), "timesift_learner")
   expect_error(.as_learner("nope"), "unknown learner")
   register_learner("test_only", function() learner("test_only",
@@ -103,7 +103,7 @@ test_that("a forest fits, predicts and refuses a different representation", {
   sim <- sim_series(n_unit = 60L, days = 60L, seed = 35L)
   y <- sim_response(sim, n_var = 2L, seed = 36L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "week")
-  fit <- fit_learner(rf(trees = 200L), x, y)
+  fit <- fit_learner(forest(trees = 200L), x, y)
   p <- stats::predict(fit, x)
   expect_equal(dim(p), c(60L, 2L))
   expect_true(all(p >= 0 & p <= 1))
@@ -117,16 +117,16 @@ test_that("a forest is the same forest twice and reads the same columns as the l
   sim <- sim_series(n_unit = 40L, days = 40L, seed = 37L)
   y <- sim_response(sim, n_var = 1L, seed = 38L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "week", stats = c("mean", "max"))
-  a <- stats::predict(fit_learner(rf(trees = 100L, seed = 7L), x, y), x)
-  b <- stats::predict(fit_learner(rf(trees = 100L, seed = 7L), x, y), x)
+  a <- stats::predict(fit_learner(forest(trees = 100L, seed = 7L), x, y), x)
+  b <- stats::predict(fit_learner(forest(trees = 100L, seed = 7L), x, y), x)
   expect_equal(a, b)
-  expect_equal(fit_learner(rf(trees = 50L), x, y)$model$columns, colnames(.flatten(x)))
+  expect_equal(fit_learner(forest(trees = 50L), x, y)$model$columns, colnames(.flatten(x)))
 })
 
 test_that("a learner declares what it reads, how it covers responses and what it is pinned to", {
-  expect_equal(vapply(list(elasticnet(), stepwise(), rf()), function(l) l$reads, character(1L)),
+  expect_equal(vapply(list(elasticnet(), stepwise(), forest()), function(l) l$reads, character(1L)),
                rep("tabular", 3L))
-  expect_equal(vapply(list(elasticnet(), stepwise(), rf()), function(l) l$multi, character(1L)),
+  expect_equal(vapply(list(elasticnet(), stepwise(), forest()), function(l) l$multi, character(1L)),
                rep("separate", 3L))
   expect_equal(vapply(list(mlp(), cnn(), rescnn()), function(l) l$multi, character(1L)),
                rep("joint", 3L))
@@ -150,7 +150,7 @@ test_that("the old learner names are gone", {
                "rescnn_learner", "ensemble_learner")) {
     expect_false(nm %in% getNamespaceExports("timesift"), info = nm)
   }
-  expect_true(all(c("elasticnet", "stepwise", "rf", "mlp", "cnn", "rescnn") %in% learners()))
+  expect_true(all(c("elasticnet", "stepwise", "forest", "mlp", "cnn", "rescnn") %in% learners()))
   expect_false("ensemble" %in% learners())
 })
 
@@ -160,9 +160,9 @@ test_that("a training setting is defaulted in the control and nowhere else", {
   expect_equal(cfg$epochs, 60L)
   expect_equal(cfg$batch_size, 64L)
   expect_equal(cfg$learning_rate, 1e-3)
-  expect_equal(cfg$weight_decay, 0)
+  expect_equal(cfg$weight_decay, 1e-4)
   expect_equal(cfg$early_stopping, 10L)
-  expect_equal(cfg$val_frac, 0.2)
+  expect_equal(cfg$val_frac, 0.15)
   expect_equal(cfg$device, "auto")
   expect_equal(cfg$seed, 1L)
   expect_error(cfg$lr, "no setting called lr")

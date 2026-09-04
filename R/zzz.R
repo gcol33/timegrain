@@ -15,7 +15,7 @@ utils::globalVariables("self")
 
   register_learner("elasticnet", elasticnet)
   register_learner("stepwise", stepwise)
-  register_learner("rf", rf)
+  register_learner("forest", forest)
   register_learner("mlp", mlp)
   register_learner("cnn", cnn)
   register_learner("rescnn", rescnn)

@@ -1,12 +1,12 @@
 # Python: learners
 
-The arms that ship, and the interface a learner of your own goes
-through.
+The arms that ship, how they are trained, and the interface a learner of
+your own goes through.
 
-## `elasticnet_learner()`
+## `elasticnet()`
 
 ``` python
-elasticnet_learner(alpha=0.5, n_inner=5, squares=True, weight_positives=True, seed=1)
+elasticnet(data=None, alpha=0.5, n_inner=5, squares=True, weight_positives=True, seed=1)
 ```
 
 One penalised logistic regression per variable, over every
@@ -17,10 +17,10 @@ There is no discrete selection step: the penalty path uses every column
 and shrinks, and nothing about the model is decided outside the fold it
 is fitted in.
 
-## `stepwise_learner()`
+## `stepwise()`
 
 ``` python
-stepwise_learner(max_terms=3, degree=2)
+stepwise(data=None, max_terms=3, degree=2)
 ```
 
 One logistic regression per variable, its predictors chosen by forward
@@ -30,108 +30,80 @@ lowers Akaike’s criterion and stopping at a fixed budget.
 Each candidate enters as an orthogonal polynomial, so a term can be
 non-monotone in the reading the way a niche optimum is. Selection
 happens inside whichever units the learner is handed, so under
-`window_ladder` it is redone in every fold. Reported beside a penalised
+`grain_ladder` it is redone in every fold. Reported beside a penalised
 fit it also prices discrete selection: choosing a handful of columns out
 of hundreds is high variance, and that variance is a cost of the
 selector rather than of the features.
 
-## `mlp_learner()`
+## `forest()`
 
 ``` python
-mlp_learner(
-    hidden=(512, 256),
-    dropout=0.3,
-    epochs=60,
-    batch_size=64,
-    lr=0.001,
-    weight_decay=0.0001,
-    val_frac=0.15,
-    patience=10,
-    pos_weight_cap=50.0,
-    swa=False,
-    swa_start=0.7,
-    seed=1,
-    device=None,
-)
+forest(data=None, trees=500, mtry=None, min_node=1, seed=1)
+```
+
+One random forest per variable, over every bin-by-channel column.
+
+`mtry` is how many columns are offered at a split, defaulting to the
+square root of how many there are, and `min_node` is the smallest leaf a
+split may produce. The forest reads the columns one at a time and
+carries no order between them, so it is the arm that asks what the
+features hold once nothing about the record’s shape is available to the
+model.
+
+## `mlp()`
+
+``` python
+mlp(data=None, hidden=(512, 256), dropout=0.3, **settings)
 ```
 
 Flattens the channels and builds in no temporal geometry.
 
-## `cnn_learner()`
+`hidden` and `dropout` are the architecture; anything else named is a
+training setting applied on top of the
+[`train_control()`](https://gillescolling.com/timesift/reference/train_control.md)
+the learner is fitted under.
+
+## `cnn()`
 
 ``` python
-cnn_learner(
-    channels=(16, 32, 64, 128),
-    kernel=7,
-    dropout=0.3,
-    epochs=60,
-    batch_size=32,
-    lr=0.001,
-    weight_decay=0.0001,
-    val_frac=0.15,
-    patience=10,
-    pos_weight_cap=50.0,
-    swa=False,
-    swa_start=0.7,
-    seed=1,
-    device=None,
-)
+cnn(data=None, channels=(16, 32, 64, 128), kernel=7, dropout=0.3, **settings)
 ```
 
 Convolution, batch normalisation, activation and pooling, then global
 average pooling.
 
-## `rescnn_learner()`
+## `rescnn()`
 
 ``` python
-rescnn_learner(
+rescnn(
+    data=None,
     channels=(32, 64, 128, 256),
     blocks_per_stage=2,
     kernel=7,
     dilations=(1, 2, 4, 8),
     dropout=0.3,
-    epochs=60,
-    batch_size=32,
-    lr=0.001,
-    weight_decay=0.0001,
-    val_frac=0.15,
-    patience=10,
-    pos_weight_cap=50.0,
-    swa=False,
-    swa_start=0.7,
-    seed=1,
-    device=None,
+    **settings,
 )
 ```
 
 Dilated residual blocks with channel gates, pooling average and maximum
 together.
 
-## `ensemble_learner()`
-
-``` python
-ensemble_learner(members, weights=None, name: str = 'ensemble')
-```
-
-Average several learners’ predicted probabilities before the threshold
-is chosen.
-
-The average is taken before any decision is made, so the set is scored
-as one model rather than as a vote between decisions. Choose the members
-on an inner validation split or on prior grounds, never on the held-out
-folds.
-
 ## `Learner`
 
 ``` python
-Learner(name, fit, predict, needs, params)
+Learner(name, fit, predict, needs, params, data, reads, multi)
 ```
 
-A name, a fit and a predict, and what has to be installed for them to
-run.
+A name, a fit and a predict, what has to be installed for them to run,
+and what the learner reads.
 
 The one interface every arm goes through, the ones that ship and a pair
-of your own alike.
+of your own alike. `data` pins the learner to one representation, or is
+`None` to run it across every representation offered. `reads` is whether
+it takes a tabular block or an ordered sequence of bins, and `multi` is
+whether one fitted model covers every response or one is fitted per
+response and the matrix assembled from them.
 
 Attributes:
 
@@ -140,6 +112,9 @@ Attributes:
 - `predict` - Callable
 - `needs` - tuple\[str, …\]
 - `params` - dict
+- `data` - object
+- `reads` - str
+- `multi` - str
 
 ### `require()`
 
@@ -149,10 +124,72 @@ require(self)
 
 Error, naming the install, unless what the learner needs is importable.
 
+## `train_control()`
+
+``` python
+train_control(**settings)
+```
+
+The settings every neural learner reads, with anything named here
+replacing its default.
+
+`epochs`, `batch_size`, `learning_rate`, `weight_decay`,
+`early_stopping`, `val_frac`, `device` and `seed` are the settings a run
+is described by. `pos_weight_cap` bounds the weight a rare response’s
+presences are given against its absences, and `swa` with `swa_start`
+average the weights over the tail of the schedule rather than keeping
+one epoch out of it.
+
+`device` is `"auto"` for the graphics processor where there is one, or
+the name of a device to train on.
+
+## `TrainControl`
+
+``` python
+TrainControl(
+    epochs,
+    batch_size,
+    learning_rate,
+    weight_decay,
+    early_stopping,
+    val_frac,
+    device,
+    seed,
+    pos_weight_cap,
+    swa,
+    swa_start,
+)
+```
+
+How long to train, on what, and when to stop.
+
+Attributes:
+
+- `epochs` - int
+- `batch_size` - int
+- `learning_rate` - float
+- `weight_decay` - float
+- `early_stopping` - int
+- `val_frac` - float
+- `device` - str
+- `seed` - int
+- `pos_weight_cap` - float
+- `swa` - bool
+- `swa_start` - float
+
+### `override()`
+
+``` python
+override(self, settings: dict)
+```
+
+The control with the settings a learner or a call gave applied on top of
+it.
+
 ## `flatten()`
 
 ``` python
-flatten(x: WindowMatrix)
+flatten(x: TimesiftMatrix)
 ```
 
 `[unit, bin, channel]` to `[unit, bin * channel]` in the array’s own

@@ -5,15 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Temporal Climate Resolution for Ecological Prediction • climgrain</title>
+<title>Learn Predictive Representations of Time-Varying Data • timesift</title>
 <script src="lightswitch.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><link href="extra.css" rel="stylesheet">
-<meta property="og:title" content="Temporal Climate Resolution for Ecological Prediction">
-<meta name="description" content="Builds model-ready representations of climate records at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
-<meta property="og:description" content="Builds model-ready representations of climate records at a chosen temporal grain, from the unreduced record down to a single value per year, and locates the grain at which predictive skill saturates. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours, and a window can be summarised by its mean, by its extreme readings, or by its coldest and warmest day. The default response is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers, and both the response head and the metric are registered rather than hard-coded.">
+<meta property="og:title" content="Learn Predictive Representations of Time-Varying Data">
+<meta name="description" content="Fits and compares representations of time-varying data against a prediction target. Given a table of targets and a table of time-stamped series belonging to them, it builds each candidate representation, from the record unreduced through a calendar grain such as a week or a month to a lookback anchored on each target, fits the requested learners on each, scores every candidate on one set of held-out folds, and stacks the out-of-fold predictions into an ensemble. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours. Learners, response heads and metrics are registered rather than hard-coded, so adding one is a registration and not a fork of the fitting code. The shipped default is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers.">
+<meta property="og:description" content="Fits and compares representations of time-varying data against a prediction target. Given a table of targets and a table of time-stamped series belonging to them, it builds each candidate representation, from the record unreduced through a calendar grain such as a week or a month to a lookback anchored on each target, fits the requested learners on each, scores every candidate on one set of held-out folds, and stacks the out-of-fold predictions into an ensemble. Calendar-aware binning keeps a bin a real week or month rather than a fixed block of hours. Learners, response heads and metrics are registered rather than hard-coded, so adding one is a registration and not a fork of the fitting code. The shipped default is presence-absence with a joint multi-label head scored by the true skill statistic, the setting used for species distribution modelling from microclimate loggers.">
 <script>
 (function () {
   var D = String.fromCharCode(36);
@@ -35,9 +35,9 @@
 
     <nav class="navbar navbar-expand-lg fixed-top " aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="index.html">climgrain</a>
+    <a class="navbar-brand me-2" href="index.html">timesift</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -46,7 +46,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="articles/climgrain.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="articles/timesift.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-python" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Python</button>
@@ -77,7 +77,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/climgrain/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/gcol33/timesift/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -94,74 +94,115 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="climgrain">climgrain<a class="anchor" aria-label="anchor" href="#climgrain"></a>
+<div class="page-header"><h1 id="timesift">timesift<a class="anchor" aria-label="anchor" href="#timesift"></a>
 </h1></div>
-<p><a href="https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/pytest.yaml/badge.svg" alt="pytest"></a> <a href="https://github.com/gcol33/climgrain/actions/workflows/contract.yaml" class="external-link"><img src="https://github.com/gcol33/climgrain/actions/workflows/contract.yaml/badge.svg" alt="contract"></a></p>
-<p>A logger records every hour for years. Before any model sees it, that record gets reduced: to monthly means, to growing-degree-days, to whatever the analyst settled on once and never revisited. <code>climgrain</code> makes the reduction an argument. Build the representation at any grain, fit at each grain, and read off where predictive skill saturates.</p>
-<p>On 894 alpine plots and three years of hourly soil temperature, the full hourly record was the best input for none of three architectures, skill peaked at the weekly average, and a week’s coldest and warmest <strong>day</strong> carried more than its mean, by more the coarser the window.</p>
+<p><a href="https://github.com/gcol33/timesift/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/gcol33/timesift/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/gcol33/timesift/actions/workflows/pytest.yaml" class="external-link"><img src="https://github.com/gcol33/timesift/actions/workflows/pytest.yaml/badge.svg" alt="pytest"></a> <a href="https://github.com/gcol33/timesift/actions/workflows/contract.yaml" class="external-link"><img src="https://github.com/gcol33/timesift/actions/workflows/contract.yaml/badge.svg" alt="contract"></a></p>
+<p><code>timesift</code> fits and compares representations of time-varying data against a prediction target. Give it one row per thing to predict and a long table of time-stamped readings belonging to those rows. It builds each candidate representation, fits the learners you name on every one they can read, scores them all on one set of held-out folds, and stacks the out-of-fold predictions into an ensemble. What comes back says how much of the record the prediction actually needed.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">x</span>   <span class="op">&lt;-</span> <span class="fu"><a href="reference/window_matrix.html">window_matrix</a></span><span class="op">(</span><span class="va">readings</span>, <span class="va">plot</span>, <span class="va">datetime</span>, <span class="va">temperature</span>,</span>
-<span>                     window <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"day"</span>, <span class="st">"week"</span>, <span class="st">"month"</span><span class="op">)</span>,</span>
-<span>                     stats <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cold_day"</span>, <span class="st">"mean"</span>, <span class="st">"warm_day"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">lad</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/window_ladder.html">window_ladder</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="reference/torch_learners.html">cnn_learner</a></span><span class="op">(</span><span class="op">)</span>, <span class="fu"><a href="reference/elasticnet_learner.html">elasticnet_learner</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>, folds <span class="op">=</span> <span class="fu"><a href="reference/fold_map.html">fold_map</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">lad</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/paired_contrast.html">paired_contrast</a></span><span class="op">(</span><span class="va">lad</span>, <span class="st">"week|cnn"</span>, <span class="st">"week|elasticnet"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/timesift.html">timesift</a></span><span class="op">(</span></span>
+<span>  <span class="va">plots</span>, <span class="va">logger</span>,</span>
+<span>  y <span class="op">=</span> <span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"sp_"</span><span class="op">)</span>,</span>
+<span>  id <span class="op">=</span> <span class="va">plot_id</span>,</span>
+<span>  time <span class="op">=</span> <span class="va">datetime</span>,</span>
+<span>  models <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="reference/elasticnet.html">elasticnet</a></span><span class="op">(</span><span class="op">)</span>, <span class="fu"><a href="reference/forest.html">forest</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  sift <span class="op">=</span> <span class="fu"><a href="reference/grains.html">grains</a></span><span class="op">(</span><span class="st">"day"</span>, <span class="st">"week"</span>, <span class="st">"month"</span><span class="op">)</span>,</span>
+<span>  resampling <span class="op">=</span> <span class="fu"><a href="reference/cv.html">cv</a></span><span class="op">(</span>v <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit</span></span>
+<span><span class="co">#&gt; timesift  80 targets, 4 responses, 5-fold random CV, tss</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt; candidate                    mean    won  responses</span></span>
+<span><span class="co">#&gt; elasticnet / month          0.261      0  separate</span></span>
+<span><span class="co">#&gt; forest / month              0.364      0  separate</span></span>
+<span><span class="co">#&gt; forest / week               0.391      1  separate</span></span>
+<span><span class="co">#&gt; elasticnet / day            0.445      2  separate</span></span>
+<span><span class="co">#&gt; elasticnet / week           0.464      0  separate</span></span>
+<span><span class="co">#&gt; forest / day                0.504      1  separate</span></span>
+<span><span class="co">#&gt; ensemble                    0.524      -</span></span>
+<span><span class="co">#&gt;</span></span>
+<span><span class="co">#&gt; weights  forest / day 0.59   elasticnet / day 0.28   elasticnet / week 0.13</span></span></code></pre></div>
+<p><code>predict(fit, new_plots, new_logger)</code> rebuilds every member’s representation for the new rows and predicts through the ensemble.</p>
+<div class="section level2">
+<h2 id="four-things-and-one-contract">Four things, and one contract<a class="anchor" aria-label="anchor" href="#four-things-and-one-contract"></a>
+</h2>
+<p><strong>targets</strong> is one row per thing to predict, carrying the response and optionally predictors that do not move in time. <strong>series</strong> is the long record: an identifier, an instant, and one or more value columns. A <strong>representation</strong> is how that record becomes the array a model reads. A <strong>learner</strong> is a fit and a predict pair that declares what it can be handed.</p>
+<p>A candidate is one representation paired with one learner, and every candidate emits an out-of-fold prediction for every scorable cell over the same folds. Comparison, ensembling and importance read those predictions and nothing else, which is what lets a penalised regression on monthly features and a convolution on the unreduced record be compared and then combined.</p>
+</div>
+<div class="section level2">
+<h2 id="representations">Representations<a class="anchor" aria-label="anchor" href="#representations"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/native.html">native</a></span><span class="op">(</span><span class="op">)</span>                        <span class="co"># the record as it was recorded</span></span>
+<span><span class="fu"><a href="reference/native.html">grain</a></span><span class="op">(</span><span class="st">"week"</span><span class="op">)</span>                   <span class="co"># one calendar grain</span></span>
+<span><span class="fu"><a href="reference/native.html">multigrain</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"month"</span>, <span class="st">"year"</span><span class="op">)</span><span class="op">)</span>  <span class="co"># several grains side by side as one block of features</span></span>
+<span><span class="fu"><a href="reference/native.html">lookback</a></span><span class="op">(</span><span class="st">"30 days"</span>, bins <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>   <span class="co"># a fixed span ending at each target's own instant</span></span></code></pre></div>
+<p><code>grains("day", "week", "month")</code> and <code>lookbacks("30 days", "90 days")</code> are sets of them, and <code>grains("auto")</code> reads off the record every named grain it gives at least two bins. A learner runs across the whole set, or across one representation it is pinned to:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/torch_learners.html">cnn</a></span><span class="op">(</span><span class="op">)</span>                      <span class="co"># every representation of the run</span></span>
+<span><span class="fu"><a href="reference/torch_learners.html">cnn</a></span><span class="op">(</span>data <span class="op">=</span> <span class="fu"><a href="reference/native.html">native</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>       <span class="co"># the record unreduced only</span></span>
+<span><span class="fu"><a href="reference/torch_learners.html">cnn</a></span><span class="op">(</span>data <span class="op">=</span> <span class="fu"><a href="reference/native.html">grain</a></span><span class="op">(</span><span class="st">"week"</span><span class="op">)</span><span class="op">)</span>  <span class="co"># weekly only</span></span></code></pre></div>
+<p><code><a href="reference/native.html">lookback()</a></code> is what a unit carrying several targets through time needs: two targets a fortnight apart on one sensor read two different stretches of the same series, anchored by <code>target_time</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="learners">Learners<a class="anchor" aria-label="anchor" href="#learners"></a>
+</h2>
+<p><code><a href="reference/elasticnet.html">elasticnet()</a></code> and <code><a href="reference/stepwise.html">stepwise()</a></code> read a block of features, <code><a href="reference/forest.html">forest()</a></code> grows a probability forest over one, and the <code>torch</code> encoders <code><a href="reference/torch_learners.html">mlp()</a></code>, <code><a href="reference/torch_learners.html">cnn()</a></code> and <code><a href="reference/torch_learners.html">rescnn()</a></code> read a sequence with a joint multi-label head. <code><a href="reference/learner.html">learner()</a></code> takes a fit and a predict pair of your own, which then goes through the same folds, the same cells and the same scoring.</p>
+<p>Architecture belongs to the constructor and training belongs to <code><a href="reference/train_control.html">train_control()</a></code>, so <code>train_control(epochs = 200, device = "cuda")</code> reaches every neural learner of a run at once and a learner given its own control overrides that on the settings it names.</p>
+</div>
 <div class="section level2">
 <h2 id="calendar-bins-not-blocks-of-hours">Calendar bins, not blocks of hours<a class="anchor" aria-label="anchor" href="#calendar-bins-not-blocks-of-hours"></a>
 </h2>
-<p>A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift away from both, so a “monthly” mean built from 730-hour blocks slides through the seasons over three years. <code>climgrain</code> bins on the calendar and asserts every unit holds readings in every bin.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="reference/window_matrix.html">window_matrix</a></span><span class="op">(</span><span class="va">d</span>, <span class="va">plot</span>, <span class="va">t</span>, <span class="va">temp</span>, window <span class="op">=</span> <span class="st">"month"</span><span class="op">)</span>, <span class="st">"bin_n"</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span></span>
+<p>A month is 28, 30 or 31 days, and a week starts on a Monday. Bins that count hours instead drift away from both, so a “monthly” mean built from 730-hour blocks slides through the seasons over three years. <code>timesift</code> bins on the calendar and asserts every unit holds readings in every bin.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="reference/grain_matrix.html">grain_matrix</a></span><span class="op">(</span><span class="va">d</span>, <span class="va">plot</span>, <span class="va">t</span>, <span class="va">temp</span>, grain <span class="op">=</span> <span class="st">"month"</span><span class="op">)</span>, <span class="st">"bin_n"</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span></span>
 <span><span class="co">#&gt; 2021-09-01T00:00:00Z 2021-10-01T00:00:00Z 2021-11-01T00:00:00Z</span></span>
 <span><span class="co">#&gt;                  720                  744                  720</span></span></code></pre></div>
-<p>A calendar of your own is a function: pass one that returns each reading’s bin start, and seasons cut at the equinoxes bin like any named window. They are a different calendar from the named <code>season</code>, not a different reading of it: three years from 1 September are twelve bins of three calendar months and thirteen cut at the equinoxes, because the record begins inside one of those.</p>
+<p>A calendar of your own is a function: pass one that returns each reading’s bin start, and seasons cut at the equinoxes bin like any named grain.</p>
 <p>A record that begins away from a bin boundary gives a bin the calendar does not fill. <code>bin_partial</code> marks those bins and <code>partial = "drop"</code> removes them, so the choice between a short bin and a lost end of the record is one the caller makes.</p>
 </div>
 <div class="section level2">
 <h2 id="an-extreme-day-is-not-an-extreme-reading">An extreme day is not an extreme reading<a class="anchor" aria-label="anchor" href="#an-extreme-day-is-not-an-extreme-reading"></a>
 </h2>
-<p><code>min</code> and <code>max</code> take the coldest and warmest single reading in a bin. <code>cold_day</code> and <code>warm_day</code> reduce each day to its own mean first, then take the extreme over days. <code>mean_daily_min</code> and <code>mean_daily_max</code> take the mean of the daily extremes, the exposure a typical day of the bin brought. One hour at -50 sets <code>min</code> to -50 outright and reaches the day-level statistics only through its twenty-fourth of that day’s mean, and on soil temperature it is the day-level pair that predicts.</p>
+<p><code>min</code> and <code>max</code> take the coldest and warmest single reading in a bin. <code>cold_day</code> and <code>warm_day</code> reduce each day to its own mean first, then take the extreme over days. <code>mean_daily_min</code> and <code>mean_daily_max</code> take the mean of the daily extremes, the exposure a typical day of the bin brought. One hour at -50 sets <code>min</code> to -50 outright and reaches the day-level statistics only through its twenty-fourth of that day’s mean.</p>
 </div>
 <div class="section level2">
-<h2 id="what-is-in-the-box">What is in the box<a class="anchor" aria-label="anchor" href="#what-is-in-the-box"></a>
+<h2 id="the-ensemble">The ensemble<a class="anchor" aria-label="anchor" href="#the-ensemble"></a>
 </h2>
+<p><code><a href="reference/ensemble.html">ensemble()</a></code> combines the candidates by stacking: non-negative weights summing to one, fitted on the out-of-fold predictions alone, minimising the response head’s own loss over the scorable cells. <code>"mean"</code>, <code>"median"</code> and <code>"weighted"</code> combine without fitting. The combiner is handed the predictions, the response, the fold map and the mask, and never a model.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/ensemble_weights.html">ensemble_weights</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="ecology-and-what-the-study-found">Ecology, and what the study found<a class="anchor" aria-label="anchor" href="#ecology-and-what-the-study-found"></a>
+</h2>
+<p>Species distribution modelling from microclimate loggers is the application the package was built for and the setting it ships defaults for: presence-absence, a joint multi-label head, and the true skill statistic. On 894 alpine plots, 101 species and three years of hourly soil temperature:</p>
 <ul>
-<li>
-<strong><code><a href="reference/window_matrix.html">window_matrix()</a></code></strong>: readings in long form to a <code>[unit, bin, channel]</code> array, at one of <code>hour</code>, <code>halfday</code>, <code>day</code>, <code>week</code>, <code>month</code>, <code>season</code>, <code>year</code>, or at all of them at once.</li>
-<li>
-<strong><code><a href="reference/fold_map.html">fold_map()</a></code>, <code><a href="reference/scorable_cells.html">scorable_cells()</a></code></strong>: one split read by everything that scores, and the mask of cells a score is defined on, computed from the response and the fold map with no model involved.</li>
-<li>
-<strong><code><a href="reference/window_ladder.html">window_ladder()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="reference/paired_contrast.html">paired_contrast()</a></code></strong>: fit every learner at every grain on one split and one mask, draw the curve, and compare two arms inside each cell both scored.</li>
-<li>
-<strong>Learners</strong>: <code><a href="reference/elasticnet_learner.html">elasticnet_learner()</a></code>, <code><a href="reference/stepwise_learner.html">stepwise_learner()</a></code>, and the <code>torch</code> encoders <code><a href="reference/torch_learners.html">mlp_learner()</a></code>, <code><a href="reference/torch_learners.html">cnn_learner()</a></code>, <code><a href="reference/torch_learners.html">rescnn_learner()</a></code>, all joint multi-label. <code><a href="reference/ensemble_learner.html">ensemble_learner()</a></code> averages members before the threshold is chosen. <code><a href="reference/learner.html">learner()</a></code> takes a fit and a predict pair of your own, which then goes through the same folds, cells and scoring.</li>
-<li>
-<strong><code><a href="reference/window_contrasts.html">window_contrasts()</a></code></strong>: a mixed model on the per-cell scores, comparing every window against a learner’s best by Dunnett’s procedure, so a difference of 0.015 can be read where absolute skill varies across species by ten times as much.</li>
-<li>
-<strong><code><a href="reference/bin_occlusion.html">bin_occlusion()</a></code></strong>: hold each bin of the record back and rescore, so a fitted model says which part of the year its skill rests on.</li>
-<li>
-<strong><code><a href="reference/tss_inflation.html">tss_inflation()</a></code></strong>, <strong><code><a href="reference/implied_skill.html">implied_skill()</a></code></strong>: how much the self-selected threshold inflates a level at your own presence counts, and what population skill a level you read is consistent with.</li>
+<li>The full hourly series was the best input for none of three architectures. Reading every hour cost the convolutional network 0.048 TSS against its own best grain.</li>
+<li>Skill peaked at the weekly average and fell from monthly on, by 0.080 at yearly.</li>
+<li>A window’s coldest and warmest <strong>day</strong> carried more than its mean, and by more as the window widened: 0.006 weekly to 0.046 yearly.</li>
+<li>A fully connected network on the same series was level with a penalised logistic model on 188 hand-built features (-0.002 TSS, p = 0.63), so the gain came from convolution reading the series at a coarse grain rather than from the model being a network.</li>
 </ul>
 </div>
 <div class="section level2">
 <h2 id="the-score-you-report-is-an-upper-bound">The score you report is an upper bound<a class="anchor" aria-label="anchor" href="#the-score-you-report-is-an-upper-bound"></a>
 </h2>
-<p>TSS is read at the threshold that maximises it, chosen on the same held-out units the score is read on. That inflates the level where presences are thin: on the Schrankogel design, by +0.110 when the truth is 0.60. <code><a href="reference/tss_inflation.html">tss_inflation()</a></code> measures it for your design, and <code><a href="reference/paired_contrast.html">paired_contrast()</a></code> is where it cancels, because both arms carry the same bias on the same cell.</p>
+<p>TSS is read at the threshold that maximises it, chosen on the same held-out units the score is read on. That inflates the level where presences are thin: on the Schrankogel design, by 0.110 when the truth is 0.60. <code><a href="reference/tss_inflation.html">tss_inflation()</a></code> measures it for your design, <code><a href="reference/implied_skill.html">implied_skill()</a></code> says what population skill a level you read is consistent with, and <code><a href="reference/paired_contrast.html">paired_contrast()</a></code> is where it cancels, because both arms carry the same bias on the same cell.</p>
 </div>
 <div class="section level2">
 <h2 id="the-two-languages-agree">The two languages agree<a class="anchor" aria-label="anchor" href="#the-two-languages-agree"></a>
 </h2>
-<p><code>inst/spec/representation.md</code> is normative, and <code>inst/spec/fixtures/</code> holds a synthetic series with the digest of every window-by-statistic combination. Both test suites assert the same digests, so R and Python cannot drift apart on the one thing the package is about.</p>
+<p><code>inst/spec/representation.md</code> is normative, and <code>inst/spec/fixtures/</code> holds a synthetic series with the digest of every grain-by-statistic combination. Both test suites assert the same digests, so R and Python cannot drift apart on the one thing the package is about. <code>python/README.md</code> is the Python side.</p>
 </div>
 <div class="section level2">
 <h2 id="reproducing-the-study">Reproducing the study<a class="anchor" aria-label="anchor" href="#reproducing-the-study"></a>
 </h2>
-<p><code>inst/reproduce/schrankogel.R</code> runs the published grid from the Zenodo deposit it was built on, and asserts the plot count, the species count, the cell count and the bin count of every window before fitting anything. <code><a href="articles/reproducing-schrankogel.html">vignette("reproducing-schrankogel")</a></code> says which setting corresponds to which part of that grid.</p>
+<p><code>inst/reproduce/schrankogel.R</code> runs the published grid from the Zenodo deposit it was built on, and asserts the plot count, the species count, the cell count and the bin count of every grain before fitting anything. <code><a href="articles/reproducing-schrankogel.html">vignette("reproducing-schrankogel")</a></code> says which setting corresponds to which part of that grid.</p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"gcol33/climgrain"</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"gcol33/timesift"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
@@ -172,8 +213,8 @@
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/gcol33/climgrain/" class="external-link">Browse source code</a></li>
-<li><a href="https://github.com/gcol33/climgrain/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://github.com/gcol33/timesift/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/gcol33/timesift/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
 
@@ -190,7 +231,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing climgrain</a></li>
+<li><a href="authors.html#citation">Citing timesift</a></li>
 </ul>
 </div>
 

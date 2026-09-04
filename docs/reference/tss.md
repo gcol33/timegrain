@@ -35,10 +35,10 @@ has no skill to measure and returns `NA` rather than a number.
 The threshold is chosen on the same units the score is then read on,
 which is how the metric is defined in the literature and how it is
 defined here, and it inflates the level where presences are thin.
-[`tss_inflation()`](https://gillescolling.com/climgrain/reference/tss_inflation.md)
+[`tss_inflation()`](https://gillescolling.com/timesift/reference/tss_inflation.md)
 measures that inflation for a given design, and it cancels in the paired
 differences
-[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/timesift/reference/paired_contrast.md)
 takes.
 
 ## Examples

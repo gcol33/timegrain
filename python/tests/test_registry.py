@@ -44,7 +44,7 @@ def readings(n_unit=12, days=40, seed=5):
 
 
 def test_what_ships_is_registered_and_reachable_by_name():
-    assert learners() == ["cnn", "elasticnet", "mlp", "rescnn", "rf", "stepwise"]
+    assert learners() == ["cnn", "elasticnet", "forest", "mlp", "rescnn", "stepwise"]
     assert metrics() == ["kappa", "kappa_youden", "roc_auc", "tss"]
     assert responses() == ["presence_absence"]
     assert get_learner("stepwise").name == "stepwise"
@@ -52,7 +52,7 @@ def test_what_ships_is_registered_and_reachable_by_name():
 
 def test_a_registered_learner_arrives_with_what_it_reads_declared():
     assert (get_learner("cnn").reads, get_learner("cnn").multi) == ("sequence", "joint")
-    assert (get_learner("rf").reads, get_learner("rf").multi) == ("tabular", "separate")
+    assert (get_learner("forest").reads, get_learner("forest").multi) == ("tabular", "separate")
 
 
 def test_a_registry_lists_by_c_collation_whatever_the_names_look_like():

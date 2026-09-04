@@ -20,9 +20,9 @@ class TrainControl:
     epochs: int = 60
     batch_size: int = 64
     learning_rate: float = 1e-3
-    weight_decay: float = 0.0
+    weight_decay: float = 1e-4
     early_stopping: int = 10
-    val_frac: float = 0.2
+    val_frac: float = 0.15
     device: str = "auto"
     seed: int = 1
     pos_weight_cap: float = 50.0

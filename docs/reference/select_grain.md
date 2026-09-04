@@ -1,8 +1,8 @@
 # Choose the grain inside the training data, and score the whole procedure
 
-[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+[`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
 fits every candidate against one fold map and reports the grid, so
-reading the best window off it and quoting that window's score quotes a
+reading the best grain off it and quoting that grain's score quotes a
 number the held-out units helped choose. This does the choosing inside
 the training data instead. Within each outer fold the training units are
 split again, every candidate is fitted on part of them and scored on the
@@ -27,7 +27,7 @@ select_grain(
   verbose = TRUE
 )
 
-# S3 method for class 'climgrain_selection'
+# S3 method for class 'timesift_selection'
 summary(object, ...)
 ```
 
@@ -36,9 +36,9 @@ summary(object, ...)
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
+  [`grain_matrix()`](https://gillescolling.com/timesift/reference/grain_matrix.md)
   result, a
-  [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md),
+  [`timesift_set()`](https://gillescolling.com/timesift/reference/timesift_set.md),
   or a named list of representations. Its names are the grains being
   chosen between.
 
@@ -49,15 +49,15 @@ summary(object, ...)
 - learners:
 
   A learner, a list of them, or names of registered ones, as
-  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
-  takes. Named alongside the windows they form the candidate set.
+  [`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
+  takes. Named alongside the grains they form the candidate set.
 
 - folds:
 
   The outer fold map, from
-  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md)
   or any named integer vector. Built with the defaults of
-  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md)
   when not given.
 
 - inner:
@@ -78,7 +78,7 @@ summary(object, ...)
 - compare:
 
   A
-  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+  [`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
   result on the same units, response and outer fold map, whose arms the
   selected procedure is contrasted against cell by cell. `NULL` for no
   contrast.
@@ -103,26 +103,26 @@ summary(object, ...)
 
 ## Value
 
-A `climgrain_selection`: a list carrying `selected`, one row per outer
+A `timesift_selection`: a list carrying `selected`, one row per outer
 fold with the candidate it chose and the inner score it chose on;
 `estimate`, the nested score under every registered metric with its
 standard error across variables; `contrast`, one
-[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/timesift/reference/paired_contrast.md)
 row against each arm of `compare`, or `NULL`; `candidates`, the set that
 was searched; and `scores`, the per-cell rows of the selected procedure
 under the selection metric, in the layout
-[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+[`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
 returns. The held-out prediction of every unit is in the `predictions`
 attribute and the scorable-cell mask in `cells`.
 
 ## Details
 
-A candidate is a `(window, learner)` pair: the windows are the elements
-of the representation set, which is where a grain and the statistic its
-windows are summarised by are both named, and the learners are the ones
+A candidate is a `(grain, learner)` pair: the grains are the elements of
+the representation set, which is where a grain and the statistic its
+grains are summarised by are both named, and the learners are the ones
 passed. Both are registry entries or objects built by
-[`learner()`](https://gillescolling.com/climgrain/reference/learner.md),
-so a new grain, a new window summary or a new candidate model widens the
+[`learner()`](https://gillescolling.com/timesift/reference/learner.md),
+so a new grain, a new grain summary or a new candidate model widens the
 search with no change here.
 
 What the estimate is of: the expected held-out score of the whole
@@ -139,9 +139,9 @@ is where an overnight run goes.
 
 ## See also
 
-[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+[`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
 for the grid this selects from, and
-[`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
+[`paired_contrast()`](https://gillescolling.com/timesift/reference/paired_contrast.md)
 for the comparison the `contrast` element holds.
 
 ## Examples
@@ -157,8 +157,8 @@ d <- data.frame(
                            numeric(length(t)))))
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
-x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
+x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
+sel <- select_grain(x, y, elasticnet(), folds = fold_map(y, v = 3), inner = 3,
                     verbose = FALSE)
 sel
 sel$estimate

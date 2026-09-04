@@ -28,7 +28,7 @@ read_cells(file)
 - x:
 
   A fold map from
-  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md),
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md),
   or any named integer vector.
 
 - file:
@@ -45,20 +45,20 @@ read_cells(file)
 - y:
 
   A response matrix, as
-  [`scorable_cells()`](https://gillescolling.com/climgrain/reference/scorable_cells.md)
+  [`scorable_cells()`](https://gillescolling.com/timesift/reference/scorable_cells.md)
   takes one.
 
 - cells:
 
   A mask from
-  [`scorable_cells()`](https://gillescolling.com/climgrain/reference/scorable_cells.md).
+  [`scorable_cells()`](https://gillescolling.com/timesift/reference/scorable_cells.md).
 
 ## Value
 
 The writers return `file`, invisibly. `read_folds()` returns a named
-integer vector of class `climgrain_folds`, `read_response()` a numeric
+integer vector of class `timesift_folds`, `read_response()` a numeric
 matrix with the units in its row names, and `read_cells()` a
-`climgrain_cells` data frame.
+`timesift_cells` data frame.
 
 ## Details
 

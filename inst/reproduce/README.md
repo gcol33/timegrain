@@ -17,7 +17,7 @@ Rscript schrankogel.R <deposit_dir> <out_dir> [--name=value ...]
 | `contract` | the species filter, the fold map, the mask of scorable cells | `cells.csv` |
 | `representation` | the record at all seven grains, with every bin count asserted | `representation.csv` |
 | `baseline` | the aggregated-feature arms on the deposit's 188 variables | `baseline.csv` |
-| `networks` | the encoders across the ladder | `networks_mean.csv`, `networks_extremeday.csv` |
+| `networks` | the encoders, and the eleven-member set, across the ladder | `networks_mean.csv`, `networks_extremeday.csv` |
 | `contrasts` | every pair of arms, paired inside each cell both scored | `contrasts.csv` |
 | `inflation` | what the reported levels are upper bounds on | `inflation.csv` |
 
@@ -28,7 +28,7 @@ default is every stage but `networks`.
 
 - `--stages` comma-separated stage names.
 - `--grains` which grains the network grid covers. Default `day,week,month,season,year`.
-- `--learners` which encoders. Default `cnn`.
+- `--learners` which encoders, plus `ensemble` for the eleven-member set. Default `cnn`.
 - `--baseline` which aggregated-feature arms: `elastic_net`, `stepwise`, or both. Default
   `elastic_net`. Forward selection over 188 columns is one fit per candidate per step per species
   per fold and takes many hours single-threaded.
@@ -36,6 +36,15 @@ default is every stage but `networks`.
   different partition of the same design: `fold_map()` draws on R's random stream and the study's
   map came from `rsample`.
 - `--epochs` epoch budget per network fit. Default 60, the budget the study used.
+
+## The ensemble arm
+
+Asked for with `--learners=...,ensemble`, the eleven members run as arms of their own on the same
+folds as every other arm, and one further arm per grain is the mean of their held-out predictions,
+scored on the same cells by the same metric. A member's out-of-fold prediction on a fold is its
+held-out prediction there, so averaging the eleven and choosing a threshold afterwards is the set
+scored as one model rather than as a vote between eleven decisions. All twelve arms are written, so
+a member's own level is readable beside the level the set reached.
 
 ## What it asserts before fitting anything
 

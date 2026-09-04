@@ -18,13 +18,13 @@ paired_contrast(ladder, a, b)
 - ladder:
 
   A
-  [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+  [`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
   result.
 
 - a, b:
 
-  The two arms, each given as `"learner"` or `"window|learner"`. Naming
-  a learner alone takes its best window.
+  The two arms, each given as `"learner"` or `"grain|learner"`. Naming a
+  learner alone takes its best grain.
 
 ## Value
 
@@ -55,7 +55,7 @@ d <- data.frame(
                            numeric(length(t)))))
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
-x <- window_matrix(d, plot, t, temp, window = c("week", "month"))
-lad <- window_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
+lad <- grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3), verbose = FALSE)
 paired_contrast(lad, "week|elasticnet", "month|elasticnet")
 ```

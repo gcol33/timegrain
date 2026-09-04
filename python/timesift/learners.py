@@ -22,7 +22,7 @@ from .registry import get_learner
 from .representation import TimesiftMatrix
 
 __all__ = ["Fit", "Learner", "READS", "MULTI", "cnn", "elasticnet", "fit_learner", "flatten",
-           "mlp", "rescnn", "rf", "stepwise"]
+           "mlp", "rescnn", "forest", "stepwise"]
 
 READS = ("tabular", "sequence")
 MULTI = ("joint", "separate")
@@ -442,7 +442,7 @@ def _elasticnet_predict(model, x):
     return _predict_columns(model["models"], _design(x, model["squares"]), model["n_col"])
 
 
-def rf(data=None, trees=500, mtry=None, min_node=1) -> Learner:
+def forest(data=None, trees=500, mtry=None, min_node=1, seed=1) -> Learner:
     """One random forest per variable, over every bin-by-channel column.
 
     ``mtry`` is how many columns are offered at a split, defaulting to the square root of how many
@@ -450,14 +450,13 @@ def rf(data=None, trees=500, mtry=None, min_node=1) -> Learner:
     columns one at a time and carries no order between them, so it is the arm that asks what the
     features hold once nothing about the record's shape is available to the model.
     """
-    return Learner(name="rf", fit=_rf_fit, predict=_rf_predict, needs=("sklearn",),
+    return Learner(name="forest", fit=_rf_fit, predict=_rf_predict, needs=("sklearn",),
                    data=data, reads="tabular", multi="separate",
-                   params=dict(trees=trees, mtry=mtry, min_node=min_node))
+                   params=dict(trees=trees, mtry=mtry, min_node=min_node, seed=seed))
 
 
-def _rf_fit(x, y, trees, mtry, min_node, control=None, **_):
+def _rf_fit(x, y, trees, mtry, min_node, seed, **_):
     from sklearn.ensemble import RandomForestClassifier
-    seed = as_control(control).seed
     m = flatten(x)
 
     def make(design, yj):

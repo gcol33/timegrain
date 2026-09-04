@@ -18,14 +18,14 @@ calendar_channels(x)
 - x:
 
   A
-  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
+  [`grain_matrix()`](https://gillescolling.com/timesift/reference/grain_matrix.md)
   result.
 
 ## Value
 
 An array of the same units and bins with two channels, `year_sin` and
 `year_cos`, identical across units. Combine it with the readings using
-[`bind_channels()`](https://gillescolling.com/climgrain/reference/bind_channels.md).
+[`bind_channels()`](https://gillescolling.com/timesift/reference/bind_channels.md).
 
 ## Details
 
@@ -38,6 +38,6 @@ does with them it could have done with a calendar.
 ``` r
 t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 400)
 d <- data.frame(plot = "a", t = t, temp = sin(seq_along(t) / 500))
-x <- window_matrix(d, plot, t, temp, window = "month")
+x <- grain_matrix(d, plot, t, temp, grain = "month")
 round(calendar_channels(x)[1, 1:4, ], 3)
 ```

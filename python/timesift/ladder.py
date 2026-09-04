@@ -16,6 +16,7 @@ from .response import (Folds, Response, align_folds, as_response, fold_map,
 
 __all__ = ["Ladder", "concat_ladders", "grain_ladder", "implied_skill", "ladder_from_rows",
            "learner_dict", "mean_se", "paired_contrast", "per_variable", "score_arm",
+           "score_predictions",
            "scored_cells", "table_columns", "tss_inflation", "variable_means"]
 
 
@@ -146,6 +147,23 @@ def score_arm(grain, learner, y: Response, p: np.ndarray, f: np.ndarray, levels,
             rows["scorable"].append(ok)
             rows["score"].append(score(y.values[take, j], p[take, j]) if ok else np.nan)
     return rows
+
+
+def score_predictions(y, p, folds, cells=None, metric: str = "tss") -> dict:
+    """Score held-out predictions on the cells the mask allows.
+
+    The scoring every arm of a ladder and every candidate of a run goes through, reachable on its
+    own for a prediction matrix that came from somewhere else: a combination of arms, a model
+    fitted outside the package, predictions read back from a file. A cell is one response in one
+    fold, and the mask is computed from the response and the fold map alone, never from a model,
+    which is what keeps two arms comparable.
+    """
+    y = as_response(y)
+    f = align_folds(folds, y.units)
+    if cells is None:
+        cells = scorable_cells(y, f)
+    rows = score_arm(None, None, y, np.asarray(p), f, np.unique(f), cells, METRICS.get(metric))
+    return {k: v for k, v in rows.items() if k not in ("grain", "learner")}
 
 
 def ladder_from_rows(rows: dict, predictions: dict, cells, folds: Folds, metric: str,

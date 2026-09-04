@@ -61,48 +61,77 @@ navbar:
       text: Contract
       href: articles/contract.html
 reference:
-- title: The representation
+- title: The one call
   desc: |
-    Readings in long form to the array a model is fitted on, at one grain or at every grain of a ladder.
+    Two tables to a scored comparison of representations, and the prediction that follows from it.
   contents:
-  - grain_matrix
-  - timesift_set
-  - calendar_channels
-  - bind_channels
-  - feature_matrix
+  - timesift
+  - timesift_report
+  - predict.timesift
+  - plot.timesift
+- title: Representations
+  desc: |
+    How a series becomes the array a learner reads, and the set a run is compared across.
+  contents:
+  - native
+  - grains
+  - build_representation
+- title: Learners
+  desc: |
+    The arms that ship, how they are trained, and the interface a learner of your own goes through.
+  contents:
+  - elasticnet
+  - stepwise
+  - forest
+  - torch_learners
+  - train_control
+  - learner
+  - register_learner
 - title: The split and the cells
   desc: |
     One fold map read by everything that scores, and the cells a score is defined on, computed with no model involved.
   contents:
+  - cv
   - fold_map
   - scorable_cells
-- title: Fitting
+- title: Combining the candidates
+  desc: |
+    Weights fitted on the out-of-fold predictions alone.
+  contents:
+  - ensemble
+  - ensemble_fit
+  - ensemble_combine
+  - ensemble_weights
+- title: Scoring and comparison
+  contents:
+  - tss
+  - roc_auc
+  - kappa_score
+  - score_predictions
+  - paired_contrast
+  - grain_contrasts
+  - tss_inflation
+  - implied_skill
+  - occlusion
+- title: The arrays themselves
+  desc: |
+    Readings in long form to a `[unit, bin, channel]` array, reachable without the fitting layer.
+  contents:
+  - grain_matrix
+  - lookback_matrix
+  - timesift_set
+  - calendar_channels
+  - bind_channels
+  - feature_matrix
+- title: One grain at a time
+  desc: |
+    Fitting across a set of grains on its own split, and reading the grain a ladder saturates at.
   contents:
   - grain_ladder
   - fit_learner
   - select_grain
   - plot.timesift_ladder
   - plot.timesift_selection
-- title: Learners
-  desc: |
-    The arms that ship, and the interface a learner of your own goes through.
-  contents:
-  - elasticnet_learner
-  - stepwise_learner
-  - torch_learners
-  - ensemble_learner
-  - learner
-  - register_learner
-- title: Scoring and comparison
-  contents:
-  - tss
-  - roc_auc
-  - kappa_score
-  - paired_contrast
-  - grain_contrasts
-  - tss_inflation
-  - implied_skill
-  - occlusion
 - title: Extending
   desc: |
     The response head and the metric are registrations, never a fork of the fitting code.

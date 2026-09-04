@@ -3,7 +3,7 @@
 A metric scores one held-out cell: the observed response of the units in
 a fold and a model's predictions for them. Registering one makes it
 available to
-[`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
+[`grain_ladder()`](https://gillescolling.com/timesift/reference/grain_ladder.md)
 by name, with no change to the fitting code.
 
 ## Usage

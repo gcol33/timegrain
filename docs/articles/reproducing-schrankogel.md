@@ -1,14 +1,14 @@
 # Reproducing the Schrankogel grid
 
-The measurement `climgrain` exists to make was first run on 894 alpine
+The measurement `timesift` exists to make was first run on 894 alpine
 plots on Schrankogel, in the central Austrian Alps: three hydrological
 years of hourly soil temperature, one logger per plot, predicting
 presence and absence of 101 vascular plant species. The record was read
 at seven grains, from every hour to a single value per year, by three
 architectures and by logistic models on 188 hand-built summaries of the
 same loggers. Skill peaked at the weekly average and fell by 0.08 toward
-yearly, and the coldest and warmest day of a window carried more than
-its mean.
+yearly, and the coldest and warmest day of a grain carried more than its
+mean.
 
 This vignette says which settings of this package correspond to which
 part of that grid, and points at the script that runs it.
@@ -69,7 +69,7 @@ sum(cells$scorable)
 1003 of 1010 cells, 99.3 percent, and all 101 species keep at least one
 scorable fold. Building a map here instead gives a different partition
 of the same design, since
-[`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
+[`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md)
 draws on R’s random stream and `rsample` drew on a different one:
 
 ``` r
@@ -79,7 +79,7 @@ folds <- fold_map(y, v = 10, seed = 1, strata = 5)
 
 ## The seven grains
 
-Six of the seven windows are named ones. The seventh is not: the deposit
+Six of the seven grains are named ones. The seventh is not: the deposit
 cuts its seasons at the equinoxes and the solstices rather than on the
 first of a month, and labels every date of the record accordingly, which
 gives 13 bins over the three years rather than 12. Reading that file
@@ -95,7 +95,7 @@ astronomical_seasons <- function(path) {
   function(when) edges[findInterval(as.numeric(when), as.numeric(edges))]
 }
 
-binning <- list(hour = "hour", halfday = "halfday", day = "day", week = "week",
+binning <- list(native = "native", halfday = "halfday", day = "day", week = "week",
                 month = "month",
                 season = astronomical_seasons(file.path(deposit, "seasons.csv")),
                 year = "year")
@@ -103,7 +103,7 @@ binning <- list(hour = "hour", halfday = "halfday", day = "day", week = "week",
 
 Each gives the bin count the paper reports:
 
-| window  | bins  |
+| grain   | bins  |
 |---------|-------|
 | hour    | 26304 |
 | halfday | 2192  |
@@ -115,23 +115,23 @@ Each gives the bin count the paper reports:
 
 The script asserts every one of them before fitting anything.
 
-## The two readings of a window
+## The two readings of a grain
 
-The resolution ladder is fitted on the window mean, the only summary
-defined at all seven windows. The models themselves are reported on the
-window’s coldest day, its mean and its warmest day, which is defined
-from the weekly window up because it reduces to whole days first.
+The resolution ladder is fitted on the grain mean, the only summary
+defined at all seven grains. The models themselves are reported on the
+grain’s coldest day, its mean and its warmest day, which is defined from
+the weekly grain up because it reduces to whole days first.
 
 ``` r
 
-mean_reading <- window_matrix(readings, logger_ID, date, temp, window = "week")
-reported <- window_matrix(readings, logger_ID, date, temp, window = "week",
+mean_reading <- grain_matrix(readings, logger_ID, date, temp, grain = "week")
+reported <- grain_matrix(readings, logger_ID, date, temp, grain = "week",
                           stats = c("cold_day", "mean", "warm_day"))
 ```
 
 The paper’s other three schemes are the same call with different
 `stats`: `"min"` and `"max"` alone, `c("min", "mean", "max")` for the
-window’s own extremes, and
+grain’s own extremes, and
 `c("mean_daily_min", "mean", "mean_daily_max")` for the average daily
 minimum and maximum.
 
@@ -151,7 +151,7 @@ input <- bind_channels(reported, calendar_channels(reported))
 
 The aggregated-feature arms read the deposit’s 188 variables. A feature
 table has no time axis, so it enters through
-[`feature_matrix()`](https://gillescolling.com/climgrain/reference/feature_matrix.md)
+[`feature_matrix()`](https://gillescolling.com/timesift/reference/feature_matrix.md)
 and is then an arm of the same ladder, scored on the same cells by the
 same rule.
 
@@ -162,10 +162,10 @@ rownames(agg) <- as.character(agg$logger_ID)
 features <- feature_matrix(as.matrix(agg[rownames(y), setdiff(names(agg), "logger_ID")]),
                            label = "aggregates")
 
-baseline <- window_ladder(
+baseline <- grain_ladder(
   features, y,
-  list(elastic_net = elasticnet_learner(alpha = 0.5, n_inner = 5, squares = TRUE),
-       stepwise = stepwise_learner(max_terms = 3, degree = 2)),
+  list(elastic_net = elasticnet(alpha = 0.5, n_inner = 5, squares = TRUE),
+       stepwise = stepwise(max_terms = 3, degree = 2)),
   folds = folds)
 ```
 
@@ -176,71 +176,97 @@ them at, which are the defaults here:
 
 ``` r
 
-encoders <- list(mlp = mlp_learner(), cnn = cnn_learner(), rescnn = rescnn_learner())
+encoders <- list(mlp = mlp(), cnn = cnn(), rescnn = rescnn())
 ```
 
-[`cnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
+[`cnn()`](https://gillescolling.com/timesift/reference/torch_learners.md)
 is four blocks of a one-dimensional convolution of kernel width 7, batch
 normalisation, a rectified linear activation and max pooling by two, at
 16, 32, 64 and 128 channels, then global average pooling and dropout at
 0.3.
-[`rescnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
+[`rescnn()`](https://gillescolling.com/timesift/reference/torch_learners.md)
 is a convolutional stem and four stages of 32, 64, 128 and 256 channels
 holding two dilated residual blocks each, dilations 1, 2, 4 and 8, with
 squeeze-excitation gates, pooling average and maximum together.
-[`mlp_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
+[`mlp()`](https://gillescolling.com/timesift/reference/torch_learners.md)
 flattens the channels through two hidden layers of 512 and 256 units.
-All three train with AdamW at a learning rate of 1e-3 and weight decay
-of 1e-4, cosine annealing over 60 epochs, early stopping on an inner
-validation split of 15 percent of the fitting plots, and a per-species
-positive-class weight capped at 50.
 
-The eleven-member ensemble the paper reports is the same members
-averaged before scoring, trained with weight averaging over the tail of
-the epoch budget:
+How all three are trained is
+[`train_control()`](https://gillescolling.com/timesift/reference/train_control.md).
+Its defaults are AdamW at a learning rate of 1e-3 with weight decay
+1e-4, cosine annealing over 60 epochs, early stopping after ten epochs
+without an improvement on an inner validation split of 15 percent of the
+fitting plots, and a per-species positive-class weight capped at 50. The
+encoders of the study read batches of 32 plots, which the grid asks for;
+the default is 64.
+
+The eleven members of the paper’s ensemble are the same architectures at
+three widths, three kernel widths and three seeds, trained with weight
+averaging over the tail of the epoch budget:
 
 ``` r
 
 members <- c(
   lapply(list(c(16L, 32L, 64L, 128L), c(32L, 64L, 128L, 256L), c(16L, 32L, 64L)),
-         function(ch) cnn_learner(channels = ch, swa = TRUE)),
-  lapply(c(5L, 7L, 9L), function(k) cnn_learner(kernel = k, swa = TRUE)),
-  lapply(c(1L, 2L, 3L), function(s) cnn_learner(swa = TRUE, seed = s)),
-  lapply(c(1L, 2L), function(s) rescnn_learner(swa = TRUE, seed = s)))
-ensemble <- ensemble_learner(stats::setNames(members, sprintf("m%02d", seq_along(members))))
+         function(ch) cnn(channels = ch, swa = TRUE)),
+  lapply(c(5L, 7L, 9L), function(k) cnn(kernel = k, swa = TRUE)),
+  lapply(c(1L, 2L, 3L), function(s) cnn(swa = TRUE, seed = s)),
+  lapply(c(1L, 2L), function(s) rescnn(swa = TRUE, seed = s)))
+names(members) <- sprintf("m%02d", seq_along(members))
 ```
 
 ## The grid
 
-The ladder is one call. Each window is built once, the calendar channels
+The ladder is one call. Each grain is built once, the calendar channels
 are joined to it, and every encoder is fitted at every rung on the one
 fold map and the one mask.
 
 ``` r
 
-ladder_input <- climgrain_set(lapply(binning, function(w) {
-  x <- window_matrix(readings, logger_ID, date, temp, window = w)
+ladder_input <- timesift_set(lapply(binning, function(w) {
+  x <- grain_matrix(readings, logger_ID, date, temp, grain = w)
   bind_channels(x, calendar_channels(x))
 }))
 
-grid <- window_ladder(ladder_input, y, c(encoders, list(ensemble = ensemble)), folds = folds)
+grid <- grain_ladder(ladder_input, y, encoders, folds = folds)
 summary(grid)
 ```
 
-## The window contrast
+The ensemble is one further arm on the same rungs. Each member runs as
+an arm of its own, and their held-out predictions are averaged: a
+member’s out-of-fold prediction on a fold is its held-out prediction
+there, so averaging the eleven and choosing a threshold afterwards is
+the set scored as one model rather than as a vote between eleven
+decisions.
 
-The table of every window against its architecture’s best is a mixed
+``` r
+
+lad <- grain_ladder(ladder_input, y, members, folds = folds)
+oof <- attr(lad, "predictions")
+arms <- paste("week", names(members), sep = "|")
+
+stack <- ensemble_fit(oof[arms], y, attr(lad, "cells"), folds, spec = ensemble("mean"))
+combined <- ensemble_combine(stack, oof[arms])
+```
+
+`combined` is then scored on the same cells and by the same metric as
+every other arm, which is what the driver appends to the grid under the
+name `ensemble`.
+
+## The grain contrast
+
+The table of every grain against its architecture’s best is a mixed
 model on the per-cell scores,
-`score ~ window + (1 | species) + (1 | fold)` by restricted maximum
+`score ~ grain + (1 | species) + (1 | fold)` by restricted maximum
 likelihood, with Dunnett’s many-to-one procedure against the reference:
 
 ``` r
 
-window_contrasts(grid, learner = "cnn")
+grain_contrasts(grid, learner = "cnn")
 ```
 
-The design is balanced at 101 species by ten folds by seven windows, so
-each window is compared within a species and within a fold.
+The design is balanced at 101 species by ten folds by seven grains, so
+each grain is compared within a species and within a fold.
 Benjamini-Hochberg across all eighteen comparisons is
 `p.adjust(out$p_value, "BH")` over the three architectures’ tables
 stacked.
@@ -251,22 +277,22 @@ The driver is installed with the package:
 
 ``` r
 
-system.file("reproduce", "schrankogel.R", package = "climgrain")
+system.file("reproduce", "schrankogel.R", package = "timesift")
 ```
 
     Rscript schrankogel.R <deposit_dir> <out_dir> \
       --stages=contract,representation,baseline,networks,contrasts,inflation \
-      --windows=day,week,month,season,year --learners=cnn,rescnn,mlp --folds=folds.csv
+      --grains=day,week,month,season,year --learners=cnn,rescnn,mlp,ensemble --folds=folds.csv
 
 It writes one CSV per stage and asserts the input at every step: the
 plot count, the species count, the rarest retained species, the cell
-count, and the bin count of every window. A stage runs over all 894
-plots and all 101 species or it does not run, so there is no setting
-that quietly shrinks what a number was computed on.
+count, and the bin count of every grain. A stage runs over all 894 plots
+and all 101 species or it does not run, so there is no setting that
+quietly shrinks what a number was computed on.
 
-The coarse windows are affordable on a processor. The hourly rung is
+The coarse grains are affordable on a processor. The hourly rung is
 26,304 steps per plot and wants a graphics processor, as it had in the
-study; the whole grid there was three architectures by seven windows by
+study; the whole grid there was three architectures by seven grains by
 ten folds, refitted under four seeds.
 
 ## What the reproduction is checked against
@@ -278,7 +304,7 @@ script produces them:
 |----|----|----|
 | plots, species, rarest species | 894, 101, 26 | 894, 101, 26 |
 | scorable cells | 1003 of 1010 | 1003 of 1010 |
-| bins per window | 26304, 2192, 1096, 157, 36, 13, 3 | same |
+| bins per grain | 26304, 2192, 1096, 157, 36, 13, 3 | same |
 | numbers per plot, weekly three-channel | 471 | 471 |
 | inflation of a level whose truth is 0.60 | +0.110 | +0.110 |
 | elastic net on the 188 aggregates | 0.687 | 0.686 |

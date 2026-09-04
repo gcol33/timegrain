@@ -8,7 +8,7 @@ comparison of two clouds of numbers.
 ## Usage
 
 ``` r
-fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL)
+fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL, group = NULL)
 ```
 
 ## Arguments
@@ -36,11 +36,19 @@ fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL)
   A numeric vector of length `nrow(y)` to stratify on instead of
   richness.
 
+- group:
+
+  A vector of length `nrow(y)`. Rows sharing a value land in one fold,
+  which is what repeated targets on one unit through time need: a unit
+  split across folds would put the same unit on both sides of a split
+  and the held-out score would be read on rows the model had already
+  seen a near-copy of. `NULL`, the default, is every row on its own.
+
 ## Value
 
 An integer vector of fold numbers named by unit, of class
-`climgrain_folds`. Any named integer vector of the same shape is
-accepted wherever this is.
+`timesift_folds`. Any named integer vector of the same shape is accepted
+wherever this is.
 
 ## Details
 

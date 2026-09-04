@@ -22,13 +22,13 @@ scorable_cells(y, folds)
 - folds:
 
   A fold map from
-  [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md),
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md),
   or any named integer vector of the same shape.
 
 ## Value
 
 A data frame of one row per `(variable, fold)` cell, of class
-`climgrain_cells`, with the counts on each side of the split and a
+`timesift_cells`, with the counts on each side of the split and a
 `scorable` flag.
 
 ## Details

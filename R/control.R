@@ -35,8 +35,9 @@
 #' train_control(epochs = 200L, device = "cpu")
 #'
 #' @export
-train_control <- function(epochs = 60L, batch_size = 64L, learning_rate = 1e-3, weight_decay = 0,
-                          early_stopping = 10L, val_frac = 0.2, device = "auto", seed = 1L,
+train_control <- function(epochs = 60L, batch_size = 64L, learning_rate = 1e-3,
+                          weight_decay = 1e-4, early_stopping = 10L, val_frac = 0.15,
+                          device = "auto", seed = 1L,
                           pos_weight_cap = 50, swa = FALSE, swa_start = 0.7) {
   given <- names(as.list(match.call()))[-1L]
   settings <- list(

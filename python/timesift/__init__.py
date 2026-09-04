@@ -17,9 +17,9 @@ from .control import TrainControl, train_control
 from .digest import digest_array
 from .fit import CandidateFit, Timesift, timesift
 from .ladder import (Ladder, grain_ladder, implied_skill, paired_contrast,
-                     tss_inflation)
-from .learners import (Fit, Learner, cnn, elasticnet, fit_learner, flatten, mlp,
-                       rescnn, rf, stepwise)
+                     score_predictions, tss_inflation)
+from .learners import (Fit, Learner, cnn, elasticnet, fit_learner, flatten, forest, mlp,
+                       rescnn, stepwise)
 from .metrics import (cohen_kappa, decision_threshold, kappa_score, model_agreement,
                       roc_auc, tss)
 from .occlusion import feature_matrix
@@ -54,7 +54,7 @@ register_response("presence_absence", PRESENCE_ABSENCE)
 
 register_learner("elasticnet", elasticnet)
 register_learner("stepwise", stepwise)
-register_learner("rf", rf)
+register_learner("forest", forest)
 register_learner("mlp", mlp)
 register_learner("cnn", cnn)
 register_learner("rescnn", rescnn)
@@ -67,12 +67,14 @@ __all__ = [
     "bind_channels", "build_representation", "calendar_channels", "candidate_table", "cnn",
     "cohen_kappa", "column_names", "cv", "decision_threshold", "digest_array", "elasticnet",
     "ensemble", "ensemble_combine", "ensemble_fit", "ensemble_row", "ensemble_weights",
-    "expand_sift", "feature_matrix", "fit_learner", "flatten", "fold_map", "get_learner", "grain",
+    "expand_sift", "feature_matrix", "fit_learner", "flatten", "fold_map", "forest",
+    "get_learner", "grain",
     "grain_ladder", "grain_matrix", "grains", "grouped_cv", "implied_skill", "kappa_score",
     "learners", "lookback", "lookback_matrix", "lookbacks", "metrics", "mlp", "model_agreement",
     "multigrain", "n_targets", "native", "occlusion", "paired_contrast", "read_cells",
     "read_folds", "read_response", "register_learner", "register_metric", "register_response",
-    "rescnn", "resolve_folds", "responses", "rf", "roc_auc", "scorable_cells", "select_columns",
-    "select_grain", "stepwise", "summary", "target_labels", "timesift", "timesift_set", "tss",
-    "tss_inflation", "write_cells", "write_folds", "write_response",
+    "rescnn", "resolve_folds", "responses", "roc_auc", "scorable_cells",
+    "score_predictions", "select_columns",
+    "select_grain", "stepwise", "summary", "target_labels", "timesift", "timesift_set",
+    "train_control", "tss", "tss_inflation", "write_cells", "write_folds", "write_response",
 ]

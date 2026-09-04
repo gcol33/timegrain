@@ -1,275 +1,139 @@
 # Changelog
 
-## climgrain 0.3.0
+## timesift 0.1.0
 
-The package is renamed from `timegrain` to `climgrain`. With it go the
-C++ prefix (`tg_` to `cg_` and the four files that carried it), the S3
-classes (`timegrain_matrix` and its siblings to `climgrain_matrix`),
-`timegrain_set()` to
-[`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md),
-and the Python module. No function signature, default or return type
-changed, and the fixture digests are untouched.
+[`timesift()`](https://gillescolling.com/timesift/reference/timesift.md)
+is the whole entry point. A table of targets, a table of time-stamped
+series belonging to them, and one call builds every candidate
+representation, fits the learners that can read each one, scores them
+all on one set of held-out folds, and stacks the out-of-fold
+predictions.
 
-What the user chooses is the temporal grain of a climate representation,
-and the name now carries the thing whose grain it is. The title reads
-“Temporal Climate Resolution for Ecological Prediction”.
+``` r
 
-## climgrain 0.2.0
+fit <- timesift(plots, logger, y = starts_with("sp_"), id = plot_id, time = datetime,
+                models = list(elasticnet(), forest(), cnn()),
+                sift = grains("day", "week", "month"))
+summary(fit)
+```
 
-The binning and the reduction are now one implementation,
-`src/cg_core.cpp` and `src/cg_calendar.cpp`, compiled into the R package
-by R itself and into the Python extension by CMake. The two languages
-agree by construction rather than by two implementations being checked
-against each other after the fact. What each side keeps above it is the
-boundary: resolving the columns, resolving the zone, and wrapping the
-result.
+The version reads 0.1.0 because this is a first release: the package
+fits any time-varying record against any prediction target, where its
+predecessors fitted a climate record at a climate grain. Species
+distribution modelling from microclimate loggers is the application it
+ships defaults for, and the Schrankogel grid it was built on still
+reproduces from `inst/reproduce/schrankogel.R`.
 
-Four bugs that existed twice, once per language, are closed by that
-([\#1](https://github.com/gcol33/climgrain/issues/1),
-[\#2](https://github.com/gcol33/climgrain/issues/2),
-[\#4](https://github.com/gcol33/climgrain/issues/4),
-[\#5](https://github.com/gcol33/climgrain/issues/5)), and a fifth on the
-Python side with them
-([\#3](https://github.com/gcol33/climgrain/issues/3)).
+### The four concepts
 
-### The calendar
+- A **target** is one row to predict, a **series** is the long record
+  belonging to those rows, a **representation** is how that record
+  becomes an array, and a **learner** is a fit and a predict pair. A
+  candidate is one (representation, learner) pair, and every candidate
+  emits an out-of-fold prediction for every scorable cell over the same
+  folds. Comparison, ensembling and importance read only those
+  predictions.
+- `y`, `x` and `static` take tidyselect expressions over their own
+  table, and
+  [`starts_with()`](https://tidyselect.r-lib.org/reference/starts_with.html),
+  [`ends_with()`](https://tidyselect.r-lib.org/reference/starts_with.html),
+  [`contains()`](https://tidyselect.r-lib.org/reference/starts_with.html),
+  [`matches()`](https://tidyselect.r-lib.org/reference/starts_with.html),
+  [`all_of()`](https://tidyselect.r-lib.org/reference/all_of.html),
+  [`any_of()`](https://tidyselect.r-lib.org/reference/all_of.html),
+  [`everything()`](https://tidyselect.r-lib.org/reference/everything.html)
+  and [`where()`](https://tidyselect.r-lib.org/reference/where.html) are
+  re-exported rather than redefined. A column of `targets` that is
+  neither the response nor the identifier nor the anchor is a predictor
+  only where `static` names it.
+- [`predict()`](https://rdrr.io/r/stats/predict.html) on a fit rebuilds
+  each member’s representation for the new targets from the settings its
+  own arm was built with, and combines them through the ensemble.
 
-- Bin starts are computed by proleptic Gregorian arithmetic on local
-  time rather than by writing a local midnight and parsing it back. A
-  zone that moves its clock at midnight, such as `America/Sao_Paulo`
-  before 2019, no longer produces `NA` bin starts and a failure from
-  inside the reduction, and a `year_start` landing on such a night is an
-  argument rather than an error
-  ([\#1](https://github.com/gcol33/climgrain/issues/1)).
-- A bin start is a local time, so reporting it as an instant now has a
-  stated rule: one the clock skipped resolves to the instant the clock
-  jumped to, one the clock repeated to the first of the two.
-- [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
-  in Python takes a `tz` argument. The same instants and the same zone
-  now give the same answer in both languages, and the fixtures pin it
-  rather than leaving it assumed
-  ([\#5](https://github.com/gcol33/climgrain/issues/5)).
-- Instants are read at whole seconds in both languages, so two readings
-  a fraction of a second apart are the same reading twice.
+### Representations
 
-### Guards
-
-- Consecutive bin starts must be one bin apart on the window’s own
-  calendar. A bin no unit reaches is never built, so a month missing
-  from the whole record used to pass as four adjacent monthly bins with
-  one gone, in both languages
-  ([\#4](https://github.com/gcol33/climgrain/issues/4)). Not asserted
-  for `hour`, whose bin is the reading itself, nor for a supplied
-  calendar, which declares its own bin lengths.
-- A day-level statistic requires every calendar day to lie inside one
-  bin, decided from the bins rather than from the window’s name. A
-  supplied calendar cutting inside a day used to give a mostly-`NA`
-  array in R and a numpy `IndexError` in Python
-  ([\#2](https://github.com/gcol33/climgrain/issues/2)).
-- Python no longer rejects a unit called `nan` and no longer misses a
-  genuinely missing id
-  ([\#3](https://github.com/gcol33/climgrain/issues/3)).
-
-### Evidence
-
-- The pure-R and pure-NumPy implementations are kept as test oracles,
-  `tests/testthat/helper-oracle.R` and `python/tests/oracle.py`. Neither
-  package reaches them at runtime; both suites check them against the
-  core on the fixtures and on random series. The NumPy one was written
-  from `inst/spec/representation.md` rather than from the R source,
-  which is what makes it evidence that the document is complete.
-- A third fixture series and a `tz` column in `digests.csv`: every
-  window of the aligned series read as a `Europe/Vienna` clock, and a
-  short series across the night `America/Sao_Paulo` moved its clock at
-  midnight.
-
-### The two languages
-
-The names, the defaults and the extension points had drifted, so a
-script moved from one side to the other met them one at a time
-([\#8](https://github.com/gcol33/climgrain/issues/8)). One name per
-concept now, and where the two still differ the difference is a row in
-`inst/spec/representation.md` rather than something to be discovered at
-a call site.
-
-- `glmnet_learner()` is
-  [`elasticnet_learner()`](https://gillescolling.com/climgrain/reference/elasticnet_learner.md),
-  and its `nfolds` is `n_inner`. The name says which model is fitted
-  rather than which package fits it, which is also what the Python side
-  already called it. It is registered as `"elasticnet"`.
-- Python carries the response and metric registries, so on both sides
-  the response head and the metric are registry entries and the fitting
-  path holds no list of names.
-  [`learners()`](https://gillescolling.com/climgrain/reference/register_learner.md),
-  [`metrics()`](https://gillescolling.com/climgrain/reference/register_metric.md)
+- [`native()`](https://gillescolling.com/timesift/reference/native.md),
+  [`grain()`](https://gillescolling.com/timesift/reference/native.md),
+  [`multigrain()`](https://gillescolling.com/timesift/reference/native.md)
   and
-  [`responses()`](https://gillescolling.com/climgrain/reference/register_response.md)
-  list what a session has, in C collation.
-- [`stepwise_learner()`](https://gillescolling.com/climgrain/reference/stepwise_learner.md)
+  [`lookback()`](https://gillescolling.com/timesift/reference/native.md)
+  are what a representation is before any record has been read;
+  [`grains()`](https://gillescolling.com/timesift/reference/grains.md)
   and
-  [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
-  are on the Python side. The selector’s orthogonal polynomial basis and
-  its logistic fits agree with R’s
-  [`poly()`](https://rdrr.io/r/stats/poly.html) and
-  [`glm()`](https://rdrr.io/r/stats/glm.html) to twelve decimals on the
-  same design; the selection procedure is the same nested one, reporting
-  its estimate under every registered metric.
-- Python’s
-  [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md)
-  returns one representation when one window is named, whether as a
-  string or as a sequence of one, and a
-  [`climgrain_set()`](https://gillescolling.com/climgrain/reference/climgrain_set.md)
-  for two or more. Its fold map carries the units it was drawn for, so
-  aligning one is by name there as it already was in R.
-- The torch encoders take `swa` and `swa_start` on both sides, and both
-  refuse a setting the learner does not have rather than ignoring it. A
-  misspelled argument used to be dropped in silence.
-- [`select_grain()`](https://gillescolling.com/climgrain/reference/select_grain.md)
-  searches its candidates in the order they were declared. It read them
-  off a join on the names before, which is the collation the rest of the
-  package stopped depending on in this version, so an exact tie on the
-  inner score could fall to a different candidate on a different
-  machine.
+  [`lookbacks()`](https://gillescolling.com/timesift/reference/grains.md)
+  are sets of them, and `grains("auto")` reads off the record every
+  named grain it gives at least two bins.
+- [`lookback()`](https://gillescolling.com/timesift/reference/native.md)
+  is a fixed span of record ending a fixed lag before each target’s own
+  instant, which is what a unit carrying several targets through time
+  needs. It is one entry point in `src/` beside the calendar reduction,
+  so both languages read it from the same implementation, and
+  [`lookback_matrix()`](https://gillescolling.com/timesift/reference/lookback_matrix.md)
+  exposes it directly.
+- [`build_representation()`](https://gillescolling.com/timesift/reference/build_representation.md)
+  is the one place the fitting layer turns a representation and the two
+  tables into an array, so a run and a prediction on new targets reach a
+  record the same way.
+- A learner given `data = grain("week")` runs at that representation
+  alone; left open it runs across the whole sift. A learner that reads a
+  block of features and one that reads a sequence say so, and a pairing
+  neither can carry is reported by name rather than fitted.
 
-### Build
+### Learners and training
 
-- `LinkingTo: cpp11`, and flat `.cpp` under `src/`, so R compiles the
-  core with no `Makevars`.
-- `pyproject.toml` and `CMakeLists.txt` sit at the repository root
-  rather than under `python/`, because a Python source distribution
-  cannot reach above its own project directory and the shared sources
-  must not be vendored into a second copy. The Python build is
-  scikit-build-core and nanobind; the wheel carries `python/climgrain`
-  as `climgrain`.
-- The wheel depends on `tzdata` on Windows, which ships no IANA database
-  of its own, so a zoned record bins there as it does everywhere else.
-  The `sklearn` extra asks for a version that the declared floor of
-  Python 3.10 can install.
-- `R-CMD-check`, `pytest` and `contract` run on push and on pull
-  requests, the last of them running both fixture suites against one
-  `inst/spec/fixtures/` in a single job.
-
-### Documentation
-
-- One site for both languages at <https://gillescolling.com/climgrain/>:
-  the R reference from the Rd files, the Python reference written from
-  the Python sources by `tools/python_reference.py`, and
-  `inst/spec/representation.md` rendered as a page of its own, so the
-  document the two answer to is read where the calls are. The `pytest`
-  workflow rewrites the Python pages and fails if what is on disk
-  differs, so a docstring cannot change without the page changing with
-  it.
-- Every public class, method and property of the Python package carries
-  a docstring.
-
-## climgrain 0.1.0
-
-First release. The package builds the representation, fits at every
-grain, and reports where predictive skill saturates.
-
-### Representation
-
-- [`window_matrix()`](https://gillescolling.com/climgrain/reference/window_matrix.md):
-  reduces a long table of sensor readings to a `[unit, bin, channel]`
-  array at one of seven temporal grains, from the unreduced record to a
-  single value per hydrological year. Naming several windows returns one
-  representation per window; passing a function bins by a calendar the
-  package does not carry, such as seasons cut at the equinoxes.
-- Bins follow the calendar, so a month is 28, 30 or 31 days and a week
-  starts on a Monday, and every `(unit, bin)` cell is asserted to hold
-  readings.
-- A bin the record does not cover for its whole calendar span is
-  reported on `bin_partial` and kept or removed by the `partial`
-  argument, so a record that begins away from a bin boundary says so
-  rather than carrying a short bin that looks like any other.
-- Seven statistics: `mean`, `min`, `max`, the day-level `cold_day` and
-  `warm_day`, which reduce each day to its own mean before taking the
-  extreme over days, and `mean_daily_min` and `mean_daily_max`, which
-  take the mean of the daily extremes.
-- [`calendar_channels()`](https://gillescolling.com/climgrain/reference/calendar_channels.md)
+- [`elasticnet()`](https://gillescolling.com/timesift/reference/elasticnet.md),
+  [`stepwise()`](https://gillescolling.com/timesift/reference/stepwise.md),
+  [`mlp()`](https://gillescolling.com/timesift/reference/torch_learners.md),
+  [`cnn()`](https://gillescolling.com/timesift/reference/torch_learners.md)
   and
-  [`bind_channels()`](https://gillescolling.com/climgrain/reference/bind_channels.md)
-  supply the position of each bin in the year to an encoder that would
-  otherwise pool it away.
-- [`feature_matrix()`](https://gillescolling.com/climgrain/reference/feature_matrix.md)
-  brings an already-reduced feature table in as an arm of the same
-  ladder.
-- Gaps, duplicated `(unit, time)` pairs and missing values are errors
-  rather than silent padding.
+  [`rescnn()`](https://gillescolling.com/timesift/reference/torch_learners.md)
+  drop the `_learner` suffix and gain `data`, `reads` and `multi`.
+  [`forest()`](https://gillescolling.com/timesift/reference/forest.md)
+  joins them, a probability forest on `ranger` in R and on scikit-learn
+  in Python.
+- [`train_control()`](https://gillescolling.com/timesift/reference/train_control.md)
+  is the one place a training setting is defaulted. The architecture
+  constructors carry architecture, a run gives one control to every
+  neural learner, and a learner given its own control overrides that on
+  the settings it names.
+- A learner declares whether one fitted model covers every response or
+  one is fitted per response. Either way a candidate emits one
+  `[target, response]` matrix, so nothing above the learner layer has to
+  know which it was.
 
-### Fitting and scoring
+### Resampling and the ensemble
 
-- [`fold_map()`](https://gillescolling.com/climgrain/reference/fold_map.md)
-  and
-  [`scorable_cells()`](https://gillescolling.com/climgrain/reference/scorable_cells.md):
-  one split read by everything that scores, and the mask of cells a
-  score is defined on, computed from the response and the fold map with
-  no model involved, so every arm shares one denominator and every
-  paired difference runs on matched cells.
-- [`window_ladder()`](https://gillescolling.com/climgrain/reference/window_ladder.md)
-  fits every learner at every grain,
-  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) draws the
-  curve, and
-  [`paired_contrast()`](https://gillescolling.com/climgrain/reference/paired_contrast.md)
-  compares two arms inside each cell both scored.
-- [`bin_occlusion()`](https://gillescolling.com/climgrain/reference/bin_occlusion.md)
-  holds each bin of the record back and rescores, without refitting, so
-  a fitted model says which part of the year its skill rests on.
-- [`window_contrasts()`](https://gillescolling.com/climgrain/reference/window_contrasts.md)
-  fits `score ~ window + (1 | variable) + (1 | fold)` and compares every
-  window against a learner’s best by Dunnett’s procedure. Needs `lme4`,
-  `lmerTest` and `emmeans`.
-- [`tss()`](https://gillescolling.com/climgrain/reference/tss.md),
-  [`roc_auc()`](https://gillescolling.com/climgrain/reference/roc_auc.md),
-  [`kappa_score()`](https://gillescolling.com/climgrain/reference/kappa_score.md),
-  [`model_agreement()`](https://gillescolling.com/climgrain/reference/kappa_score.md)
-  and
-  [`decision_threshold()`](https://gillescolling.com/climgrain/reference/kappa_score.md).
-- [`tss_inflation()`](https://gillescolling.com/climgrain/reference/tss_inflation.md)
-  measures how much a self-selected threshold inflates a reported level
-  at the user’s own presence counts, and
-  [`implied_skill()`](https://gillescolling.com/climgrain/reference/implied_skill.md)
-  inverts that map to say what population skill a level actually read is
-  consistent with.
+- [`cv()`](https://gillescolling.com/timesift/reference/cv.md) and
+  [`grouped_cv()`](https://gillescolling.com/timesift/reference/cv.md);
+  `resampling` also takes a fold vector or a
+  [`fold_map()`](https://gillescolling.com/timesift/reference/fold_map.md)
+  result, which is how a split the package has no constructor for
+  reaches the same fitting path.
+- [`ensemble()`](https://gillescolling.com/timesift/reference/ensemble.md)
+  fits non-negative weights summing to one on the out-of-fold
+  predictions alone, minimising the response head’s own loss over the
+  scorable cells, solved by an exponentiated- gradient loop in the
+  package. `"mean"`, `"median"` and `"weighted"` combine without
+  fitting.
+  [`ensemble_fit()`](https://gillescolling.com/timesift/reference/ensemble_fit.md)
+  is handed the predictions, the response, the mask and the fold map,
+  and never a model.
+- [`summary()`](https://rdrr.io/r/base/summary.html) reports each
+  candidate’s mean, how many responses it scored highest on, whether one
+  model covered them, and the level the combination reached under the
+  weights it reached it with.
 
-### Learners
+### Names
 
-- [`elasticnet_learner()`](https://gillescolling.com/climgrain/reference/elasticnet_learner.md)
-  and
-  [`stepwise_learner()`](https://gillescolling.com/climgrain/reference/stepwise_learner.md)
-  on the flattened representation, both redoing their selection inside
-  whichever units they are handed.
-- [`mlp_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md),
-  [`cnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md)
-  and
-  [`rescnn_learner()`](https://gillescolling.com/climgrain/reference/torch_learners.md),
-  joint multi-label encoders on `torch`, sharing one training recipe.
-- [`ensemble_learner()`](https://gillescolling.com/climgrain/reference/ensemble_learner.md)
-  averages several members’ predicted probabilities before the threshold
-  is chosen, and the torch learners take `swa = TRUE` to average the
-  weights of their tail epochs.
-- [`learner()`](https://gillescolling.com/climgrain/reference/learner.md)
-  takes a fit and a predict pair of your own;
-  [`register_learner()`](https://gillescolling.com/climgrain/reference/register_learner.md),
-  [`register_response()`](https://gillescolling.com/climgrain/reference/register_response.md)
-  and
-  [`register_metric()`](https://gillescolling.com/climgrain/reference/register_metric.md)
-  extend the three registries the fitting path reads.
-
-### Reproducing the study
-
-- `inst/reproduce/schrankogel.R` runs the published grid from the Zenodo
-  deposit it was built on, asserting the plot count, the species count,
-  the cell count and the bin count of every window before fitting
-  anything. See
-  [`vignette("reproducing-schrankogel")`](https://gillescolling.com/climgrain/articles/reproducing-schrankogel.md).
-
-### The cross-language contract
-
-- `inst/spec/representation.md` is normative for both the R and the
-  Python implementation.
-- `inst/spec/fixtures/` carries a synthetic series and the digest of
-  every window-by-statistic combination; both test suites assert against
-  the same digests.
-- The Python side implements the representation, the folds, the mask,
-  the metrics, the ladder and the same three encoders.
+- [`native()`](https://gillescolling.com/timesift/reference/native.md)
+  rather than [`raw()`](https://rdrr.io/r/base/raw.html) and
+  [`lookback()`](https://gillescolling.com/timesift/reference/native.md)
+  rather than [`window()`](https://rdrr.io/r/stats/window.html), which
+  would have masked [`base::raw()`](https://rdrr.io/r/base/raw.html) and
+  [`stats::window()`](https://rdrr.io/r/stats/window.html).
+  [`occlusion()`](https://gillescolling.com/timesift/reference/occlusion.md)
+  is one generic over a run and a ladder, and `bin_occlusion()` is gone.
+  `ensemble_learner()` is gone with it: it fitted its members and
+  averaged them, which the stack does over any candidates at all and
+  with the weights fitted rather than assumed.
+- The bin’s name is the grain throughout, in both languages.

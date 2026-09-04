@@ -54,7 +54,7 @@ def board(n_unit=80, seed=7):
     oof = {
         "cnn / week": sigmoid(np.outer(2.0 * z, sign) + rng.normal(0, 0.4, (n_unit, 4))),
         "elasticnet / week": sigmoid(np.outer(1.0 * z, sign) + rng.normal(0, 1.2, (n_unit, 4))),
-        "rf / month": sigmoid(rng.normal(0, 1.0, (n_unit, 4))),
+        "forest / month": sigmoid(rng.normal(0, 1.0, (n_unit, 4))),
     }
     return oof, y, cells, folds
 
@@ -116,7 +116,7 @@ def test_no_direction_left_offers_an_improvement():
 def test_two_candidates_that_predict_the_same_thing_share_the_weight():
     oof, y, _, _ = board()
     good = oof["cnn / week"]
-    w = simplex_weights(columns(good, good.copy(), oof["rf / month"]), y.values.ravel(), DEVIANCE)
+    w = simplex_weights(columns(good, good.copy(), oof["forest / month"]), y.values.ravel(), DEVIANCE)
     assert w[0] == pytest.approx(w[1], abs=1e-12)
 
 
@@ -127,7 +127,7 @@ def test_the_candidate_that_reads_the_response_takes_the_larger_share():
     oof, y, _, _ = board()
     flat = y.values.ravel()
     good = oof["cnn / week"]
-    against_noise = simplex_weights(columns(good, oof["rf / month"]), flat, DEVIANCE)
+    against_noise = simplex_weights(columns(good, oof["forest / month"]), flat, DEVIANCE)
     against_itself_inverted = simplex_weights(columns(good, 1.0 - good), flat, DEVIANCE)
     assert against_noise[0] > 3 * against_noise[1]
     assert against_itself_inverted[0] > 3 * against_itself_inverted[1]
@@ -208,8 +208,8 @@ def test_a_candidate_predicting_a_block_of_the_wrong_shape_is_named():
     oof, y, cells, folds = board()
     scores = score_table(oof, y, folds, cells)
     wrong = dict(oof)
-    wrong["rf / month"] = oof["rf / month"][:, :2]
-    with pytest.raises(ValueError, match="rf / month"):
+    wrong["forest / month"] = oof["forest / month"][:, :2]
+    with pytest.raises(ValueError, match="forest / month"):
         ensemble_fit(wrong, y, cells, folds, ensemble(), scores)
 
 
@@ -249,8 +249,8 @@ def test_combining_is_the_arithmetic_the_method_names():
 def test_combining_needs_a_prediction_from_every_member():
     oof, y, cells, folds = board()
     fitted = ensemble_fit(oof, y, cells, folds, ensemble(), score_table(oof, y, folds, cells))
-    with pytest.raises(KeyError, match="rf / month"):
-        ensemble_combine(fitted, {n: p for n, p in oof.items() if n != "rf / month"})
+    with pytest.raises(KeyError, match="forest / month"):
+        ensemble_combine(fitted, {n: p for n, p in oof.items() if n != "forest / month"})
 
 
 def test_a_scope_holds_one_axis_and_varies_the_other():
@@ -304,9 +304,9 @@ def test_the_table_carries_a_level_a_win_count_and_how_the_responses_were_covere
     oof, y, cells, folds = board()
     fit = fitted_object(oof, y, cells, folds,
                         multi={"cnn / week": "joint", "elasticnet / week": "separate",
-                               "rf / month": "separate"})
+                               "forest / month": "separate"})
     rows = candidate_table(fit)
-    assert [r["candidate"] for r in rows] == ["rf / month", "elasticnet / week", "cnn / week"]
+    assert [r["candidate"] for r in rows] == ["forest / month", "elasticnet / week", "cnn / week"]
     assert [r["responses"] for r in rows] == ["separate", "separate", "joint"]
     assert sum(r["won"] for r in rows) == len(y.variables)
     assert rows[-1]["won"] == max(r["won"] for r in rows)
@@ -334,7 +334,7 @@ def test_the_summary_is_the_candidates_the_ensemble_and_the_weights():
     lines = text.splitlines()
     assert lines[0] == "timesift  80 targets, 4 responses, 4-fold random CV, tss"
     assert lines[2].split() == ["candidate", "mean", "won", "responses"]
-    assert [line.split()[0] for line in lines[3:7]] == ["rf", "elasticnet", "cnn", "ensemble"]
+    assert [line.split()[0] for line in lines[3:7]] == ["forest", "elasticnet", "cnn", "ensemble"]
     assert lines[6].endswith("-")
     assert lines[-1].startswith("weights  ")
     # The ensemble is levelled by the fit's own metric, on the fit's own cells.

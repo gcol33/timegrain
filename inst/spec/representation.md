@@ -502,8 +502,18 @@ call site.
 
 | concept | the name, on both sides |
 |---|---|
-| the penalised learner | `elasticnet_learner()` |
-| the forward selector | `stepwise_learner()` |
+| the whole run | `timesift()`, from a table of targets and a table of series to a scored comparison |
+| what a representation is | `native()`, `grain()`, `multigrain()`, `lookback()`, and the sets `grains()` and `lookbacks()` |
+| the target-anchored array | `lookback_matrix()` |
+| building one representation | `build_representation()` |
+| the penalised learner | `elasticnet()` |
+| the forward selector | `stepwise()` |
+| the forest | `forest()` |
+| the encoders | `mlp()`, `cnn()`, `rescnn()` |
+| how an encoder is trained | `train_control()` |
+| the resampling | `cv()` and `grouped_cv()` |
+| the combiner | `ensemble()`, `ensemble_fit()`, `ensemble_combine()` and `ensemble_weights()` |
+| scoring held-out predictions | `score_predictions()`, on the cells the mask allows |
 | a set of representations | `timesift_set()`, which reads as a mapping of grain name to representation |
 | folds of the inner cross-validation | `n_inner` |
 | the digest | `digest_array()`, exported |
@@ -527,6 +537,22 @@ call site.
 - `select_grain()` searches the candidates in the order the grains and the learners were declared
   in, so which candidate an exact tie on the inner score falls to does not depend on how the names
   sort.
+- A learner left without a `data =` runs across every representation of the run, and one given a
+  representation there runs at that one alone. A pairing the learner cannot read is skipped and
+  reported by name inside a set, and is an error where the caller named it.
+- A candidate is reported as `learner / representation`, and every candidate emits an out-of-fold
+  prediction for every scorable cell over the same folds. The combiner is handed those predictions,
+  the response, the mask and the fold map, and never a model.
+
+### The same thing, shaped differently
+
+| concept | in R | in Python |
+|---|---|---|
+| a learner's own training settings | a `control` field holding a partly specified `train_control()` | its `params`, beside the architecture |
+| the occlusion profile | `occlusion()`, an S3 generic with methods on a run and on a ladder | `occlusion()`, one function taking either |
+
+Both are shapes rather than behaviours: a setting given to a learner beats the run's control on
+both sides, and the profile is one implementation on both sides.
 
 ### Present in one language only
 

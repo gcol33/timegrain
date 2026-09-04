@@ -51,6 +51,12 @@ class CandidateFit:
     variables: tuple[str, ...]
 
     def predict(self, x: TimesiftMatrix) -> np.ndarray:
+        """One ``[row, response]`` matrix, whatever the candidate is made of.
+
+        A joint learner contributes one fit covering every response and a separate one contributes
+        a fit per response; the columns are assembled by name either way, so nothing above a
+        candidate can tell which it was.
+        """
         columns = [v for f in self.fits for v in f.variables]
         p = np.concatenate([f.predict(x) for f in self.fits], axis=1)
         position = {v: j for j, v in enumerate(columns)}
