@@ -25,7 +25,7 @@ test_that("a signal buried in hourly noise is found once the record is averaged"
                             stats::plogis(3 * as.numeric(outer(sim$warmth, sign)))),
               ncol = 8L, dimnames = list(sim$units, paste0("sp", 1:8)))
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("day", "week", "month"))
-  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(),
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet(),
                                         folds = fold_map(y, v = 5L, seed = 7L), verbose = FALSE))
   s <- summary(lad)
   expect_gt(s$score[s$grain == "month"], s$score[s$grain == "day"])
@@ -43,7 +43,7 @@ test_that("a response with no cause in the record scores at chance", {
   y <- matrix(stats::rbinom(length(sim$units) * 3L, 1L, 0.35), ncol = 3L,
               dimnames = list(sim$units, paste0("sp", 1:3)))
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("week", "month"))
-  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(),
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet(),
                                         folds = fold_map(y, v = 5L, seed = 7L), verbose = FALSE))
   # TSS read at the cut that maximises it is biased upward on cells this small, so chance is not
   # zero here; the measured inflation is what "chance" means on this design.
@@ -76,7 +76,7 @@ test_that("keeping the extremes of a grain recovers what averaging removed", {
     mean = grain_matrix(d, plot, t, temp, grain = "week", stats = "mean"),
     extreme_day = grain_matrix(d, plot, t, temp, grain = "week",
                                 stats = c("cold_day", "mean", "warm_day"))))
-  lad <- suppressWarnings(grain_ladder(set, y, elasticnet_learner(), folds = f, verbose = FALSE))
+  lad <- suppressWarnings(grain_ladder(set, y, elasticnet(), folds = f, verbose = FALSE))
   gain <- paired_contrast(lad, "extreme_day|elasticnet", "mean|elasticnet")
   expect_gt(gain$diff, 0)
   expect_gt(gain$lower, 0)

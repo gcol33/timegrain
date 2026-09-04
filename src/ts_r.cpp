@@ -95,7 +95,7 @@ cpp11::list ts_reduce_(cpp11::integers unit, cpp11::doubles value, cpp11::double
 }
 
 [[cpp11::register]]
-cpp11::list ts_reduce_windows_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles local,
+cpp11::list ts_reduce_lookbacks_(cpp11::integers unit, cpp11::doubles value, cpp11::doubles local,
                                cpp11::strings unit_names, cpp11::integers target_unit,
                                cpp11::doubles target_at, cpp11::strings target_names,
                                double span, double lag, int bins, cpp11::strings stats) {
@@ -125,7 +125,7 @@ cpp11::list ts_reduce_windows_(cpp11::integers unit, cpp11::doubles value, cpp11
   for (const std::string& s : units) unit_ptr.push_back(s.c_str());
   for (const std::string& s : targets) target_ptr.push_back(s.c_str());
 
-  timesift::WindowRequest req;
+  timesift::LookbackRequest req;
   req.unit = unit_index.data();
   req.value = reading.data();
   req.local = naive.data();
@@ -142,7 +142,7 @@ cpp11::list ts_reduce_windows_(cpp11::integers unit, cpp11::doubles value, cpp11
     req.stats.push_back(timesift::stat_from_name(std::string(stats[i])));
   }
 
-  const timesift::WindowResult result = timesift::reduce_windows(req);
+  const timesift::LookbackResult result = timesift::reduce_lookbacks(req);
 
   cpp11::writable::doubles values(static_cast<R_xlen_t>(result.values.size()));
   for (std::size_t i = 0; i < result.values.size(); ++i) {

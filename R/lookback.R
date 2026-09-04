@@ -1,4 +1,4 @@
-#' Reduce sensor series to a lookback window anchored on each target
+#' Reduce sensor series to a lookback anchored on each target
 #'
 #' Reads, for every target, a fixed length of record ending a fixed lag before that target's own
 #' instant, and summarises it by one or more statistics. It is the reduction a calendar cannot
@@ -11,21 +11,21 @@
 #' @param value Column of readings, numeric. A bare column name or a string.
 #' @param at A data frame of targets, whose first column is the unit and whose second is the
 #'   anchor instant, `POSIXct`. One row per target; a unit may carry any number of them.
-#' @param span The window's length, as a duration. See Durations.
-#' @param lag The gap between the anchor and the end of the window, as a duration. Defaults to
-#'   `"0 days"`, which ends the window at the anchor itself.
-#' @param bins How many sub-bins the window is cut into, oldest first. `span` must divide by it
+#' @param span The lookback's length, as a duration. See Durations.
+#' @param lag The gap between the anchor and the end of the lookback, as a duration. Defaults to
+#'   `"0 days"`, which ends the lookback at the anchor itself.
+#' @param bins How many sub-bins the lookback is cut into, oldest first. `span` must divide by it
 #'   exactly. One bin gives a block of features; several give a sequence a convolution can read.
 #' @param stats Statistics to compute per bin, one channel each, in the order given. The same seven
 #'   [grain_matrix()] carries.
 #'
 #' @details
 #' Bin `b` of a target anchored at `a` covers `[a - lag - span + b * step, a - lag - span +
-#' (b + 1) * step)`, with `step` the window's length divided by `bins` and `b` counted from zero.
+#' (b + 1) * step)`, with `step` the lookback's length divided by `bins` and `b` counted from zero.
 #' The interval is closed at the left and open at the right, so a reading on a boundary belongs to
 #' the later bin, and only the readings of the target's own unit are read.
 #'
-#' Every `(target, bin)` cell must hold at least one reading. A window reaching past either end of
+#' Every `(target, bin)` cell must hold at least one reading. A lookback reaching past either end of
 #' the record is an error naming the target and the interval, never a padded row: an invented value
 #' in front of a model is worse than a target the record cannot answer for.
 #'
@@ -54,9 +54,9 @@
 #'   by position where it does not. Its bins are named by where each one opens relative to the
 #'   anchor, oldest first, and its channels by the statistic. Attributes:
 #'   \itemize{
-#'     \item `grain`: `"window"`.
+#'     \item `grain`: `"lookback"`.
 #'     \item `span`, `lag`: the durations, resolved to seconds.
-#'     \item `bins`: how many bins the window was cut into.
+#'     \item `bins`: how many bins the lookback was cut into.
 #'     \item `stats`: the statistic names in channel order.
 #'     \item `bin_n`: a `[target, bin]` matrix of how many readings fell in each cell.
 #'   }
@@ -70,13 +70,13 @@
 #'                 temp = c(sin(seq_along(t) / 24), cos(seq_along(t) / 24)))
 #' at <- data.frame(plot = c("a", "b"),
 #'                  when = as.POSIXct(c("2021-10-20", "2021-10-25"), tz = "UTC"))
-#' x <- window_matrix(d, plot, t, temp, at = at, span = "30 days", bins = 3L,
+#' x <- lookback_matrix(d, plot, t, temp, at = at, span = "30 days", bins = 3L,
 #'                    stats = c("cold_day", "mean", "warm_day"))
 #' dim(x)
 #' dimnames(x)[[2]]
 #'
 #' @export
-window_matrix <- function(data,
+lookback_matrix <- function(data,
                           id,
                           time,
                           value,
@@ -92,7 +92,7 @@ window_matrix <- function(data,
   span <- .parse_duration(span, "span")
   lag <- .parse_duration(lag, "lag")
   bins <- .check_bins(bins)
-  stats <- .check_stats(stats, "window")
+  stats <- .check_stats(stats, "lookback")
 
   unit <- as.character(data[[id_col]])
   when <- data[[time_col]]
@@ -111,7 +111,7 @@ window_matrix <- function(data,
   units <- sort(unique(unit), method = "radix")
   target <- .check_targets(at, units, tz)
 
-  fit <- ts_reduce_windows_(match(unit, units), reading, local, units,
+  fit <- ts_reduce_lookbacks_(match(unit, units), reading, local, units,
                             target$unit, target$at, target$label, span, lag, bins, stats)
 
   n_t <- length(target$label)
@@ -119,7 +119,7 @@ window_matrix <- function(data,
                dim = c(n_t, bins, length(stats)),
                dimnames = list(target$label, .bin_offsets(span, lag, bins), stats))
 
-  attr(out, "grain") <- "window"
+  attr(out, "grain") <- "lookback"
   attr(out, "span") <- span
   attr(out, "lag") <- lag
   attr(out, "bins") <- bins

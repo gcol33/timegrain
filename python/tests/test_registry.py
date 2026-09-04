@@ -5,10 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timesift import (Learner, Response, fold_map, get_learner, learners, metrics,
-                       register_learner, register_metric, register_response, responses,
-                       scorable_cells, grain_ladder, grain_matrix)
-from timesift.registry import LEARNERS, METRICS, RESPONSES
+from timesift.ladder import grain_ladder
+from timesift.learners import Learner
+from timesift.registry import (LEARNERS, METRICS, RESPONSES, get_learner, learners, metrics,
+                               register_learner, register_metric, register_response, responses)
+from timesift.representation import grain_matrix
+from timesift.response import Response, fold_map, scorable_cells
 
 
 @pytest.fixture(autouse=True)
@@ -42,10 +44,15 @@ def readings(n_unit=12, days=40, seed=5):
 
 
 def test_what_ships_is_registered_and_reachable_by_name():
-    assert learners() == ["cnn", "elasticnet", "ensemble", "mlp", "rescnn", "stepwise"]
+    assert learners() == ["cnn", "elasticnet", "mlp", "rescnn", "rf", "stepwise"]
     assert metrics() == ["kappa", "kappa_youden", "roc_auc", "tss"]
     assert responses() == ["presence_absence"]
     assert get_learner("stepwise").name == "stepwise"
+
+
+def test_a_registered_learner_arrives_with_what_it_reads_declared():
+    assert (get_learner("cnn").reads, get_learner("cnn").multi) == ("sequence", "joint")
+    assert (get_learner("rf").reads, get_learner("rf").multi) == ("tabular", "separate")
 
 
 def test_a_registry_lists_by_c_collation_whatever_the_names_look_like():

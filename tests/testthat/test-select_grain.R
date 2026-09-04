@@ -191,7 +191,7 @@ test_that("the grain the response was generated at is selected above chance", {
   sim <- planted_grain()
   y <- planted_response(sim)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("day", "week", "month"))
-  sel <- suppressWarnings(select_grain(x, y, elasticnet_learner(),
+  sel <- suppressWarnings(select_grain(x, y, elasticnet(),
                                        folds = fold_map(y, v = 5L, seed = 7L),
                                        inner = 4L, seed = 3L, verbose = FALSE))
   picked <- table(factor(sel$selected$grain, levels = names(x)))
@@ -207,8 +207,8 @@ test_that("the nested estimate stays under what choosing on the held-out units w
   y <- planted_response(sim, seed = 84L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("day", "week", "month"))
   folds <- fold_map(y, v = 5L, seed = 7L)
-  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(), folds = folds, verbose = FALSE))
-  sel <- suppressWarnings(select_grain(x, y, elasticnet_learner(), folds = folds, inner = 4L,
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet(), folds = folds, verbose = FALSE))
+  sel <- suppressWarnings(select_grain(x, y, elasticnet(), folds = folds, inner = 4L,
                                        seed = 3L, compare = lad, verbose = FALSE))
 
   # The bound the nested estimate must respect is the oracle: the same candidates, the same fits,
@@ -237,8 +237,8 @@ test_that("a fold's held-out predictions are those of the candidate it selected"
   y <- planted_response(sim, n_var = 4L, seed = 88L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("week", "month"))
   folds <- fold_map(y, v = 3L, seed = 7L)
-  lad <- suppressWarnings(grain_ladder(x, y, elasticnet_learner(), folds = folds, verbose = FALSE))
-  sel <- suppressWarnings(select_grain(x, y, elasticnet_learner(), folds = folds, inner = 3L,
+  lad <- suppressWarnings(grain_ladder(x, y, elasticnet(), folds = folds, verbose = FALSE))
+  sel <- suppressWarnings(select_grain(x, y, elasticnet(), folds = folds, inner = 3L,
                                        seed = 3L, verbose = FALSE))
   # The refit is the ladder's own fit on the same units at the same grain, so every cell of the
   # selected procedure is a cell of the ladder rather than a number from a second fitting path. It
@@ -261,7 +261,7 @@ test_that("with no signal at any grain the procedure scores at the design's own 
               dimnames = list(sim$units, paste0("sp", 1:4)))
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("week", "month"))
   folds <- fold_map(y, v = 5L, seed = 7L)
-  sel <- suppressWarnings(select_grain(x, y, elasticnet_learner(), folds = folds, inner = 4L,
+  sel <- suppressWarnings(select_grain(x, y, elasticnet(), folds = folds, inner = 4L,
                                        seed = 3L, verbose = FALSE))
   # TSS read at the cut that maximises it is biased upward on cells this small, so the floor is what
   # a design with no signal reports rather than zero.

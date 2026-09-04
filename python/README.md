@@ -25,7 +25,7 @@ tg.paired_contrast(lad, "week|cnn", "week|elasticnet")
 - `tss`, `roc_auc`, `kappa_score`, `model_agreement`, `decision_threshold`: the metrics.
 - `grain_ladder`, `paired_contrast`, `tss_inflation`: fitting at every grain, comparing two arms
   cell by cell, and how much a self-selected threshold inflates a level.
-- `bin_occlusion`: hold each bin or each channel back and rescore, without refitting.
+- `ladder_occlusion`: hold each bin or each channel back and rescore, without refitting.
 - `feature_matrix`: bring an already-reduced feature table in as an arm of the same ladder.
 - `mlp_learner`, `cnn_learner`, `rescnn_learner` (torch), `elasticnet_learner` (scikit-learn),
   `ensemble_learner`, and `Learner` for one of your own.
@@ -35,7 +35,7 @@ The mixed-model grain contrast the R side offers as `grain_contrasts()` has no c
 The binning and the reduction are not written here. They are `../src/ts_core.cpp`, the same
 implementation the R package compiles, reached through the `_core` extension that `../CMakeLists.txt`
 builds with nanobind. What is written here is the boundary: resolving the columns, resolving the
-zone, and putting the result into a `GrainMatrix`.
+zone, and putting the result into a `TimesiftMatrix`.
 
 At runtime the package needs numpy alone. A learner that needs a package declares it and stops
 without it.

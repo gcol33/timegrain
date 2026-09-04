@@ -140,7 +140,7 @@ oracle_anniversary <- function(offset, ys, tz) {
              tz = tz)
 }
 
-# The lookback window, from the section of `inst/spec/representation.md` that describes it rather
+# The lookback, from the section of `inst/spec/representation.md` that describes it rather
 # than from the C++ underneath. It reads whole seconds and knows no zone, so it answers for a series
 # already expressed in the calendar to bin by; that is what the tests hand it.
 
@@ -184,7 +184,7 @@ oracle_cell_stat <- function(name, v, t) {
          mean_daily_max = mean(vapply(day, max, numeric(1L))))
 }
 
-oracle_window_matrix <- function(data, id, time, value, at, span, lag = "0 days", bins = 1L,
+oracle_lookback_matrix <- function(data, id, time, value, at, span, lag = "0 days", bins = 1L,
                                  stats = "mean") {
   span <- oracle_duration(span)
   lag <- oracle_duration(lag)
@@ -197,7 +197,7 @@ oracle_window_matrix <- function(data, id, time, value, at, span, lag = "0 days"
   n_t <- length(anchor)
 
   # A day-level statistic is defined only where every calendar day lies whole inside one bin,
-  # which for a window is a step of whole days and a window opening on a day boundary.
+  # which for a lookback is a step of whole days and a lookback opening on a day boundary.
   if (any(stats %in% c("cold_day", "warm_day", "mean_daily_min", "mean_daily_max"))) {
     if (step %% 86400 != 0) {
       stop("needs bins of a calendar day or coarser", call. = FALSE)

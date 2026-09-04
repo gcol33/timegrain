@@ -146,7 +146,7 @@ Error, naming the install, unless what the learner needs is importable.
 ## `flatten()`
 
 ```python
-flatten(x: GrainMatrix)
+flatten(x: TimesiftMatrix)
 ```
 
 `[unit, bin, channel]` to `[unit, bin * channel]` in the array's own order.

@@ -9,7 +9,7 @@ Description: Fits and compares representations of time-varying data against a
     prediction target. Given a table of targets and a table of time-stamped
     series belonging to them, it builds each candidate representation, from the
     record unreduced through a calendar grain such as a week or a month to a
-    lookback window anchored on each target, fits the requested learners on
+    lookback anchored on each target, fits the requested learners on
     each, scores every candidate on one set of held-out folds, and stacks the
     out-of-fold predictions into an ensemble. Calendar-aware binning keeps a bin
     a real week or month rather than a fixed block of hours. Learners, response

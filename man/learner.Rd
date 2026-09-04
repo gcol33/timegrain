@@ -4,16 +4,38 @@
 \alias{learner}
 \title{Define a learner}
 \usage{
-learner(name, fit, predict, needs = character(), params = list())
+learner(
+  name,
+  fit,
+  predict,
+  data = NULL,
+  reads = c("tabular", "sequence"),
+  multi = c("separate", "joint"),
+  control = NULL,
+  needs = character(),
+  params = list()
+)
 }
 \arguments{
 \item{name}{Name the learner is reported under.}
 
 \item{fit}{A function of \verb{(x, y, ...)}, where \code{x} is a \verb{[unit, bin, channel]} array and \code{y} the
-response matrix for the same units, returning a fitted object.}
+response matrix for the same units, returning a fitted object. A \code{fit} that declares a
+\code{control} argument is handed the resolved \code{\link[=train_control]{train_control()}}.}
 
 \item{predict}{A function of \verb{(model, x)} returning a \verb{[unit, variable]} matrix of predictions
 for the units of \code{x}, in that order.}
+
+\item{data}{A representation the learner is pinned to, or \code{NULL} to run across every
+representation of the run.}
+
+\item{reads}{\code{"tabular"} or \code{"sequence"}.}
+
+\item{multi}{\code{"separate"} where one model is fitted per response, \code{"joint"} where one model
+covers them all.}
+
+\item{control}{A \code{\link[=train_control]{train_control()}} for this learner alone. The settings it names override the
+control the run was given; everything else is taken from that one.}
 
 \item{needs}{Packages the learner requires. A learner that cannot run says so at once rather
 than falling back to something else.}
@@ -28,6 +50,16 @@ A learner is a pair of functions: one that fits a model to a representation and 
 one that predicts from it. Everything the package fits goes through this pair, so a learner of
 your own sits beside the ones that ship and needs no change to the ladder, the folds or the
 scoring.
+}
+\details{
+A learner declares what it can be handed and how it covers several responses. \code{reads} is
+\code{"tabular"} where the bins reach it as a block of predictors and \code{"sequence"} where their order
+in time is what it reads, and \code{multi} is \code{"joint"} where one fitted model covers every response
+and \code{"separate"} where one is fitted per response. Either way a candidate emits one
+\verb{[target, response]} matrix, so nothing above the learner layer has to know which it was.
+
+\code{data} pins a learner to one representation. Left \code{NULL} the learner runs across every
+representation of the run.
 }
 \examples{
 # The bin means of a unit, fed to one logistic regression per variable.

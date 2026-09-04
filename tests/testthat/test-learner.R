@@ -15,7 +15,7 @@ test_that("a learner of one's own needs nothing but a fit and a predict", {
 })
 
 test_that("a registered learner can be asked for by name", {
-  expect_true(all(c("elasticnet", "stepwise", "mlp", "cnn", "rescnn") %in% learners()))
+  expect_true(all(c("elasticnet", "stepwise", "rf", "mlp", "cnn", "rescnn") %in% learners()))
   expect_s3_class(.as_learner("elasticnet"), "timesift_learner")
   expect_error(.as_learner("nope"), "unknown learner")
   register_learner("test_only", function() learner("test_only",
@@ -79,7 +79,7 @@ test_that("the penalised learner fits, predicts and refuses a different represen
   sim <- sim_series(n_unit = 60L, days = 60L, seed = 31L)
   y <- sim_response(sim, n_var = 2L, seed = 32L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "week")
-  fit <- fit_learner(elasticnet_learner(), x, y)
+  fit <- fit_learner(elasticnet(), x, y)
   p <- stats::predict(fit, x)
   expect_true(all(p >= 0 & p <= 1))
   expect_gt(tss(y[, 1], p[, 1]), 0.4)
@@ -91,31 +91,103 @@ test_that("forward selection stops at its budget and is non-monotone in a predic
   sim <- sim_series(n_unit = 60L, days = 60L, seed = 33L)
   y <- sim_response(sim, n_var = 1L, seed = 34L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "month")
-  fit <- fit_learner(stepwise_learner(max_terms = 2L), x, y)
+  fit <- fit_learner(stepwise(max_terms = 2L), x, y)
   chosen <- fit$model$models[[1L]]$columns
   expect_lte(length(chosen), 2L)
   p <- stats::predict(fit, x)
   expect_true(all(p >= 0 & p <= 1))
 })
 
-test_that("an ensemble averages its members before the threshold is chosen", {
-  skip_if_not_installed("glmnet")
-  sim <- sim_series(n_unit = 50L, days = 60L, seed = 41L)
-  y <- sim_response(sim, n_var = 2L, seed = 42L)
+test_that("a forest fits, predicts and refuses a different representation", {
+  skip_if_not_installed("ranger")
+  sim <- sim_series(n_unit = 60L, days = 60L, seed = 35L)
+  y <- sim_response(sim, n_var = 2L, seed = 36L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "week")
+  fit <- fit_learner(rf(trees = 200L), x, y)
+  p <- stats::predict(fit, x)
+  expect_equal(dim(p), c(60L, 2L))
+  expect_true(all(p >= 0 & p <= 1))
+  expect_gt(tss(y[, 1], p[, 1]), 0.4)
+  other <- grain_matrix(sim$readings, plot, t, temp, grain = "month")
+  expect_error(stats::predict(fit, other), "different channels or bins")
+})
 
-  members <- list(a = elasticnet_learner(alpha = 0.5, seed = 1L),
-                  b = elasticnet_learner(alpha = 1, seed = 1L))
-  both <- suppressWarnings(stats::predict(fit_learner(ensemble_learner(members), x, y), x))
-  one <- suppressWarnings(stats::predict(fit_learner(members$a, x, y), x))
-  two <- suppressWarnings(stats::predict(fit_learner(members$b, x, y), x))
-  expect_equal(both, (one + two) / 2)
+test_that("a forest is the same forest twice and reads the same columns as the linear arms", {
+  skip_if_not_installed("ranger")
+  sim <- sim_series(n_unit = 40L, days = 40L, seed = 37L)
+  y <- sim_response(sim, n_var = 1L, seed = 38L)
+  x <- grain_matrix(sim$readings, plot, t, temp, grain = "week", stats = c("mean", "max"))
+  a <- stats::predict(fit_learner(rf(trees = 100L, seed = 7L), x, y), x)
+  b <- stats::predict(fit_learner(rf(trees = 100L, seed = 7L), x, y), x)
+  expect_equal(a, b)
+  expect_equal(fit_learner(rf(trees = 50L), x, y)$model$columns, colnames(.flatten(x)))
+})
 
-  tilted <- suppressWarnings(stats::predict(
-    fit_learner(ensemble_learner(members, weights = c(3, 1)), x, y), x))
-  expect_equal(tilted, 0.75 * one + 0.25 * two)
-  expect_error(ensemble_learner(list(elasticnet_learner())), "at least two members")
-  expect_error(ensemble_learner(members, weights = c(1, 0, 1)), "one non-negative number")
+test_that("a learner declares what it reads, how it covers responses and what it is pinned to", {
+  expect_equal(vapply(list(elasticnet(), stepwise(), rf()), function(l) l$reads, character(1L)),
+               rep("tabular", 3L))
+  expect_equal(vapply(list(elasticnet(), stepwise(), rf()), function(l) l$multi, character(1L)),
+               rep("separate", 3L))
+  expect_equal(vapply(list(mlp(), cnn(), rescnn()), function(l) l$multi, character(1L)),
+               rep("joint", 3L))
+  expect_equal(vapply(list(mlp(), cnn(), rescnn()), function(l) l$reads, character(1L)),
+               c("tabular", "sequence", "sequence"))
+  expect_null(elasticnet()$data)
+
+  weekly <- structure(list(label = "week", kind = "grain", grain = "week", stats = "mean",
+                           sequence = TRUE),
+                      class = "timesift_representation")
+  expect_identical(cnn(data = weekly)$data, weekly)
+  expect_identical(elasticnet(data = weekly)$data, weekly)
+  expect_error(cnn(data = "week"), "is a representation")
+  expect_output(print(cnn(data = weekly)), "sequence")
+  expect_output(print(cnn(data = weekly)), "week")
+  expect_output(print(elasticnet()), "every representation of the run")
+})
+
+test_that("the old learner names are gone", {
+  for (nm in c("elasticnet_learner", "stepwise_learner", "mlp_learner", "cnn_learner",
+               "rescnn_learner", "ensemble_learner")) {
+    expect_false(nm %in% getNamespaceExports("timesift"), info = nm)
+  }
+  expect_true(all(c("elasticnet", "stepwise", "rf", "mlp", "cnn", "rescnn") %in% learners()))
+  expect_false("ensemble" %in% learners())
+})
+
+test_that("a training setting is defaulted in the control and nowhere else", {
+  cfg <- train_control()
+  expect_s3_class(cfg, "timesift_control")
+  expect_equal(cfg$epochs, 60L)
+  expect_equal(cfg$batch_size, 64L)
+  expect_equal(cfg$learning_rate, 1e-3)
+  expect_equal(cfg$weight_decay, 0)
+  expect_equal(cfg$early_stopping, 10L)
+  expect_equal(cfg$val_frac, 0.2)
+  expect_equal(cfg$device, "auto")
+  expect_equal(cfg$seed, 1L)
+  expect_error(cfg$lr, "no setting called lr")
+  expect_error(train_control(epochs = 0L), "positive")
+  expect_error(train_control(val_frac = 1), "share of the run")
+  expect_output(print(cfg), "epochs")
+
+  # Only the settings a control names move; the rest come from the control below it.
+  run <- train_control(epochs = 100L, batch_size = 16L)
+  own <- train_control(epochs = 200L)
+  merged <- .resolve_control(run, own)
+  expect_equal(merged$epochs, 200L)
+  expect_equal(merged$batch_size, 16L)
+  expect_equal(merged$val_frac, train_control()$val_frac)
+})
+
+test_that("an architecture constructor carries architecture and its training settings separately", {
+  l <- cnn(channels = c(8L, 16L), epochs = 5L)
+  expect_equal(l$params$channels, c(8L, 16L))
+  expect_null(l$params$epochs)
+  expect_equal(l$control$epochs, 5L)
+  expect_equal(attr(l$control, "given"), "epochs")
+  expect_null(cnn()$control)
+  expect_error(cnn(epocs = 5L), "no setting called epocs")
+  expect_error(mlp(hiden = 4L), "no setting called hiden")
 })
 
 test_that("a setting given at fit time overrides the one a linear learner carries", {
@@ -123,8 +195,8 @@ test_that("a setting given at fit time overrides the one a linear learner carrie
   sim <- sim_series(n_unit = 40L, days = 40L, seed = 43L)
   y <- sim_response(sim, n_var = 1L, seed = 44L)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = "week")
-  overridden <- suppressWarnings(fit_learner(elasticnet_learner(), x, y, squares = FALSE))
-  built <- suppressWarnings(fit_learner(elasticnet_learner(squares = FALSE), x, y))
+  overridden <- suppressWarnings(fit_learner(elasticnet(), x, y, squares = FALSE))
+  built <- suppressWarnings(fit_learner(elasticnet(squares = FALSE), x, y))
   expect_false(overridden$model$squares)
   expect_equal(suppressWarnings(stats::predict(overridden, x)),
                suppressWarnings(stats::predict(built, x)))
@@ -140,7 +212,7 @@ test_that("predicting a single unit returns one row and not one column", {
                                                        "bin_start", "bin_end", "bin_partial")],
                                        list(dim = dim(one), dimnames = dimnames(one),
                                             class = c("timesift_matrix", "array")))
-  for (l in list(elasticnet_learner(), stepwise_learner())) {
+  for (l in list(elasticnet(), stepwise())) {
     fit <- suppressWarnings(fit_learner(l, x, y))
     p <- stats::predict(fit, one)
     expect_equal(dim(p), c(1L, 3L))

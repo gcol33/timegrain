@@ -67,7 +67,7 @@ that predicts.
 - **`grain_contrasts()`**: a mixed model on the per-cell scores, comparing every grain against a
   learner's best by Dunnett's procedure, so a difference of 0.015 can be read where absolute skill
   varies across species by ten times as much.
-- **`bin_occlusion()`**: hold each bin of the record back and rescore, so a fitted model says which
+- **`occlusion()`**: hold each bin of the record back and rescore, so a fitted model says which
   part of the year its skill rests on.
 - **`tss_inflation()`**, **`implied_skill()`**: how much the self-selected threshold inflates a
   level at your own presence counts, and what population skill a level you read is consistent

@@ -177,8 +177,8 @@ def oracle_cell_stat(name, v, t):
     return float(np.mean([p.max() for p in parts]))
 
 
-def oracle_window_matrix(data, id, time, value, at, span, lag="0 days", bins=1, stats=("mean",)):
-    """The lookback window, from the section of ``inst/spec/representation.md`` that describes it.
+def oracle_lookback_matrix(data, id, time, value, at, span, lag="0 days", bins=1, stats=("mean",)):
+    """The lookback, from the section of ``inst/spec/representation.md`` that describes it.
 
     It reads whole seconds and knows no zone, so it answers for a series already expressed in the
     calendar to bin by; that is what the tests hand it.
@@ -195,7 +195,7 @@ def oracle_window_matrix(data, id, time, value, at, span, lag="0 days", bins=1, 
     n_t = len(anchor)
 
     # A day-level statistic is defined only where every calendar day lies whole inside one bin,
-    # which for a window is a step of whole days and a window opening on a day boundary.
+    # which for a lookback is a step of whole days and a lookback opening on a day boundary.
     if any(s in DAY_LEVEL_STATS for s in stats):
         if step % 86400:
             raise ValueError("needs bins of a calendar day or coarser")

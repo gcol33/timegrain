@@ -33,7 +33,7 @@ of \code{\link[=fold_map]{fold_map()}} when not given.}
 
 \item{metric}{Name of the registered metric, or \code{NULL} for the response's own.}
 
-\item{keep_fits}{Keep every per-fold fitted model, which is what lets \code{\link[=bin_occlusion]{bin_occlusion()}} read a
+\item{keep_fits}{Keep every per-fold fitted model, which is what lets \code{\link[=occlusion]{occlusion()}} read a
 fitted model without refitting it.}
 
 \item{verbose}{Report each arm and each fold as it runs.}
@@ -69,7 +69,7 @@ d <- data.frame(
 y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
             dimnames = list(units, c("sp1", "sp2")))
 x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
-lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+lad <- grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3), verbose = FALSE)
 summary(lad)
 
 }

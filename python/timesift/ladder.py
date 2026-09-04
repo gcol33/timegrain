@@ -14,6 +14,10 @@ from .representation import timesift_set
 from .response import (Folds, Response, align_folds, as_response, fold_map,
                        scorable_cells)
 
+__all__ = ["Ladder", "concat_ladders", "grain_ladder", "implied_skill", "ladder_from_rows",
+           "learner_dict", "mean_se", "paired_contrast", "per_variable", "score_arm",
+           "scored_cells", "table_columns", "tss_inflation", "variable_means"]
+
 
 @dataclass
 class Ladder:
@@ -38,16 +42,15 @@ class Ladder:
 
     def summary(self):
         """The across-variable mean of the per-variable score, one row per arm."""
+        level = variable_means(*_defined(self))
         rows = []
         for w in _ordered(self.grain):
             for ln in _ordered(self.learner):
-                hit = (self.grain == w) & (self.learner == ln) & ~np.isnan(self.score)
-                if not hit.any():
+                per = level.get((w, ln))
+                if per is None:
                     continue
-                per_variable = [self.score[hit & (self.variable == v)].mean()
-                                for v in np.unique(self.variable[hit])]
-                rows.append(dict(learner=ln, grain=w, score=float(np.mean(per_variable)),
-                                 n_variable=len(per_variable)))
+                rows.append(dict(learner=ln, grain=w,
+                                 score=float(np.mean(list(per.values()))), n_variable=len(per)))
         for ln in {r["learner"] for r in rows}:
             same = [r for r in rows if r["learner"] == ln]
             best = max(same, key=lambda r: r["score"])
@@ -169,19 +172,55 @@ def concat_ladders(a: Ladder, b: Ladder) -> Ladder:
         metric=a.metric, fits={})
 
 
-def per_variable(ladder: Ladder) -> dict:
-    """The mean score of each arm's variables over the folds it was scorable in.
+def variable_means(group, variable, value) -> dict:
+    """Each group's mean within each variable, as ``{group: {variable: mean}}``.
 
     A variable is the independent replicate, so a cell mean is taken within a variable before
     anything is averaged across variables. Averaging cells directly would weight a variable by how
-    many folds it happened to be scorable in.
+    many folds it happened to be scorable in. A ladder's arms, a selection's rows and a stack's
+    candidates are all levelled off this, so the three report the same quantity computed the same
+    way rather than each computing it.
     """
+    acc: dict = {}
+    for g, v, x in zip(group, variable, value):
+        acc.setdefault(g, {}).setdefault(str(v), []).append(float(x))
+    return {g: {v: float(np.mean(xs)) for v, xs in per.items()} for g, per in acc.items()}
+
+
+def per_variable(ladder: Ladder) -> dict:
+    """The mean score of each arm's variables over the folds it was scorable in."""
+    level = variable_means(*_defined(ladder))
+    return {(str(w), str(ln), str(v)): m
+            for (w, ln), per in level.items() for v, m in per.items()}
+
+
+def _defined(ladder: Ladder):
+    """An arm-keyed view of the cells a score was defined on."""
     keep = ~np.isnan(ladder.score)
+    return (list(zip(ladder.grain[keep], ladder.learner[keep])), ladder.variable[keep],
+            ladder.score[keep])
+
+
+def table_columns(table, names) -> dict:
+    """A score table as arrays keyed by column, whether it arrived as a mapping or an object."""
     out = {}
-    for w, ln, v, value in zip(ladder.grain[keep], ladder.learner[keep], ladder.variable[keep],
-                               ladder.score[keep]):
-        out.setdefault((str(w), str(ln), str(v)), []).append(float(value))
-    return {k: float(np.mean(v)) for k, v in out.items()}
+    for name in names:
+        holds = name in table if isinstance(table, dict) else hasattr(table, name)
+        if not holds:
+            raise KeyError(f'the table has no column called "{name}"')
+        out[name] = np.asarray(table[name] if isinstance(table, dict) else getattr(table, name))
+    return out
+
+
+def scored_cells(scores):
+    """The cells of a score table a level may be read from: scorable, and carrying a number.
+
+    A fitted object's scores and a ladder's rows are the same table under two names, so the level
+    of a candidate and the level of an arm are read off one rule.
+    """
+    table = table_columns(scores, ("candidate", "variable", "score", "scorable"))
+    keep = table["scorable"].astype(bool) & np.isfinite(table["score"].astype(float))
+    return table["candidate"][keep], table["variable"][keep], table["score"][keep]
 
 
 def mean_se(values) -> tuple[float, float]:

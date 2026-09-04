@@ -32,7 +32,7 @@ must see the same splits, build it once and read it in the other with `read_fold
 ## `fit_learner()`
 
 ```python
-fit_learner(learner, x: GrainMatrix, y, response: str = 'presence_absence', **kwargs)
+fit_learner(learner, x: TimesiftMatrix, y, response: str = 'presence_absence', **kwargs)
 ```
 
 Fit one learner at one grain, under one registered response head.
@@ -137,7 +137,7 @@ Attributes:
 ### `predict()`
 
 ```python
-predict(self, x: GrainMatrix)
+predict(self, x: TimesiftMatrix)
 ```
 
 Predictions for a representation, as a `[unit, variable]` matrix.

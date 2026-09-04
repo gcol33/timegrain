@@ -4,7 +4,7 @@
 \alias{fold_map}
 \title{Assign units to cross-validation folds}
 \usage{
-fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL)
+fold_map(y, v = 10L, seed = 1L, strata = 5L, by = NULL, group = NULL)
 }
 \arguments{
 \item{y}{The response: a matrix or data frame of units by variables, with unit identifiers in
@@ -17,6 +17,11 @@ the row names or in a leading character or factor column.}
 \item{strata}{Number of strata, or \code{1} for no stratification.}
 
 \item{by}{A numeric vector of length \code{nrow(y)} to stratify on instead of richness.}
+
+\item{group}{A vector of length \code{nrow(y)}. Rows sharing a value land in one fold, which is what
+repeated targets on one unit through time need: a unit split across folds would put the same
+unit on both sides of a split and the held-out score would be read on rows the model had
+already seen a near-copy of. \code{NULL}, the default, is every row on its own.}
 }
 \value{
 An integer vector of fold numbers named by unit, of class \code{timesift_folds}. Any named

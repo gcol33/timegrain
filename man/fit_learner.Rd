@@ -5,7 +5,7 @@
 \alias{predict.timesift_fit}
 \title{Fit one learner at one grain}
 \usage{
-fit_learner(learner, x, y, response = "presence_absence", ...)
+fit_learner(learner, x, y, response = "presence_absence", control = NULL, ...)
 
 \method{predict}{timesift_fit}(object, newdata, ...)
 }
@@ -17,6 +17,9 @@ fit_learner(learner, x, y, response = "presence_absence", ...)
 \item{y}{The response for the same units.}
 
 \item{response}{Name of the registered response head. \code{"presence_absence"} ships.}
+
+\item{control}{The run's \code{\link[=train_control]{train_control()}}. The learner's own control overrides it on the
+settings that control names, and a setting given in \code{...} overrides both.}
 
 \item{...}{Passed to the learner's \code{fit}.}
 
@@ -38,7 +41,7 @@ d <- data.frame(plot = rep(units, each = length(t)), t = rep(t, length(units)),
                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
 x <- grain_matrix(d, plot, t, temp, grain = "month")
 y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
-fit <- fit_learner(elasticnet_learner(), x, y)
+fit <- fit_learner(elasticnet(), x, y)
 dim(stats::predict(fit, x))
 
 }

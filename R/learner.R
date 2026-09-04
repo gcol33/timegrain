@@ -5,11 +5,28 @@
 #' your own sits beside the ones that ship and needs no change to the ladder, the folds or the
 #' scoring.
 #'
+#' A learner declares what it can be handed and how it covers several responses. `reads` is
+#' `"tabular"` where the bins reach it as a block of predictors and `"sequence"` where their order
+#' in time is what it reads, and `multi` is `"joint"` where one fitted model covers every response
+#' and `"separate"` where one is fitted per response. Either way a candidate emits one
+#' `[target, response]` matrix, so nothing above the learner layer has to know which it was.
+#'
+#' `data` pins a learner to one representation. Left `NULL` the learner runs across every
+#' representation of the run.
+#'
 #' @param name Name the learner is reported under.
 #' @param fit A function of `(x, y, ...)`, where `x` is a `[unit, bin, channel]` array and `y` the
-#'   response matrix for the same units, returning a fitted object.
+#'   response matrix for the same units, returning a fitted object. A `fit` that declares a
+#'   `control` argument is handed the resolved [train_control()].
 #' @param predict A function of `(model, x)` returning a `[unit, variable]` matrix of predictions
 #'   for the units of `x`, in that order.
+#' @param data A representation the learner is pinned to, or `NULL` to run across every
+#'   representation of the run.
+#' @param reads `"tabular"` or `"sequence"`.
+#' @param multi `"separate"` where one model is fitted per response, `"joint"` where one model
+#'   covers them all.
+#' @param control A [train_control()] for this learner alone. The settings it names override the
+#'   control the run was given; everything else is taken from that one.
 #' @param needs Packages the learner requires. A learner that cannot run says so at once rather
 #'   than falling back to something else.
 #' @param params Settings carried with the learner and passed to `fit`.
@@ -33,25 +50,52 @@
 #' flat_glm
 #'
 #' @export
-learner <- function(name, fit, predict, needs = character(), params = list()) {
+learner <- function(name, fit, predict, data = NULL, reads = c("tabular", "sequence"),
+                    multi = c("separate", "joint"), control = NULL, needs = character(),
+                    params = list()) {
   if (!is.function(fit) || !is.function(predict)) {
     stop("a learner needs a `fit` and a `predict` function.", call. = FALSE)
   }
-  structure(list(name = name, fit = fit, predict = predict, needs = needs, params = params),
+  reads <- match.arg(reads)
+  multi <- match.arg(multi)
+  if (!is.null(data) && !inherits(data, "timesift_representation")) {
+    stop("`data` is a representation such as grain(\"week\"), or NULL, got ",
+         class(data)[1L], ".", call. = FALSE)
+  }
+  structure(list(name = name, fit = fit, predict = predict, data = data, reads = reads,
+                 multi = multi, control = if (is.null(control)) NULL else .as_control(control),
+                 needs = needs, params = params),
             class = "timesift_learner")
 }
 
 #' @export
 print.timesift_learner <- function(x, ...) {
   cat("<timesift learner>", x$name, "\n")
+  cat("reads   :", x$reads, "; one model per response:",
+      if (identical(x$multi, "joint")) "no, joint" else "yes, separate", "\n")
+  cat("data    :", if (is.null(x$data)) "every representation of the run" else .rep_label(x$data),
+      "\n")
   if (length(x$params)) {
     cat("settings:", paste(names(x$params), vapply(x$params, .describe, character(1L)),
+                           sep = " = ", collapse = ", "), "\n")
+  }
+  if (!is.null(x$control)) {
+    named <- attr(x$control, "given")
+    cat("training:", paste(named, vapply(named, function(nm) .describe(x$control[[nm]]),
+                                         character(1L)),
                            sep = " = ", collapse = ", "), "\n")
   }
   if (length(x$needs)) {
     cat("needs   :", paste(x$needs, collapse = ", "), "\n")
   }
   invisible(x)
+}
+
+# A representation names itself; the fitting layer builds the objects and this reads the label off
+# one without knowing anything else about it.
+.rep_label <- function(rep) {
+  label <- rep$label
+  if (is.null(label) || !nzchar(label)) class(rep)[1L] else label
 }
 
 .describe <- function(v) {
@@ -90,6 +134,8 @@ learners <- function() .learners_reg$names()
 #' @param x A [grain_matrix()] result.
 #' @param y The response for the same units.
 #' @param response Name of the registered response head. `"presence_absence"` ships.
+#' @param control The run's [train_control()]. The learner's own control overrides it on the
+#'   settings that control names, and a setting given in `...` overrides both.
 #' @param ... Passed to the learner's `fit`.
 #'
 #' @return A `timesift_fit`, which [stats::predict()] takes a new representation.
@@ -102,11 +148,11 @@ learners <- function() .learners_reg$names()
 #'                 temp = as.numeric(replicate(length(units), rnorm(length(t)))))
 #' x <- grain_matrix(d, plot, t, temp, grain = "month")
 #' y <- matrix(rbinom(80, 1, 0.4), nrow = 40, dimnames = list(units, c("sp1", "sp2")))
-#' fit <- fit_learner(elasticnet_learner(), x, y)
+#' fit <- fit_learner(elasticnet(), x, y)
 #' dim(stats::predict(fit, x))
 #'
 #' @export
-fit_learner <- function(learner, x, y, response = "presence_absence", ...) {
+fit_learner <- function(learner, x, y, response = "presence_absence", control = NULL, ...) {
   learner <- .as_learner(learner)
   .require_packages(learner)
   .check_matrix(x)
@@ -116,7 +162,13 @@ fit_learner <- function(learner, x, y, response = "presence_absence", ...) {
   # A setting given here overrides the one the learner carries, rather than reaching `fit` twice.
   given <- list(...)
   carried <- learner$params[setdiff(names(learner$params), names(given))]
-  model <- do.call(learner$fit, c(list(x = x, y = y), carried, given))
+  args <- c(list(x = x, y = y), carried, given)
+  # A learner that trains under a control declares one; the resolved control reaches it through
+  # that argument and through nothing else, so a learner with no training settings never sees one.
+  if ("control" %in% names(formals(learner$fit))) {
+    args$control <- .resolve_control(control, learner$control)
+  }
+  model <- do.call(learner$fit, args)
   structure(list(learner = learner, model = model, response = response,
                  variables = colnames(y), grain = attr(x, "grain"),
                  stats = attr(x, "stats")),

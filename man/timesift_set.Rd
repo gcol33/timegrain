@@ -2,20 +2,22 @@
 % Please edit documentation in R/set.R
 \name{timesift_set}
 \alias{timesift_set}
-\title{A ladder of representations, one per grain}
+\title{Several built representations of the same targets}
 \usage{
 timesift_set(x)
 }
 \arguments{
-\item{x}{A named list of \code{\link[=grain_matrix]{grain_matrix()}} results, or a single one.}
+\item{x}{A named list of built representations -- \code{\link[=grain_matrix]{grain_matrix()}}, \code{\link[=lookback_matrix]{lookback_matrix()}} or
+\code{\link[=feature_matrix]{feature_matrix()}} results -- or a single one.}
 }
 \value{
-A \code{timesift_set}: the list, with the names as grain labels.
+A \code{timesift_set}: the list, keyed by representation label.
 }
 \description{
-Naming several grains in \code{\link[=grain_matrix]{grain_matrix()}} returns one of these: a named list of
-representations of the same units, differing only in how coarsely the record was read. It is
-what \code{\link[=grain_ladder]{grain_ladder()}} fits across.
+A named list of arrays covering the same targets and differing only in how the record was
+reduced: several calendar grains, several lookback spans, a block of features beside a
+sequence. It is keyed by the label each representation is reported under, which is what
+\code{\link[=grain_ladder]{grain_ladder()}} fits across and what a candidate in a \code{\link[=timesift]{timesift()}} fit is named by.
 }
 \examples{
 t <- seq(as.POSIXct("2021-09-01", tz = "UTC"), by = "hour", length.out = 24 * 60)

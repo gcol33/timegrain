@@ -169,7 +169,7 @@ write.csv(do.call(rbind, rows), file.path(out_dir, "digests.csv"),
           row.names = FALSE, quote = FALSE)
 cat("wrote", length(rows), "digests\n")
 
-# ---- the lookback window -----------------------------------------------------------------------
+# ---- the lookback -----------------------------------------------------------------------
 # The reduction anchored on a target rather than on the calendar. The anchors come in named sets
 # rather than one set per series: an anchor that is a local midnight in one zone is not one in
 # another, and an anchor on the hour rules out the four day-level statistics that a midnight
@@ -185,7 +185,7 @@ TARGETS <- list(
                at = c("2018-11-08 00:00:00", "2018-11-10 00:00:00"))
 )
 
-window_targets <- do.call(rbind, lapply(names(TARGETS), function(name) {
+lookback_targets <- do.call(rbind, lapply(names(TARGETS), function(name) {
   spec <- TARGETS[[name]]
   grid <- expand.grid(at = spec$at, id = spec$units,
                       KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
@@ -193,22 +193,22 @@ window_targets <- do.call(rbind, lapply(names(TARGETS), function(name) {
              at = format(as.POSIXct(grid$at, tz = spec$tz), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
              stringsAsFactors = FALSE)
 }))
-write.csv(window_targets, file.path(out_dir, "window_targets.csv"),
+write.csv(lookback_targets, file.path(out_dir, "lookback_targets.csv"),
           row.names = FALSE, quote = FALSE)
 
-window_at <- function(set) {
-  taken <- window_targets[window_targets$set == set, ]
+lookback_at <- function(set) {
+  taken <- lookback_targets[lookback_targets$set == set, ]
   data.frame(id = taken$id,
              at = as.POSIXct(taken$at, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
              stringsAsFactors = FALSE)
 }
 
-window_rows <- list()
-window_row <- function(set, span, lag, bins, stats, tz = "UTC") {
+lookback_rows <- list()
+lookback_row <- function(set, span, lag, bins, stats, tz = "UTC") {
   series <- SERIES[[TARGETS[[set]]$series]]
   attr(series$time, "tzone") <- tz
-  at <- window_at(set)
-  x <- window_matrix(series, id, time, value, at = at, span = span, lag = lag,
+  at <- lookback_at(set)
+  x <- lookback_matrix(series, id, time, value, at = at, span = span, lag = lag,
                      bins = bins, stats = stats)
   data.frame(set = set, tz = tz, span = span, lag = lag, bins = bins,
              stat = paste(stats, collapse = "+"), n_target = dim(x)[1], n_bin = dim(x)[2],
@@ -216,50 +216,50 @@ window_row <- function(set, span, lag, bins, stats, tz = "UTC") {
              first_unit = at$id[1L], last_unit = at$id[nrow(at)],
              digest = digest_array(x), stringsAsFactors = FALSE)
 }
-add_window <- function(...) window_rows[[length(window_rows) + 1L]] <<- window_row(...)
+add_lookback <- function(...) lookback_rows[[length(lookback_rows) + 1L]] <<- lookback_row(...)
 
 every_stat <- c("mean", "min", "max", "cold_day", "warm_day", "mean_daily_min", "mean_daily_max")
 reading_stats <- c("min", "mean", "max")
 
 # Anchors on a day boundary, so every statistic is available and the bin count is what decides.
-for (s in every_stat) add_window("aligned", "30 days", "0 days", 1L, s)
-for (scheme in schemes) add_window("aligned", "30 days", "0 days", 1L, scheme)
-for (s in every_stat) add_window("aligned", "30 days", "0 days", 3L, s)
-for (scheme in schemes) add_window("aligned", "30 days", "0 days", 3L, scheme)
-for (scheme in schemes) add_window("aligned", "30 days", "7 days", 3L, scheme)
-for (scheme in schemes) add_window("aligned", "7 days", "0 days", 7L, scheme)
-for (scheme in schemes) add_window("aligned", "120 days", "0 days", 4L, scheme)
-# A step of no whole number of days, and a window opening off one: the two the day-level four are
+for (s in every_stat) add_lookback("aligned", "30 days", "0 days", 1L, s)
+for (scheme in schemes) add_lookback("aligned", "30 days", "0 days", 1L, scheme)
+for (s in every_stat) add_lookback("aligned", "30 days", "0 days", 3L, s)
+for (scheme in schemes) add_lookback("aligned", "30 days", "0 days", 3L, scheme)
+for (scheme in schemes) add_lookback("aligned", "30 days", "7 days", 3L, scheme)
+for (scheme in schemes) add_lookback("aligned", "7 days", "0 days", 7L, scheme)
+for (scheme in schemes) add_lookback("aligned", "120 days", "0 days", 4L, scheme)
+# A step of no whole number of days, and a lookback opening off one: the two the day-level four are
 # refused for, pinned here with the statistics they are allowed for.
-add_window("aligned", "7 days", "0 days", 3L, reading_stats)
-add_window("aligned", "1 week", "12 hours", 1L, "mean")
+add_lookback("aligned", "7 days", "0 days", 3L, reading_stats)
+add_lookback("aligned", "1 week", "12 hours", 1L, "mean")
 
-for (s in every_stat) add_window("offset", "30 days", "0 days", 3L, s)
-for (scheme in schemes) add_window("offset", "30 days", "0 days", 3L, scheme)
-for (scheme in schemes) add_window("offset", "60 days", "7 days", 1L, scheme)
-add_window("offset", "7 days", "0 days", 7L, c("cold_day", "mean", "warm_day"))
+for (s in every_stat) add_lookback("offset", "30 days", "0 days", 3L, s)
+for (scheme in schemes) add_lookback("offset", "30 days", "0 days", 3L, scheme)
+for (scheme in schemes) add_lookback("offset", "60 days", "7 days", 1L, scheme)
+add_lookback("offset", "7 days", "0 days", 7L, c("cold_day", "mean", "warm_day"))
 
-for (s in reading_stats) add_window("hourly", "12 hours", "0 seconds", 1L, s)
-add_window("hourly", "12 hours", "0 seconds", 1L, reading_stats)
-add_window("hourly", "12 hours", "12 hours", 3L, reading_stats)
-add_window("hourly", "3 days", "0 days", 1L, "mean")
-add_window("hourly", "86400", "0 days", 2L, "mean")
+for (s in reading_stats) add_lookback("hourly", "12 hours", "0 seconds", 1L, s)
+add_lookback("hourly", "12 hours", "0 seconds", 1L, reading_stats)
+add_lookback("hourly", "12 hours", "12 hours", 3L, reading_stats)
+add_lookback("hourly", "3 days", "0 days", 1L, "mean")
+add_lookback("hourly", "86400", "0 days", 2L, "mean")
 
 # The zone. The anchors are local midnights in a clock that moved at midnight four days earlier, so
 # they are day boundaries on that calendar and on no other; the same anchors read as UTC are not,
 # and the row that reads them that way carries the one statistic that does not care.
-for (s in every_stat) add_window("zoned", "2 days", "0 days", 2L, s, tz = "America/Sao_Paulo")
+for (s in every_stat) add_lookback("zoned", "2 days", "0 days", 2L, s, tz = "America/Sao_Paulo")
 for (scheme in schemes) {
-  add_window("zoned", "2 days", "0 days", 2L, scheme, tz = "America/Sao_Paulo")
+  add_lookback("zoned", "2 days", "0 days", 2L, scheme, tz = "America/Sao_Paulo")
 }
-add_window("zoned", "2 days", "1 day", 1L, c("cold_day", "mean", "warm_day"),
+add_lookback("zoned", "2 days", "1 day", 1L, c("cold_day", "mean", "warm_day"),
            tz = "America/Sao_Paulo")
-add_window("zoned", "2 days", "0 days", 2L, "mean")
+add_lookback("zoned", "2 days", "0 days", 2L, "mean")
 
-write.csv(do.call(rbind, window_rows), file.path(out_dir, "window_digests.csv"),
+write.csv(do.call(rbind, lookback_rows), file.path(out_dir, "lookback_digests.csv"),
           row.names = FALSE, quote = FALSE)
 
-# What a window refuses. A digest cannot carry a case that errors, so each guard is pinned by the
+# What a lookback refuses. A digest cannot carry a case that errors, so each guard is pinned by the
 # input that fires it and the part of the message both languages must raise.
 WINDOW_GUARDS <- list(
   list(set = "aligned", tz = "UTC", span = "1 year", lag = "0 days", bins = 5L, stat = "mean",
@@ -273,7 +273,7 @@ for (guard in WINDOW_GUARDS) {
   series <- SERIES[[TARGETS[[guard$set]]$series]]
   attr(series$time, "tzone") <- guard$tz
   raised <- tryCatch({
-    window_matrix(series, id, time, value, at = window_at(guard$set), span = guard$span,
+    lookback_matrix(series, id, time, value, at = lookback_at(guard$set), span = guard$span,
                   lag = guard$lag, bins = guard$bins, stats = guard$stat)
     ""
   }, error = function(e) conditionMessage(e))
@@ -283,8 +283,8 @@ for (guard in WINDOW_GUARDS) {
   }
 }
 write.csv(do.call(rbind, lapply(WINDOW_GUARDS, as.data.frame, stringsAsFactors = FALSE)),
-          file.path(out_dir, "window_guards.csv"), row.names = FALSE, quote = FALSE)
-cat("wrote", length(window_rows), "window digests and", length(WINDOW_GUARDS), "guards\n")
+          file.path(out_dir, "lookback_guards.csv"), row.names = FALSE, quote = FALSE)
+cat("wrote", length(lookback_rows), "lookback digests and", length(WINDOW_GUARDS), "guards\n")
 
 # ---- what crosses the boundary above the representation ----------------------------------------
 # The three artifacts, in the format the contract defines, plus the numbers read off them that are

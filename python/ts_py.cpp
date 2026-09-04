@@ -83,7 +83,7 @@ NB_MODULE(_core, m) {
         nb::arg("unit_names"), nb::arg("grain"), nb::arg("year_month"), nb::arg("year_day"),
         nb::arg("stats"), nb::arg("sampling_step"));
 
-  m.def("reduce_windows",
+  m.def("reduce_lookbacks",
         [](ConstI32 unit, ConstF64 value, ConstI64 local,
            const std::vector<std::string>& unit_names, ConstI32 target_unit, ConstI64 target_at,
            const std::vector<std::string>& target_names, std::int64_t span, std::int64_t lag,
@@ -94,7 +94,7 @@ NB_MODULE(_core, m) {
           targets.reserve(target_names.size());
           for (const std::string& s : target_names) targets.push_back(s.c_str());
 
-          timesift::WindowRequest req;
+          timesift::LookbackRequest req;
           req.unit = unit.data();
           req.value = value.data();
           req.local = local.data();
@@ -109,7 +109,7 @@ NB_MODULE(_core, m) {
           req.n_bin = bins;
           req.stats = parse_stats(stats);
 
-          timesift::WindowResult out = timesift::reduce_windows(req);
+          timesift::LookbackResult out = timesift::reduce_lookbacks(req);
           return nb::make_tuple(give(std::move(out.values)), give(std::move(out.bin_n)));
         },
         nb::arg("unit"), nb::arg("value"), nb::arg("local"), nb::arg("unit_names"),

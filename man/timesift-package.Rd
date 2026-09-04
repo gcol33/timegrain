@@ -2,7 +2,6 @@
 % Please edit documentation in R/timesift-package.R
 \docType{package}
 \name{timesift-package}
-\alias{timesift}
 \alias{timesift-package}
 \title{timesift: Temporal Climate Resolution for Ecological Prediction}
 \description{

@@ -23,43 +23,89 @@
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- grain_matrix(d, plot, t, temp, grain = c("day", "week", "month"))
-#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+#' lad <- grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3), verbose = FALSE)
 #' plot(lad)
 #'
 #' @export
 plot.timesift_ladder <- function(x, col = NULL, interval = TRUE, ...) {
   per_variable <- .per_variable(x)
-  grains <- unique(x$grain)
-  arms <- unique(x$learner)
+  stat <- .curve_stats(per_variable$learner, per_variable$grain, per_variable$score,
+                       arms = unique(x$learner), levels = unique(x$grain))
+  .draw_curves(stat, col = col, interval = interval, xlab = "grain",
+               ylab = attr(x, "metric"), ...)
+  names(stat) <- c("learner", "grain", "score", "se")
+  invisible(stat)
+}
+
+#' Draw a run
+#'
+#' One line per learner across the representations it ran on, read the way a ladder is read, and
+#' the level the combined prediction reaches drawn across them. Where the ensemble line sits above
+#' every curve the candidates are carrying different parts of the signal, and where it sits on the
+#' best curve they are not.
+#'
+#' @param x A `timesift` result.
+#' @param col One colour per learner, recycled.
+#' @param interval Draw the interval across responses.
+#' @param ... Passed to [graphics::plot()].
+#'
+#' @return The table the plot is drawn from, invisibly.
+#'
+#' @export
+plot.timesift <- function(x, col = NULL, interval = TRUE, ...) {
+  per_response <- .per_response(x)
+  if (!nrow(per_response)) {
+    stop("this run scored no cell, so there is nothing to draw.", call. = FALSE)
+  }
+  stat <- .curve_stats(per_response$learner, per_response$representation, per_response$score,
+                       arms = unique(per_response$learner),
+                       levels = unique(per_response$representation))
+  .draw_curves(stat, col = col, interval = interval, xlab = "representation",
+               ylab = x$metric, rule = .ensemble_level(x), ...)
+  names(stat) <- c("learner", "representation", "score", "se")
+  invisible(stat)
+}
+
+# A level and the spread around it for every arm at every level, in the layout both plots draw
+# from. One place, so a ladder and a run report the same quantity computed the same way.
+.curve_stats <- function(arm, level, score, arms, levels) {
+  out <- lapply(arms, function(a) {
+    m <- vapply(levels, function(w) .mean_se(score[arm == a & level == w]), numeric(2L))
+    data.frame(arm = a, level = levels, score = m[1L, ], se = m[2L, ], stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, out)
+  rownames(out) <- NULL
+  out
+}
+
+.draw_curves <- function(stat, col, interval, xlab, ylab, rule = NULL, ...) {
+  levels <- unique(stat$level)
+  arms <- unique(stat$arm)
   if (is.null(col)) {
     col <- grDevices::hcl.colors(max(length(arms), 2L), "Dark 3")[seq_along(arms)]
   }
   col <- rep_len(col, length(arms))
-
-  stat <- lapply(arms, function(a) {
-    m <- vapply(grains, function(w) {
-      .mean_se(per_variable$score[per_variable$learner == a & per_variable$grain == w])
-    }, numeric(2L))
-    data.frame(learner = a, grain = grains, score = m[1L, ], se = m[2L, ],
-               stringsAsFactors = FALSE)
-  })
-  stat <- do.call(rbind, stat)
+  ruled <- !is.null(rule) && length(rule) == 1L && is.finite(rule)
 
   span <- if (interval && any(is.finite(stat$se))) {
     range(c(stat$score - 1.96 * stat$se, stat$score + 1.96 * stat$se), na.rm = TRUE)
   } else {
     range(stat$score, na.rm = TRUE)
   }
-  args <- list(x = seq_along(grains), y = rep(NA_real_, length(grains)), ylim = span,
-               xaxt = "n", xlab = "grain", ylab = attr(x, "metric"))
+  span <- range(c(span, if (ruled) rule), na.rm = TRUE)
+  args <- list(x = seq_along(levels), y = rep(NA_real_, length(levels)), ylim = span,
+               xaxt = "n", xlab = xlab, ylab = ylab)
   do.call(graphics::plot, utils::modifyList(args, list(...)))
-  graphics::axis(1L, at = seq_along(grains), labels = grains)
+  graphics::axis(1L, at = seq_along(levels), labels = levels)
   graphics::grid(nx = NA, ny = NULL, col = "grey90", lty = 1L)
+  if (ruled) {
+    graphics::abline(h = rule, lty = 2L, col = "grey40", lwd = 2)
+  }
 
   for (k in seq_along(arms)) {
-    s <- stat[stat$learner == arms[k], , drop = FALSE]
-    s <- s[match(grains, s$grain), , drop = FALSE]
-    at <- seq_along(grains)
+    s <- stat[stat$arm == arms[k], , drop = FALSE]
+    s <- s[match(levels, s$level), , drop = FALSE]
+    at <- seq_along(levels)
     if (interval && any(is.finite(s$se) & s$se > 0)) {
       ok <- is.finite(s$se) & s$se > 0
       graphics::arrows(at[ok], (s$score - 1.96 * s$se)[ok], at[ok],
@@ -71,8 +117,10 @@ plot.timesift_ladder <- function(x, col = NULL, interval = TRUE, ...) {
     best <- which.max(s$score)
     graphics::points(at[best], s$score[best], col = col[k], pch = 1L, cex = 2.2, lwd = 2)
   }
-  if (length(arms) > 1L) {
-    graphics::legend("bottomleft", legend = arms, col = col, lwd = 2, bty = "n")
+  legend <- c(arms, if (ruled) "ensemble")
+  if (length(legend) > 1L) {
+    graphics::legend("bottomleft", legend = legend, col = c(col, if (ruled) "grey40"),
+                     lty = c(rep(1L, length(arms)), if (ruled) 2L), lwd = 2, bty = "n")
   }
   invisible(stat)
 }

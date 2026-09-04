@@ -8,7 +8,7 @@ The binning and the reduction are not written here. They are ``src/ts_core.cpp``
 ``timesift._core`` and into the R package alike, so the two languages agree by construction rather
 than by two implementations being checked against each other after the fact. What is written here
 is the boundary: resolving the columns, resolving the zone, and putting the result into a
-``GrainMatrix``.
+``TimesiftMatrix``.
 """
 
 from __future__ import annotations
@@ -34,8 +34,27 @@ DURATION_SECONDS = {"second": 1, "seconds": 1, "minute": 60, "minutes": 60, "hou
                     "month": 2592000, "months": 2592000, "year": 31536000, "years": 31536000}
 
 
-class _Channels:
-    """What every representation carries, whatever its second dimension counts."""
+@dataclass(frozen=True)
+class TimesiftMatrix:
+    """A ``[row, bin, channel]`` representation and the reduction that produced it.
+
+    A row is a unit where the calendar did the binning and a target where a lookback did, since a
+    unit carrying several targets cannot name a row on its own. ``span`` and ``lag`` are set by a
+    lookback alone, and are what rebuilding one for new targets reads.
+    """
+
+    values: np.ndarray
+    units: tuple[str, ...]
+    bins: tuple[str, ...]
+    stats: tuple[str, ...]
+    grain: str
+    year_start: str | None
+    bin_start: np.ndarray
+    bin_end: np.ndarray
+    bin_n: np.ndarray = field(repr=False)
+    bin_partial: np.ndarray = field(repr=False)
+    span: int | None = None
+    lag: int | None = None
 
     @property
     def shape(self) -> tuple[int, int, int]:
@@ -46,55 +65,16 @@ class _Channels:
         """One statistic as a `[row, bin]` matrix."""
         return self.values[:, :, self.stats.index(name)]
 
-
-@dataclass(frozen=True)
-class GrainMatrix(_Channels):
-    """A ``[unit, bin, channel]`` representation and the binning that produced it."""
-
-    values: np.ndarray
-    units: tuple[str, ...]
-    bins: tuple[str, ...]
-    stats: tuple[str, ...]
-    grain: str
-    year_start: str
-    bin_start: np.ndarray
-    bin_end: np.ndarray
-    bin_n: np.ndarray = field(repr=False)
-    bin_partial: np.ndarray = field(repr=False)
-
-    def take_units(self, index) -> "GrainMatrix":
-        """The representation restricted to a subset of its units, in the order given."""
+    def take_units(self, index) -> "TimesiftMatrix":
+        """The representation restricted to a subset of its rows, in the order given."""
         index = np.asarray(index)
         return replace(self, values=self.values[index], bin_n=self.bin_n[index],
                        units=tuple(np.asarray(self.units)[index]))
 
     def __repr__(self) -> str:  # pragma: no cover - display only
         n_u, n_b, n_c = self.values.shape
-        return (f"<timesift matrix> {n_u} units x {n_b} bins x {n_c} channels\n"
-                f"grain: {self.grain}  stats: {', '.join(self.stats)}\n"
-                f"from  : {self.bins[0]} to {self.bins[-1]}")
-
-
-@dataclass(frozen=True)
-class WindowMatrix(_Channels):
-    """A ``[target, bin, channel]`` lookback and the window that produced it.
-
-    Its rows are the rows of the ``at`` table, in that table's own order, and its bins are named by
-    where each one opens relative to the anchor rather than by an instant no two targets share.
-    """
-
-    values: np.ndarray
-    targets: tuple[str, ...]
-    bins: tuple[str, ...]
-    stats: tuple[str, ...]
-    grain: str
-    span: int
-    lag: int
-    bin_n: np.ndarray = field(repr=False)
-
-    def __repr__(self) -> str:  # pragma: no cover - display only
-        n_t, n_b, n_c = self.values.shape
-        return (f"<timesift matrix> {n_t} targets x {n_b} bins x {n_c} channels\n"
+        row = "targets" if self.grain == "lookback" else "units"
+        return (f"<timesift matrix> {n_u} {row} x {n_b} bins x {n_c} channels\n"
                 f"grain: {self.grain}  stats: {', '.join(self.stats)}\n"
                 f"from  : {self.bins[0]} to {self.bins[-1]}")
 
@@ -108,12 +88,12 @@ class TimesiftSet(Mapping):
     """
 
     def __init__(self, parts):
-        if isinstance(parts, GrainMatrix):
+        if isinstance(parts, TimesiftMatrix):
             parts = {parts.grain: parts}
         parts = dict(parts)
         if not parts:
             raise ValueError("a timesift set is a non-empty mapping of grain_matrix() results")
-        bad = [k for k, v in parts.items() if not isinstance(v, GrainMatrix)]
+        bad = [k for k, v in parts.items() if not isinstance(v, TimesiftMatrix)]
         if bad:
             raise ValueError(f"{', '.join(bad)} "
                              f"{'are' if len(bad) > 1 else 'is'} not a grain_matrix() result")
@@ -213,7 +193,7 @@ def grain_matrix(data=None, id=None, time=None, value=None, *, grain="day", stat
 
     n_u, n_b, n_c = len(units), len(bin_start), len(stats)
     starts = _local_to_instant(bin_start, zone).astype("datetime64[s]")
-    x = GrainMatrix(
+    x = TimesiftMatrix(
         values=np.ascontiguousarray(values.reshape(n_c, n_b, n_u).transpose(2, 1, 0)),
         units=tuple(str(u) for u in units), bins=tuple(_iso(b) for b in starts),
         stats=tuple(stats), grain=name, year_start=year_start,
@@ -223,7 +203,7 @@ def grain_matrix(data=None, id=None, time=None, value=None, *, grain="day", stat
     return _drop_partial(x) if partial == "drop" else x
 
 
-def _drop_partial(x: GrainMatrix) -> GrainMatrix:
+def _drop_partial(x: TimesiftMatrix) -> TimesiftMatrix:
     """Keeping or dropping a partial bin is the caller's choice, so the array is built over every
     bin the calendar produced and the unwanted ones are removed afterwards, which keeps one binning
     path rather than one per setting."""
@@ -238,7 +218,7 @@ def _drop_partial(x: GrainMatrix) -> GrainMatrix:
                    bin_n=x.bin_n[:, keep], bin_partial=x.bin_partial[keep])
 
 
-def window_matrix(data=None, id=None, time=None, value=None, at=None, span=None, *,
+def lookback_matrix(data=None, id=None, time=None, value=None, at=None, span=None, *,
                   lag="0 days", bins=1, stats="mean", tz=None):
     """Read a fixed length of record ending a fixed lag before each target's own instant.
 
@@ -250,7 +230,7 @@ def window_matrix(data=None, id=None, time=None, value=None, at=None, span=None,
     one row per target; a unit may carry any number of them. Bin ``b`` of a target anchored at
     ``a`` covers ``[a - lag - span + b * step, a - lag - span + (b + 1) * step)``, with ``step`` the
     span divided by ``bins`` and ``b`` counted from zero. Only the readings of the target's own
-    unit are read, and every ``(target, bin)`` cell must hold at least one: a window reaching past
+    unit are read, and every ``(target, bin)`` cell must hold at least one: a lookback reaching past
     the record is an error naming the target, never a padded row.
 
     ``span`` and ``lag`` are read from a count and a unit -- ``"30 days"``, ``"12 hours"``,
@@ -264,7 +244,7 @@ def window_matrix(data=None, id=None, time=None, value=None, at=None, span=None,
     span = _parse_duration(span, "span")
     lag = _parse_duration(lag, "lag")
     bins = _check_bins(bins)
-    stats = _check_stats(stats, "window")
+    stats = _check_stats(stats, "lookback")
     zone = _zone(tz)
 
     instant = np.ascontiguousarray(when.astype("datetime64[s]").astype(np.int64))
@@ -274,15 +254,18 @@ def window_matrix(data=None, id=None, time=None, value=None, at=None, span=None,
     local = _naive_seconds(instant, zone)
 
     target_unit, anchor, labels = _targets(at, units, zone)
-    values, bin_n = _core.reduce_windows(
+    values, bin_n = _core.reduce_lookbacks(
         unit_ix, reading, local, [str(u) for u in units], target_unit, anchor, list(labels),
         span, lag, bins, list(stats))
 
     n_t = len(labels)
-    return WindowMatrix(
+    nat = np.full(bins, np.datetime64("NaT"), dtype="datetime64[s]")
+    return TimesiftMatrix(
         values=np.ascontiguousarray(values.reshape(len(stats), bins, n_t).transpose(2, 1, 0)),
-        targets=labels, bins=_bin_offsets(span, lag, bins), stats=tuple(stats),
-        grain="window", span=span, lag=lag, bin_n=bin_n.reshape(bins, n_t).T)
+        units=labels, bins=_bin_offsets(span, lag, bins), stats=tuple(stats),
+        grain="lookback", year_start=None, bin_start=nat, bin_end=nat,
+        bin_n=bin_n.reshape(bins, n_t).T, bin_partial=np.zeros(bins, dtype=bool),
+        span=span, lag=lag)
 
 
 def _targets(at, units, zone):
@@ -359,7 +342,7 @@ def _format_duration(x: int) -> str:
             return f"{n} {name}" + ("" if abs(n) == 1 else "s")
 
 
-def calendar_channels(x: GrainMatrix) -> GrainMatrix:
+def calendar_channels(x: TimesiftMatrix) -> TimesiftMatrix:
     """Where in the year each bin sits, as the sine and cosine of its fractional position."""
     mid = x.bin_start + (x.bin_end - x.bin_start) / 2
     year = mid.astype("datetime64[Y]")
@@ -375,7 +358,7 @@ def calendar_channels(x: GrainMatrix) -> GrainMatrix:
     return replace(x, values=out, stats=("year_sin", "year_cos"))
 
 
-def bind_channels(*parts: GrainMatrix) -> GrainMatrix:
+def bind_channels(*parts: TimesiftMatrix) -> TimesiftMatrix:
     """Put the channels of several representations of the same units and bins side by side."""
     if len(parts) < 2:
         raise ValueError("bind_channels() needs at least two representations")

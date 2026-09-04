@@ -197,13 +197,13 @@ summary(grain_ladder(set, y, list(elasticnet = elasticnet_learner(), nn = neares
 
 ## What was read
 
-With the fits kept, `bin_occlusion()` holds each bin of the record back in turn, rescores the
+With the fits kept, `occlusion()` holds each bin of the record back in turn, rescores the
 held-out plots, and records the fall in score as that bin's weight. Nothing is refitted.
 
 ```{r occlusion}
 kept <- grain_ladder(set["month"], y, elasticnet_learner(), folds = folds,
                       keep_fits = TRUE, verbose = FALSE)
-weight <- bin_occlusion(kept, set, y, "month|elasticnet", permutations = 5)
+weight <- occlusion(kept, set, y, "month|elasticnet", permutations = 5)
 head(aggregate(weight ~ part, weight, mean), 4)
 ```
 

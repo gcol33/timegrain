@@ -37,7 +37,7 @@ tss <- function(y, p) {
 #' The whole curve rather than its best point. TSS is a maximum over cuts, so a small change in a
 #' prediction often moves it not at all and then moves it a long way; the area responds to every
 #' reordering, which is what makes it the steadier reading when many rescorings are compared, as in
-#' [bin_occlusion()]. Tied predictions take the average rank.
+#' [occlusion()]. Tied predictions take the average rank.
 #'
 #' @inheritParams tss
 #'

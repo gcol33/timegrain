@@ -102,7 +102,7 @@ reference:
   - grain_contrasts
   - tss_inflation
   - implied_skill
-  - bin_occlusion
+  - occlusion
 - title: Extending
   desc: |
     The response head and the metric are registrations, never a fork of the fitting code.

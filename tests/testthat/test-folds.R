@@ -85,3 +85,92 @@ test_that("every fold holds units across many responses and fold counts", {
     }
   }
 })
+
+test_that("grouping is every row on its own where none is given", {
+  y <- sim_response(sim_series(n_unit = 40L, days = 2L))
+  expect_identical(unclass(fold_map(y, v = 5L)), unclass(fold_map(y, v = 5L, group = NULL)))
+})
+
+test_that("rows sharing a group land in one fold", {
+  y <- sim_response(sim_series(n_unit = 60L, days = 2L))
+  group <- rep(sprintf("s%02d", 1:20), each = 3L)
+  f <- fold_map(y, v = 5L, group = group)
+  expect_equal(length(f), 60L)
+  expect_true(all(tapply(unclass(f), group, function(v) length(unique(v))) == 1L))
+  expect_setequal(unique(unclass(f)), 1:5)
+})
+
+test_that("a grouped map counts its folds against the groups, not the rows", {
+  y <- sim_response(sim_series(n_unit = 30L, days = 2L))
+  group <- rep(1:3, each = 10L)
+  expect_error(fold_map(y, v = 5L, group = group), "between 2 and the 3 groups")
+  expect_setequal(unique(unclass(fold_map(y, v = 3L, group = group, strata = 1L))), 1:3)
+  expect_error(fold_map(y, v = 3L, group = group[-1L]), "one value per unit")
+})
+
+test_that("a grouped map still balances what it stratifies on", {
+  set.seed(4)
+  y <- matrix(rbinom(200 * 3, 1L, 0.3), nrow = 200,
+              dimnames = list(sprintf("u%03d", 1:200), paste0("v", 1:3)))
+  group <- rep(sprintf("g%03d", 1:50), each = 4L)
+  f <- fold_map(y, v = 5L, strata = 5L, group = group)
+  expect_lt(diff(range(table(unclass(f)))), 0.25 * length(f))
+})
+
+test_that("a resampling spec says how the folds are drawn", {
+  spec <- cv(v = 4L, seed = 7L, strata = 3L)
+  expect_s3_class(spec, "timesift_resampling")
+  expect_equal(spec$method, "cv")
+  expect_equal(spec$v, 4L)
+  expect_null(spec$group)
+
+  grouped <- grouped_cv("site", v = 4L)
+  expect_equal(grouped$method, "grouped_cv")
+  expect_equal(grouped$group, "site")
+
+  expect_error(cv(v = 1L), "2 or more")
+  expect_error(grouped_cv(), "needs the grouping")
+  expect_output(print.timesift_resampling(cv()), "cv in 10 folds")
+  expect_output(print.timesift_resampling(grouped_cv("site")), "grouped by: site")
+})
+
+test_that("a resampling reaches the fitting path as one fold map, however it was asked for", {
+  y <- sim_response(sim_series(n_unit = 24L, days = 2L))
+  tf <- list(label = rownames(y), order = seq_len(nrow(y)))
+  targets <- data.frame(plot = rownames(y), site = rep(sprintf("s%02d", 1:8), each = 3L),
+                        stringsAsFactors = FALSE)
+
+  drawn <- .as_fold_map(cv(v = 4L), y, targets, tf)
+  expect_s3_class(drawn, "timesift_folds")
+  expect_equal(names(drawn), rownames(y))
+  expect_equal(length(unique(unclass(drawn))), 4L)
+
+  by_column <- .as_fold_map(grouped_cv("site", v = 4L), y, targets, tf)
+  expect_true(all(tapply(unclass(by_column), targets$site,
+                         function(v) length(unique(v))) == 1L))
+  by_vector <- .as_fold_map(grouped_cv(targets$site, v = 4L), y, targets, tf)
+  expect_equal(unclass(by_vector), unclass(by_column))
+
+  given <- stats::setNames(rep(1:4, 6L), rownames(y))
+  expect_equal(as.integer(.as_fold_map(given, y, targets, tf)), unname(given))
+  expect_equal(as.integer(.as_fold_map(fold_map(y, v = 3L), y, targets, tf)),
+               as.integer(fold_map(y, v = 3L)))
+})
+
+test_that("a grouping the targets do not carry is refused by size", {
+  y <- sim_response(sim_series(n_unit = 12L, days = 2L))
+  tf <- list(label = rownames(y), order = seq_len(nrow(y)))
+  targets <- data.frame(plot = rownames(y), stringsAsFactors = FALSE)
+  expect_error(.as_fold_map(grouped_cv("site", v = 3L), y, targets, tf), "no column of")
+  expect_error(.as_fold_map(grouped_cv(rep(1:3, 3L), v = 3L), y, targets, tf), "9 grouping")
+})
+
+test_that("a grouping written against the targets follows them into their fitting order", {
+  y <- sim_response(sim_series(n_unit = 9L, days = 2L))
+  order <- c(3L, 1L, 2L, 9L, 8L, 7L, 4L, 5L, 6L)
+  tf <- list(label = rownames(y), order = order)
+  targets <- data.frame(plot = rownames(y), stringsAsFactors = FALSE)
+  group <- c("a", "a", "a", "b", "b", "b", "c", "c", "c")
+  f <- .as_fold_map(grouped_cv(group, v = 3L), y, targets, tf)
+  expect_true(all(tapply(unclass(f), group[order], function(v) length(unique(v))) == 1L))
+})

@@ -63,7 +63,7 @@
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
-#' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
+#' sel <- select_grain(x, y, elasticnet(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' sel
 #' sel$estimate
@@ -116,8 +116,11 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
     }
     won <- which.max(ifelse(is.finite(grid$score), grid$score, -Inf))
 
-    fit <- fit_learner(learners[[grid$learner[won]]], .subset_units(set[[grid$grain[won]]], train),
-                       y_train, response = response)
+    # The refit is the inner ladder's own fitting path, so the procedure's held-out predictions are
+    # the ones its chosen candidate would have made rather than a second fitting path's.
+    fit <- .fit_candidate_once(learners[[grid$learner[won]]],
+                               .subset_units(set[[grid$grain[won]]], train), y_train,
+                               response = response, control = NULL)
     held_out <- stats::predict(fit, .subset_units(set[[grid$grain[won]]], test))
     p[rownames(held_out), colnames(held_out)] <- held_out
 
@@ -132,7 +135,7 @@ select_grain <- function(x, y, learners, folds = NULL, inner = 5L,
   }
 
   selected <- do.call(rbind, chosen)
-  scores <- .score_arm(.selected_label, "selected", y, p, f, levels, cells, score)
+  scores <- .as_grain_rows(.score_arm(.selected_label, "selected", y, p, f, levels, cells, score))
   scores <- structure(scores, class = c("timesift_ladder", "data.frame"),
                       predictions = stats::setNames(list(p), .selected_arm),
                       cells = cells, folds = stats::setNames(f, units),
@@ -210,7 +213,7 @@ summary.timesift_selection <- function(object, ...) {
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
-#' sel <- select_grain(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), inner = 3,
+#' sel <- select_grain(x, y, elasticnet(), folds = fold_map(y, v = 3), inner = 3,
 #'                     verbose = FALSE)
 #' plot(sel)
 #'
@@ -250,7 +253,7 @@ plot.timesift_selection <- function(x, col = NULL, ...) {
   out <- lapply(metrics(), function(nm) {
     rows <- .score_arm(.selected_label, "selected", y, p, f, levels, cells,
                        .metrics_reg$get(nm))
-    per_variable <- .per_variable(rows)
+    per_variable <- .arm_means(rows)
     ms <- .mean_se(per_variable$score)
     data.frame(metric = nm, score = ms[1L], se = ms[2L], n_variable = nrow(per_variable),
                stringsAsFactors = FALSE)

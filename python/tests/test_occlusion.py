@@ -5,8 +5,11 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timesift import (Learner, Response, bin_occlusion, ensemble_learner, feature_matrix,
-                       fit_learner, fold_map, grain_ladder, grain_matrix)
+from timesift.ladder import grain_ladder
+from timesift.learners import Learner
+from timesift.occlusion import ladder_occlusion, feature_matrix
+from timesift.representation import grain_matrix
+from timesift.response import Response, fold_map
 
 
 def planted(planted_month="2021-11", n_unit=60, seed=61):
@@ -35,23 +38,6 @@ def test_a_feature_table_becomes_a_one_channel_representation():
     assert np.array_equal(x.channel("features"), m)
 
 
-def test_an_ensemble_averages_its_members_before_the_threshold_is_chosen():
-    readings, y, _ = planted(n_unit=20)
-    x = grain_matrix(readings, "id", "time", "value", grain="month")
-    a = Learner(name="a", fit=lambda x, y, **k: y.mean(axis=0),
-                predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
-    b = Learner(name="b", fit=lambda x, y, **k: y.mean(axis=0) / 2,
-                predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
-    both = fit_learner(ensemble_learner([a, b]), x, y).predict(x)
-    assert np.allclose(both, (fit_learner(a, x, y).predict(x)
-                              + fit_learner(b, x, y).predict(x)) / 2)
-    tilted = fit_learner(ensemble_learner([a, b], weights=[3, 1]), x, y).predict(x)
-    assert np.allclose(tilted, 0.75 * fit_learner(a, x, y).predict(x)
-                       + 0.25 * fit_learner(b, x, y).predict(x))
-    with pytest.raises(ValueError, match="at least two members"):
-        ensemble_learner([a])
-
-
 def test_the_bin_a_signal_was_planted_in_is_the_bin_the_profile_weights():
     if importlib.util.find_spec("sklearn") is None:
         pytest.skip("scikit-learn is not installed")
@@ -59,7 +45,7 @@ def test_the_bin_a_signal_was_planted_in_is_the_bin_the_profile_weights():
     x = grain_matrix(readings, "id", "time", "value", grain="month")
     lad = grain_ladder(x, y, "elasticnet", folds=fold_map(y, v=4, seed=6),
                         keep_fits=True, verbose=False)
-    out = bin_occlusion(lad, x, y, "month|elasticnet", permutations=5, seed=4)
+    out = ladder_occlusion(lad, x, y, "month|elasticnet", permutations=5, seed=4)
     mean_weight = np.nanmean(out["weight"], axis=1)
     heaviest = out["part"][int(np.nanargmax(mean_weight))]
     assert heaviest[:7] == month
@@ -74,15 +60,41 @@ def test_holding_a_channel_back_asks_what_the_statistic_carries():
                       stats=["cold_day", "mean", "warm_day"])
     lad = grain_ladder(x, y, "elasticnet", folds=fold_map(y, v=3, seed=6),
                         keep_fits=True, verbose=False)
-    out = bin_occlusion(lad, x, y, "month|elasticnet", over="channel", permutations=3)
+    out = ladder_occlusion(lad, x, y, "month|elasticnet", over="channel", permutations=3)
     assert list(out["part"]) == ["cold_day", "mean", "warm_day"]
+
+
+def test_an_arm_naming_only_a_learner_is_read_against_the_one_representation_given():
+    readings, y, _ = planted(n_unit=20)
+    x = grain_matrix(readings, "id", "time", "value", grain="month")
+    a = ranker()
+    lad = grain_ladder(x, y, a, folds=fold_map(y, v=3, seed=2), keep_fits=True, verbose=False)
+    named = ladder_occlusion(lad, x, y, "month|a", permutations=2, seed=3)
+    bare = ladder_occlusion(lad, x, y, "a", permutations=2, seed=3)
+    assert named["part"] == bare["part"]
+    assert np.allclose(np.nan_to_num(named["weight"]), np.nan_to_num(bare["weight"]))
+    with pytest.raises(ValueError, match="names no grain"):
+        ladder_occlusion(lad, {"month": x}, y, "a")
+
+
+def test_an_arm_the_ladder_never_fitted_says_so():
+    readings, y, _ = planted(n_unit=20)
+    x = grain_matrix(readings, "id", "time", "value", grain="month")
+    lad = grain_ladder(x, y, ranker(), folds=fold_map(y, v=3, seed=2), keep_fits=True,
+                       verbose=False)
+    with pytest.raises(KeyError, match="month\\|b"):
+        ladder_occlusion(lad, x, y, "month|b")
 
 
 def test_occlusion_needs_the_fits_the_ladder_was_told_to_keep():
     readings, y, _ = planted(n_unit=20)
     x = grain_matrix(readings, "id", "time", "value", grain="month")
-    a = Learner(name="a", fit=lambda x, y, **k: y.mean(axis=0),
-                predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
-    lad = grain_ladder(x, y, a, folds=fold_map(y, v=3, seed=2), verbose=False)
+    lad = grain_ladder(x, y, ranker(), folds=fold_map(y, v=3, seed=2), verbose=False)
     with pytest.raises(ValueError, match="kept no fits"):
-        bin_occlusion(lad, x, y, "month|a")
+        ladder_occlusion(lad, x, y, "month|a")
+
+
+def ranker() -> Learner:
+    """Every unit predicted the mean of the fitting units, which the profile reads as no weight."""
+    return Learner(name="a", fit=lambda x, y, **k: y.mean(axis=0),
+                   predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))

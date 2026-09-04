@@ -35,6 +35,16 @@ class Response:
         index = np.asarray(index)
         return Response(self.values[index], tuple(np.asarray(self.units)[index]), self.variables)
 
+    def take_variables(self, index) -> "Response":
+        """The response restricted to a subset of its variables, in the order given.
+
+        A learner covering one response at a time is handed them through this, so the matrix a
+        candidate emits is assembled from the same names each part was fitted on.
+        """
+        index = np.asarray(index)
+        return Response(self.values[:, index], self.units,
+                        tuple(np.asarray(self.variables)[index]))
+
     def align(self, units) -> "Response":
         """Put the response into the row order of a representation, by unit and never by position."""
         if tuple(units) == self.units:
@@ -93,6 +103,7 @@ class Folds:
 
     fold: np.ndarray
     units: tuple[str, ...]
+    grouped: bool = False
 
     def __post_init__(self):
         if len(self.fold) != len(self.units):
@@ -130,7 +141,8 @@ class Folds:
         if missing:
             raise ValueError(f"{len(missing)} unit{'s have' if len(missing) > 1 else ' has'} "
                              f"no row in the fold map, first: {missing[0]}")
-        return Folds(fold=self.fold[[position[u] for u in units]], units=units)
+        return Folds(fold=self.fold[[position[u] for u in units]], units=units,
+                     grouped=self.grouped)
 
     def as_dict(self) -> dict:
         """The map as unit to fold."""
@@ -151,19 +163,40 @@ class Folds:
                 + "  ".join(f"{k + 1}: {n}" for k, n in enumerate(counts)))
 
 
-def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None) -> Folds:
+def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None,
+             group=None) -> Folds:
     """Assign units to folds, balanced within equal-count strata of a stratifying value.
+
+    ``group`` keeps every unit sharing a value in one fold, which is what repeated targets on the
+    same physical unit need: two visits to a plot are not two independent held-out units. The deal
+    is then made over the groups rather than over the units, and a group carries the mean of the
+    stratifying value of the units in it.
 
     The stream is numpy's, so a map built here is not the map the R side builds from the same seed.
     Where both languages must see identical splits, build the map once, write it with
     ``write_folds`` and read it in the other with ``read_folds``.
     """
     n = y.values.shape[0]
-    if not 2 <= v <= n:
-        raise ValueError(f"`v` must be between 2 and the {n} units, got {v}")
     value = y.values.sum(axis=1) if by is None else np.asarray(by, dtype=np.float64)
     if len(value) != n:
         raise ValueError(f"`by` must have one value per unit, got {len(value)} for {n}")
+    if group is None:
+        return Folds(fold=_deal(value, v, seed, strata, "units"), units=y.units)
+    key = np.asarray([str(g) for g in group])
+    if len(key) != n:
+        raise ValueError(f"`group` must have one value per unit, got {len(key)} for {n}")
+    names, index = np.unique(key, return_inverse=True)
+    per_group = np.asarray([value[index == k].mean() for k in range(len(names))])
+    return Folds(fold=_deal(per_group, v, seed, strata, "groups")[index], units=y.units,
+                 grouped=True)
+
+
+def _deal(value: np.ndarray, v: int, seed: int, strata: int, what: str) -> np.ndarray:
+    """Shuffle inside each stratum and deal the folds round-robin, so every fold carries the same
+    mix of the stratifying value."""
+    n = len(value)
+    if not 2 <= v <= n:
+        raise ValueError(f"`v` must be between 2 and the {n} {what}, got {v}")
     stratum = np.ones(n, dtype=int) if strata <= 1 else _quantile_strata(value, strata)
 
     rng = np.random.default_rng(seed)
@@ -173,7 +206,7 @@ def fold_map(y: Response, v: int = 10, seed: int = 1, strata: int = 5, by=None) 
         rng.shuffle(idx)
         labels = rng.permutation(v) + 1
         fold[idx] = np.resize(labels, len(idx))
-    return Folds(fold=fold, units=y.units)
+    return fold
 
 
 def align_folds(folds, units) -> np.ndarray:

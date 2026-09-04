@@ -13,12 +13,11 @@ utils::globalVariables("self")
 
   register_response("presence_absence", .presence_absence)
 
-  register_learner("elasticnet", elasticnet_learner)
-  register_learner("stepwise", stepwise_learner)
-  register_learner("mlp", mlp_learner)
-  register_learner("cnn", cnn_learner)
-  register_learner("rescnn", rescnn_learner)
-  register_learner("ensemble", function() ensemble_learner(
-    list(cnn = cnn_learner(), rescnn = rescnn_learner())))
+  register_learner("elasticnet", elasticnet)
+  register_learner("stepwise", stepwise)
+  register_learner("rf", rf)
+  register_learner("mlp", mlp)
+  register_learner("cnn", cnn)
+  register_learner("rescnn", rescnn)
   invisible(NULL)
 }

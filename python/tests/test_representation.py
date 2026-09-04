@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from timesift import (GRAINS, TimesiftSet, GrainMatrix, bind_channels,
+from timesift import (GRAINS, TimesiftSet, TimesiftMatrix, bind_channels,
                        calendar_channels, timesift_set, grain_matrix)
 
 
@@ -218,7 +218,7 @@ def test_naming_one_grain_returns_one_representation_however_it_is_named():
     as_list = grain_matrix(d, "id", "time", "value", grain=["week"])
     # A set of one is a shape the caller would only have to unwrap, and the R side does not make
     # one either.
-    assert isinstance(as_list, GrainMatrix)
+    assert isinstance(as_list, TimesiftMatrix)
     assert np.array_equal(as_list.values, one.values)
 
 

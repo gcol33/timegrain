@@ -5,10 +5,13 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timesift import (Learner, Response, fit_learner, fold_map, kappa_score, model_agreement,
-                       paired_contrast, roc_auc, scorable_cells, tss, tss_inflation,
-                       grain_ladder, grain_matrix)
 from timesift._stats import norm_ppf, wilcoxon_p
+from timesift.ladder import (grain_ladder, paired_contrast, per_variable, tss_inflation,
+                             variable_means)
+from timesift.learners import Learner, fit_learner
+from timesift.metrics import kappa_score, model_agreement, roc_auc, tss
+from timesift.representation import grain_matrix
+from timesift.response import Response, fold_map, scorable_cells
 
 
 def brute_tss(y, p):
@@ -143,8 +146,31 @@ def test_the_normal_quantile_and_the_signed_rank_p_value_are_the_ones_r_reports(
     assert wilcoxon_p(np.array([-3.0, -1, 2, 4, 5, 6])) == pytest.approx(0.21875, abs=1e-12)
 
 
+def test_a_level_is_the_mean_of_the_variable_means_wherever_it_is_read():
+    """An arm's level, a candidate's level and a selection's level are one rule applied to three
+    tables, so the rule is checked once and the three cannot drift apart."""
+    readings, y, _ = sim(n_unit=36, days=60)
+    x = grain_matrix(readings, "id", "time", "value", grain=["week", "month"])
+    rank = Learner(name="rank",
+                   fit=lambda x, y, **kw: y.mean(axis=0) + np.arange(y.shape[1]) / 100,
+                   predict=lambda m, x: np.tile(m, (x.values.shape[0], 1)))
+    lad = grain_ladder(x, y, rank, folds=fold_map(y, v=3, seed=2), verbose=False)
+
+    flat = per_variable(lad)
+    for row in lad.summary():
+        mine = [v for (w, ln, _), v in flat.items()
+                if w == row["grain"] and ln == row["learner"]]
+        assert len(mine) == row["n_variable"]
+        assert float(np.mean(mine)) == pytest.approx(row["score"])
+
+    # And the primitive the three read is the mean within a variable before anything is averaged
+    # across variables.
+    level = variable_means(["a", "a", "a", "b"], ["v1", "v1", "v2", "v1"], [0.0, 1.0, 4.0, 2.0])
+    assert level == {"a": {"v1": 0.5, "v2": 4.0}, "b": {"v1": 2.0}}
+
+
 def test_inverting_the_map_recovers_the_skill_it_was_planted_from():
-    from timesift import implied_skill
+    from timesift.ladder import implied_skill
     rng = np.random.default_rng(61)
     units = tuple(f"p{i:03d}" for i in range(200))
     y = Response(rng.binomial(1, 0.2, (200, 6)).astype(float), units,

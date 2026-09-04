@@ -56,7 +56,7 @@ and works on a set. One coercion, so no caller repeats the three cases.
 ## `calendar_channels()`
 
 ```python
-calendar_channels(x: GrainMatrix)
+calendar_channels(x: TimesiftMatrix)
 ```
 
 Where in the year each bin sits, as the sine and cosine of its fractional position.
@@ -64,7 +64,7 @@ Where in the year each bin sits, as the sine and cosine of its fractional positi
 ## `bind_channels()`
 
 ```python
-bind_channels(*parts: GrainMatrix)
+bind_channels(*parts: TimesiftMatrix)
 ```
 
 Put the channels of several representations of the same units and bins side by side.
@@ -81,10 +81,10 @@ It carries no time axis, because it has none: the reduction already happened, el
 what reaches the model is a list of numbers per unit. That is the whole point of comparing
 against it.
 
-## `GrainMatrix`
+## `TimesiftMatrix`
 
 ```python
-GrainMatrix(
+TimesiftMatrix(
     values,
     units,
     bins,

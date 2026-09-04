@@ -1,4 +1,4 @@
-"""The learners that ship on the aggregate-feature side: the penalised fit and the selector."""
+"""The learners that ship on the tabular side: the penalised fit, the selector and the forest."""
 
 from __future__ import annotations
 
@@ -7,9 +7,12 @@ import importlib.util
 import numpy as np
 import pytest
 
-from timesift import (Response, elasticnet_learner, fit_learner, roc_auc, stepwise_learner,
-                       grain_matrix)
-from timesift.learners import _apply_basis, _logistic, _poly_basis
+from timesift.control import train_control
+from timesift.learners import (Learner, elasticnet, fit_learner, flatten, rf, stepwise,
+                               _apply_basis, _logistic, _poly_basis)
+from timesift.metrics import roc_auc
+from timesift.representation import grain_matrix
+from timesift.response import Response
 
 needs_sklearn = pytest.mark.skipif(importlib.util.find_spec("sklearn") is None,
                                    reason="scikit-learn is not installed")
@@ -31,7 +34,7 @@ def planted(n_unit=40, days=56, noise=1.0, seed=17):
 
 def test_the_selector_fits_predicts_and_finds_the_planted_signal():
     x, y = planted()
-    fit = fit_learner(stepwise_learner(max_terms=2), x, y)
+    fit = fit_learner(stepwise(max_terms=2), x, y)
     p = fit.predict(x)
     assert p.shape == (len(y.units), 2)
     assert np.all((p >= 0) & (p <= 1))
@@ -41,7 +44,7 @@ def test_the_selector_fits_predicts_and_finds_the_planted_signal():
 def test_the_selector_admits_no_more_columns_than_its_budget():
     x, y = planted()
     for budget in (1, 3):
-        model = fit_learner(stepwise_learner(max_terms=budget), x, y).model
+        model = fit_learner(stepwise(max_terms=budget), x, y).model
         for f in model["models"]:
             assert len(f.get("columns", [])) <= budget
 
@@ -50,21 +53,21 @@ def test_a_variable_with_one_outcome_is_predicted_as_its_share():
     x, y = planted()
     flat = Response(np.column_stack([y.values[:, 0], np.zeros(len(y.units))]),
                     y.units, ("sp1", "absent"))
-    fit = fit_learner(stepwise_learner(), x, flat)
+    fit = fit_learner(stepwise(), x, flat)
     p = fit.predict(x)
     assert np.allclose(p[:, 1], 0.0)
 
 
 def test_predicting_a_single_unit_returns_one_row_and_not_one_column():
     x, y = planted()
-    fit = fit_learner(stepwise_learner(max_terms=2), x, y)
+    fit = fit_learner(stepwise(max_terms=2), x, y)
     one = x.take_units([0])
     assert fit.predict(one).shape == (1, 2)
 
 
 def test_the_selector_refuses_a_representation_it_was_not_fitted_on():
     x, y = planted()
-    fit = fit_learner(stepwise_learner(max_terms=1), x, y)
+    fit = fit_learner(stepwise(max_terms=1), x, y)
     with pytest.raises(ValueError, match="different channels or bins"):
         fit.predict(grain_matrix(
             {"id": [u for u in y.units for _ in range(24)],
@@ -107,18 +110,86 @@ def test_a_separated_or_unsettled_fit_is_refused_rather_than_returned():
 @needs_sklearn
 def test_a_setting_given_at_fit_time_overrides_the_one_the_learner_carries():
     x, y = planted(n_unit=24, days=28)
-    overridden = fit_learner(elasticnet_learner(), x, y, squares=False)
-    built = fit_learner(elasticnet_learner(squares=False), x, y)
+    overridden = fit_learner(elasticnet(), x, y, squares=False)
+    built = fit_learner(elasticnet(squares=False), x, y)
     assert overridden.model["squares"] is False
     assert np.allclose(overridden.predict(x), built.predict(x))
 
 
 @needs_sklearn
 def test_the_settings_a_learner_carries_are_the_ones_it_reports():
-    learner = elasticnet_learner(alpha=0.25, n_inner=3)
+    learner = elasticnet(alpha=0.25, n_inner=3)
     assert learner.params["alpha"] == 0.25
     assert learner.params["n_inner"] == 3
     assert learner.params["weight_positives"] is True
+
+
+def test_every_learner_declares_what_it_reads_and_how_it_covers_the_responses():
+    declared = {"elasticnet": ("tabular", "separate"), "stepwise": ("tabular", "separate"),
+                "rf": ("tabular", "separate")}
+    for build in (elasticnet, stepwise, rf):
+        learner = build()
+        assert (learner.reads, learner.multi) == declared[learner.name]
+        assert learner.data is None
+        assert build(data="week").data == "week"
+
+
+def test_a_learner_can_only_declare_what_the_layer_above_knows_how_to_read():
+    with pytest.raises(ValueError, match="`reads` is one of"):
+        Learner(name="x", fit=lambda *a, **k: None, predict=lambda *a, **k: None, reads="raw")
+    with pytest.raises(ValueError, match="`multi` is one of"):
+        Learner(name="x", fit=lambda *a, **k: None, predict=lambda *a, **k: None, multi="both")
+
+
+def test_a_learner_names_the_install_it_needs():
+    learner = Learner(name="imaginary", fit=lambda *a, **k: None,
+                      predict=lambda *a, **k: None, needs=("no_such_package",))
+    with pytest.raises(ImportError, match="pip install no_such_package"):
+        learner.require()
+
+
+@needs_sklearn
+def test_the_forest_fits_predicts_and_finds_the_planted_signal():
+    x, y = planted()
+    fit = fit_learner(rf(trees=50), x, y)
+    p = fit.predict(x)
+    assert p.shape == (len(y.units), 2)
+    assert np.all((p >= 0) & (p <= 1))
+    assert roc_auc(y.values[:, 0], p[:, 0]) > 0.75
+
+
+@needs_sklearn
+def test_the_forest_reads_the_flattened_representation_and_refuses_another_shape():
+    x, y = planted(n_unit=24, days=28)
+    fit = fit_learner(rf(trees=20), x, y)
+    assert fit.model["n_col"] == flatten(x).shape[1]
+    with pytest.raises(ValueError, match="different channels or bins"):
+        fit.predict(grain_matrix(
+            {"id": [u for u in y.units for _ in range(24)],
+             "time": list(np.datetime64("2021-09-01T00:00:00", "s")
+                          + np.arange(24) * np.timedelta64(1, "h")) * len(y.units),
+             "value": list(np.zeros(24 * len(y.units)))},
+            "id", "time", "value", grain="day"))
+
+
+@needs_sklearn
+def test_the_forest_takes_its_seed_from_the_control_and_repeats_itself():
+    x, y = planted(n_unit=24, days=28)
+    a = fit_learner(rf(trees=30), x, y, control=train_control(seed=4)).predict(x)
+    b = fit_learner(rf(trees=30), x, y, control=train_control(seed=4)).predict(x)
+    c = fit_learner(rf(trees=30), x, y, control=train_control(seed=9)).predict(x)
+    assert np.allclose(a, b)
+    assert not np.allclose(a, c)
+
+
+@needs_sklearn
+def test_a_response_with_one_outcome_is_its_share_whichever_model_covers_it():
+    x, y = planted(n_unit=24, days=28)
+    flat = Response(np.column_stack([y.values[:, 0], np.ones(len(y.units))]),
+                    y.units, ("sp1", "everywhere"))
+    for learner in (rf(trees=20), elasticnet()):
+        p = fit_learner(learner, x, flat).predict(x)
+        assert np.allclose(p[:, 1], 1.0)
 
 
 def test_the_fit_is_the_maximum_likelihood_one_and_not_merely_a_settled_one():

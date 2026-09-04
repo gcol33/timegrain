@@ -5,120 +5,93 @@
 #' variable, so every variable is predicted together from a shared representation. Pooling strength
 #' across variables is what makes the rarer ones learnable at all at these sample sizes.
 #'
-#' `mlp_learner()` flattens the channels and builds in no temporal geometry. It is what separates
-#' the effect of the model class from the effect of the representation: where it matches a
-#' penalised regression, the difference a convolutional encoder makes is the convolution rather
-#' than the network.
+#' `mlp()` flattens the channels and builds in no temporal geometry. It is what separates the effect
+#' of the model class from the effect of the representation: where it matches a penalised
+#' regression, the difference a convolutional encoder makes is the convolution rather than the
+#' network.
 #'
-#' `cnn_learner()` is blocks of a one-dimensional convolution, batch normalisation, a rectified
-#' linear activation and max pooling, then global average pooling. Pooling becomes an identity once
-#' a sequence is shorter than its kernel, so the same stack runs at every grain of a ladder,
+#' `cnn()` is blocks of a one-dimensional convolution, batch normalisation, a rectified linear
+#' activation and max pooling, then global average pooling. Pooling becomes an identity once a
+#' sequence is shorter than its kernel, so the same stack runs at every grain of a ladder,
 #' including one bin per year.
 #'
-#' `rescnn_learner()` adds dilated residual blocks with squeeze-excitation channel gates, whose
-#' stage dilations widen the receptive field toward the seasonal scale without widening the kernel,
-#' and concatenates global average with global maximum pooling so extremes reach the head beside
-#' the level.
+#' `rescnn()` adds dilated residual blocks with squeeze-excitation channel gates, whose stage
+#' dilations widen the receptive field toward the seasonal scale without widening the kernel, and
+#' concatenates global average with global maximum pooling so extremes reach the head beside the
+#' level.
 #'
+#' The three constructors carry architecture. How that architecture is trained is
+#' [train_control()], which the run supplies; a setting named in `...` here overrides the run's
+#' control for this learner alone.
+#'
+#' @inheritParams elasticnet
 #' @param channels Channel width of each stage.
 #' @param hidden Hidden layer widths, for the fully connected encoder.
 #' @param kernel Convolution kernel width.
 #' @param dilations Dilation of each stage, cycled if shorter than `channels`.
 #' @param blocks_per_stage Residual blocks in each stage.
 #' @param dropout Dropout rate.
-#' @param epochs Epoch budget the cosine schedule anneals over.
-#' @param batch_size Units per optimiser step.
-#' @param lr Learning rate.
-#' @param weight_decay AdamW weight decay.
-#' @param val_frac Share of the fitting units held back as an inner validation set, used for early
-#'   stopping and for nothing else. It is never scored as a result.
-#' @param patience Epochs without an inner-validation improvement before training stops.
-#' @param pos_weight_cap Ceiling on the per-variable positive-class weight, which is the ratio of
-#'   absences to presences among the fitting units.
-#' @param swa Average the weights of the tail epochs instead of restoring the best single epoch.
-#'   The schedule anneals to `swa_start` of the epoch budget and is then held flat while the
-#'   remaining epochs' weights are averaged, and the batch-normalisation statistics are recomputed
-#'   for the average. Early stopping is off while an average is being accumulated, so the
-#'   averaging grain always runs.
-#' @param swa_start Share of the epoch budget after which averaging begins.
-#' @param seed Seed for initialisation, batching and the inner validation split.
-#' @param device `"cuda"`, `"cpu"`, or `NULL` to take a graphics processor where there is one.
+#' @param ... Training settings for this learner, named as in [train_control()].
 #'
 #' @return A [learner()].
 #'
 #' @examples
-#' cnn_learner(epochs = 5)
+#' cnn(epochs = 5)
 #'
 #' @name torch_learners
 NULL
 
 #' @rdname torch_learners
 #' @export
-mlp_learner <- function(hidden = c(512L, 256L), dropout = 0.3, epochs = 60L, batch_size = 64L,
-                        lr = 1e-3, weight_decay = 1e-4, val_frac = 0.15, patience = 10L,
-                        pos_weight_cap = 50, swa = FALSE, swa_start = 0.7, seed = 1L,
-                        device = NULL) {
-  .torch_learner("mlp", .mlp_module,
+mlp <- function(data = NULL, hidden = c(512L, 256L), dropout = 0.3, ...) {
+  .torch_learner("mlp", .mlp_module, data, "tabular",
                  list(hidden = as.integer(hidden), dropout = dropout),
-                 .fit_settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                               pos_weight_cap, swa, swa_start, seed, device))
+                 .given_control(list(...), "the mlp learner"))
 }
 
 #' @rdname torch_learners
 #' @export
-cnn_learner <- function(channels = c(16L, 32L, 64L, 128L), kernel = 7L, dropout = 0.3,
-                        epochs = 60L, batch_size = 32L, lr = 1e-3, weight_decay = 1e-4,
-                        val_frac = 0.15, patience = 10L, pos_weight_cap = 50, swa = FALSE,
-                        swa_start = 0.7, seed = 1L, device = NULL) {
-  .torch_learner("cnn", .cnn_module,
+cnn <- function(data = NULL, channels = c(16L, 32L, 64L, 128L), kernel = 7L, dropout = 0.3, ...) {
+  .torch_learner("cnn", .cnn_module, data, "sequence",
                  list(channels = as.integer(channels), kernel = as.integer(kernel),
                       dropout = dropout),
-                 .fit_settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                               pos_weight_cap, swa, swa_start, seed, device))
+                 .given_control(list(...), "the cnn learner"))
 }
 
 #' @rdname torch_learners
 #' @export
-rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage = 2L, kernel = 7L,
-                           dilations = c(1L, 2L, 4L, 8L), dropout = 0.3, epochs = 60L,
-                           batch_size = 32L, lr = 1e-3, weight_decay = 1e-4, val_frac = 0.15,
-                           patience = 10L, pos_weight_cap = 50, swa = FALSE, swa_start = 0.7,
-                           seed = 1L, device = NULL) {
-  .torch_learner("rescnn", .rescnn_module,
+rescnn <- function(data = NULL, channels = c(32L, 64L, 128L, 256L), blocks_per_stage = 2L,
+                   kernel = 7L, dilations = c(1L, 2L, 4L, 8L), dropout = 0.3, ...) {
+  .torch_learner("rescnn", .rescnn_module, data, "sequence",
                  list(channels = as.integer(channels),
                       blocks_per_stage = as.integer(blocks_per_stage),
                       kernel = as.integer(kernel), dilations = as.integer(dilations),
                       dropout = dropout),
-                 .fit_settings(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                               pos_weight_cap, swa, swa_start, seed, device))
-}
-
-.fit_settings <- function(epochs, batch_size, lr, weight_decay, val_frac, patience,
-                          pos_weight_cap, swa, swa_start, seed, device) {
-  list(epochs = as.integer(epochs), batch_size = as.integer(batch_size), lr = lr,
-       weight_decay = weight_decay, val_frac = val_frac, patience = as.integer(patience),
-       pos_weight_cap = pos_weight_cap, swa = isTRUE(swa), swa_start = swa_start,
-       seed = as.integer(seed), device = device)
+                 .given_control(list(...), "the rescnn learner"))
 }
 
 # One learner factory for every encoder: the architecture is a module constructor and nothing else,
 # so the training recipe, the standardiser, the class weighting and the early stopping have one
 # definition and cannot drift between architectures.
-.torch_learner <- function(name, module_fn, arch, fit_args) {
+.torch_learner <- function(name, module_fn, data, reads, arch, control) {
   learner(
     name = name,
+    data = data, reads = reads, multi = "joint", control = control,
     needs = "torch",
-    params = c(arch, fit_args),
-    fit = function(x, y, ...) {
+    params = arch,
+    fit = function(x, y, control, ...) {
       given <- list(...)
-      unknown <- setdiff(names(given), c(names(arch), names(fit_args)))
+      unknown <- setdiff(names(given), c(names(arch), .control_names()))
       if (length(unknown)) {
         stop("the ", name, " learner has no setting called ",
              paste(sort(unknown, method = "radix"), collapse = ", "), ".", call. = FALSE)
       }
       .torch_fit(x, y, module_fn,
                  utils::modifyList(arch, given[intersect(names(given), names(arch))]),
-                 utils::modifyList(fit_args, given[intersect(names(given), names(fit_args))]))
+                 .resolve_control(control,
+                                  .given_control(given[intersect(names(given),
+                                                                 .control_names())],
+                                                 paste("the", name, "learner"))))
     },
     predict = function(model, x) .torch_predict(model, x)
   )
@@ -154,7 +127,8 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
 
   net <- module_fn(in_ch = dim(m)[2L], in_len = dim(m)[3L], n_out = ncol(y), arch = arch)
   net$to(device = device)
-  opt <- torch$optim_adamw(net$parameters, lr = cfg$lr, weight_decay = cfg$weight_decay)
+  opt <- torch$optim_adamw(net$parameters, lr = cfg$learning_rate,
+                           weight_decay = cfg$weight_decay)
   sched <- torch$lr_cosine_annealing(opt, T_max = cfg$epochs)
 
   best <- list(loss = Inf, state = NULL)
@@ -186,7 +160,7 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
       bad <- 0L
     } else {
       bad <- bad + 1L
-      if (bad >= cfg$patience) {
+      if (bad >= cfg$early_stopping) {
         break
       }
     }
@@ -291,14 +265,6 @@ rescnn_learner <- function(channels = c(32L, 64L, 128L, 256L), blocks_per_stage 
     stop("this learner needs torch. Install it with install.packages(\"torch\").", call. = FALSE)
   }
   asNamespace("torch")
-}
-
-.torch_device <- function(device) {
-  torch <- .torch()
-  if (!is.null(device)) {
-    return(device)
-  }
-  if (torch$cuda_is_available()) "cuda" else "cpu"
 }
 
 # ---- the encoders --------------------------------------------------------------------------

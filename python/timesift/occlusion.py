@@ -6,13 +6,14 @@ from dataclasses import replace
 
 import numpy as np
 
-from .learners import Learner
-from .registry import METRICS, get_learner
-from .representation import GrainMatrix
-from .response import Response, align_folds
+from .registry import METRICS
+from .representation import TimesiftMatrix
+from .response import Response, align_folds, as_response
+
+__all__ = ["feature_matrix"]
 
 
-def feature_matrix(m, units=None, features=None, label: str = "features") -> GrainMatrix:
+def feature_matrix(m, units=None, features=None, label: str = "features") -> TimesiftMatrix:
     """Bring an already-reduced feature table into a ladder as a one-channel representation.
 
     It carries no time axis, because it has none: the reduction already happened, elsewhere, and
@@ -24,40 +25,13 @@ def feature_matrix(m, units=None, features=None, label: str = "features") -> Gra
     units = tuple(units) if units is not None else tuple(str(i) for i in range(n_u))
     features = tuple(features) if features is not None else tuple(f"f{j}" for j in range(n_f))
     empty = np.full(n_f, np.datetime64("NaT"), dtype="datetime64[s]")
-    return GrainMatrix(values=m.reshape(n_u, n_f, 1), units=units, bins=features,
+    return TimesiftMatrix(values=m.reshape(n_u, n_f, 1), units=units, bins=features,
                         stats=(label,), grain=label, year_start="", bin_start=empty,
                         bin_end=empty, bin_n=np.zeros((n_u, n_f), dtype=np.int64),
                         bin_partial=np.zeros(n_f, dtype=bool))
 
 
-def ensemble_learner(members, weights=None, name: str = "ensemble") -> Learner:
-    """Average several learners' predicted probabilities before the threshold is chosen.
-
-    The average is taken before any decision is made, so the set is scored as one model rather than
-    as a vote between decisions. Choose the members on an inner validation split or on prior
-    grounds, never on the held-out folds.
-    """
-    members = [get_learner(m) for m in members]
-    if len(members) < 2:
-        raise ValueError("an ensemble needs at least two members")
-    w = np.ones(len(members)) if weights is None else np.asarray(weights, dtype=np.float64)
-    if len(w) != len(members) or (w < 0).any() or w.sum() <= 0:
-        raise ValueError("`weights` needs one non-negative number per member and cannot be all "
-                         "zero")
-    w = w / w.sum()
-
-    def fit(x, y, **kwargs):
-        return [m.fit(x, y, **{**m.params, **kwargs}) for m in members]
-
-    def predict(model, x):
-        return sum(w[k] * np.asarray(members[k].predict(model[k], x), dtype=np.float64)
-                   for k in range(len(members)))
-
-    needs = tuple({n for m in members for n in m.needs})
-    return Learner(name=name, fit=fit, predict=predict, needs=needs)
-
-
-def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
+def ladder_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
                   substitute: str = "permute", metric: str = "roc_auc",
                   permutations: int = 20, seed: int = 1):
     """Hold one bin of the record back at a time and record the fall in score as its weight.
@@ -70,16 +44,39 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     """
     if not ladder.fits:
         raise ValueError("this ladder kept no fits; refit with grain_ladder(..., keep_fits=True)")
+    if "|" in arm:
+        grain, learner = arm.split("|", 1)
+        m = x if isinstance(x, TimesiftMatrix) else dict(x)[grain]
+    else:
+        learner, m = arm, x
+        if not isinstance(m, TimesiftMatrix):
+            raise ValueError(f'"{arm}" names no grain, so it can only be read against one '
+                             "representation rather than a set of them")
+        grain = m.grain
+    prefix = f"{grain}|{learner}|"
+    fits = {int(key[len(prefix):]): fit for key, fit in ladder.fits.items()
+            if key.startswith(prefix)}
+    if not fits:
+        raise KeyError(f'this ladder kept no fits for the arm "{grain}|{learner}"')
+    return occlusion_profile(fits, m, y, ladder.folds, over=over, substitute=substitute,
+                             metric=metric, permutations=permutations, seed=seed)
+
+
+def occlusion_profile(fits: dict, m: TimesiftMatrix, y, folds, over: str = "bin",
+                      substitute: str = "permute", metric: str = "roc_auc",
+                      permutations: int = 20, seed: int = 1):
+    """The occlusion itself: one fitted model per fold, read on the units that model held out.
+
+    A ladder reaches it through ``ladder_occlusion`` and a fitted ``timesift`` through ``occlusion``,
+    so what a withheld bin costs has one definition whichever door it is asked through.
+    """
     if over not in ("bin", "channel"):
         raise ValueError(f"`over` must be 'bin' or 'channel', got {over!r}")
     if substitute not in ("permute", "fold_mean", "unit_mean"):
         raise ValueError(f"unknown substitute {substitute!r}")
 
-    grain, learner = arm.split("|", 1) if "|" in arm else (None, arm)
-    label = f"{grain}|{learner}"
-    m = x if isinstance(x, GrainMatrix) else dict(x)[grain]
-    y = y.align(m.units).check_presence_absence()
-    f = align_folds(ladder.folds, m.units)
+    y = as_response(y).align(m.units).check_presence_absence()
+    f = align_folds(folds, m.units)
     score = metric if callable(metric) else METRICS.get(metric)
 
     n_parts = m.values.shape[1] if over == "bin" else m.values.shape[2]
@@ -89,7 +86,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     weight = np.full((n_parts, len(y.variables)), np.nan)
     counted = np.zeros((n_parts, len(y.variables)))
     for k in np.unique(f):
-        fit = ladder.fits.get(f"{label}|{k}")
+        fit = fits.get(int(k))
         if fit is None:
             continue
         test = np.flatnonzero(f == k)
@@ -114,7 +111,7 @@ def bin_occlusion(ladder, x, y: Response, arm: str, over: str = "bin",
     return {"part": list(labels), "variable": list(y.variables), "weight": weight}
 
 
-def _occlude(m: GrainMatrix, sub: GrainMatrix, train, i, over, substitute, rng) -> GrainMatrix:
+def _occlude(m: TimesiftMatrix, sub: TimesiftMatrix, train, i, over, substitute, rng) -> TimesiftMatrix:
     values = sub.values.copy()
     n = values.shape[0]
     if over == "channel":

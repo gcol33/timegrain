@@ -15,10 +15,12 @@
 #' Read with `over = "channel"` the same machinery asks what each statistic of a grain carries,
 #' holding one channel back across the whole record instead of one bin across all channels.
 #'
-#' @param ladder A [grain_ladder()] result fitted with `keep_fits = TRUE`.
-#' @param x The representation set the ladder was fitted on.
+#' @param x A [timesift()] fit, or a [grain_ladder()] result, in either case fitted with
+#'   `keep_fits = TRUE`.
+#' @param data The representation set the ladder was fitted on.
 #' @param y The response it was fitted to.
 #' @param arm The arm to read, as `"grain|learner"` or `"learner"`.
+#' @param ... Passed to the method.
 #' @param over `"bin"` to hold each bin back in turn, `"channel"` for each channel.
 #' @param substitute What a held-back part is replaced by: `"permute"`, `"fold_mean"` or
 #'   `"unit_mean"`.
@@ -43,14 +45,28 @@
 #' y <- matrix(rbinom(80, 1, plogis(c(warmth, -warmth))), nrow = 40,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- grain_matrix(d, plot, t, temp, grain = "month")
-#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3),
+#' lad <- grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3),
 #'                      keep_fits = TRUE, verbose = FALSE)
-#' head(bin_occlusion(lad, x, y, "month|elasticnet", permutations = 3))
+#' head(occlusion(lad, x, y, "month|elasticnet", permutations = 3))
 #'
 #' @export
-bin_occlusion <- function(ladder, x, y, arm, over = c("bin", "channel"),
-                          substitute = c("permute", "fold_mean", "unit_mean"),
-                          metric = "roc_auc", permutations = 20L, seed = 1L) {
+occlusion <- function(x, ...) UseMethod("occlusion")
+
+#' @rdname occlusion
+#' @export
+occlusion.default <- function(x, ...) {
+  stop("expected a timesift() run or a grain_ladder() result, got ", class(x)[1L], ".",
+       call. = FALSE)
+}
+
+#' @rdname occlusion
+#' @export
+occlusion.timesift_ladder <- function(x, data, y, arm, over = c("bin", "channel"),
+                                     substitute = c("permute", "fold_mean", "unit_mean"),
+                                     metric = "roc_auc", permutations = 20L, seed = 1L,
+                                     ...) {
+  ladder <- x
+  x <- data
   over <- match.arg(over)
   substitute <- match.arg(substitute)
   fits <- attr(ladder, "fits")

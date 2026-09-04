@@ -106,10 +106,10 @@ that map. It is the only honest way to read a level as a statement about a popul
 than about a scoring rule, and it says nothing about a difference between two arms, where the
 inflation cancels and the reported number stands as it is.
 
-## `bin_occlusion()`
+## `occlusion()`
 
 ```python
-bin_occlusion(
+occlusion(
     ladder,
     x,
     y: Response,

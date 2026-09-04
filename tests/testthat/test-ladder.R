@@ -41,23 +41,26 @@ test_that("a ladder carries one held-out prediction per unit and arm", {
 
 test_that("a unit is never fitted on and scored in the same fold", {
   seen <- new.env(parent = emptyenv())
-  seen$train <- list()
+  seen$fitted <- list()
+  seen$tested <- list()
   spy <- learner(
     "spy",
     fit = function(x, y, ...) {
-      seen$train[[length(seen$train) + 1L]] <- dimnames(x)[[1L]]
+      seen$fitted[[length(seen$fitted) + 1L]] <- dimnames(x)[[1L]]
       list(rate = colMeans(y))
     },
     predict = function(model, x) {
-      seen$train[[length(seen$train)]] <- list(fit = seen$train[[length(seen$train)]],
-                                               test = dimnames(x)[[1L]])
+      seen$tested[[length(seen$tested) + 1L]] <- dimnames(x)[[1L]]
       matrix(rep(model$rate, each = dim(x)[1L]), nrow = dim(x)[1L])
     }
   )
   f <- ladder_fixture()
   invisible(grain_ladder(f$x, f$y, spy, folds = f$folds, verbose = FALSE))
-  for (s in seen$train) {
-    expect_length(intersect(s$fit, s$test), 0L)
+  # One model is fitted and predicted from per response, so the two records run in step.
+  expect_equal(length(seen$fitted), length(seen$tested))
+  expect_gt(length(seen$fitted), 0L)
+  for (i in seq_along(seen$fitted)) {
+    expect_length(intersect(seen$fitted[[i]], seen$tested[[i]]), 0L)
   }
 })
 
@@ -120,7 +123,7 @@ test_that("a ladder on which nothing was scorable reports no level rather than f
   y <- sim_response(sim)
   x <- grain_matrix(sim$readings, plot, t, temp, grain = c("week", "month"))
   lad <- suppressWarnings(
-    grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3L), verbose = FALSE))
+    grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3L), verbose = FALSE))
   lad$score <- NA_real_
   out <- summary(lad)
   expect_equal(nrow(out), 0L)

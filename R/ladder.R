@@ -16,7 +16,7 @@
 #'   of [fold_map()] when not given.
 #' @param response Name of the registered response head.
 #' @param metric Name of the registered metric, or `NULL` for the response's own.
-#' @param keep_fits Keep every per-fold fitted model, which is what lets [bin_occlusion()] read a
+#' @param keep_fits Keep every per-fold fitted model, which is what lets [occlusion()] read a
 #'   fitted model without refitting it.
 #' @param verbose Report each arm and each fold as it runs.
 #' @param ... Ignored, so that `summary()` takes the arguments its generic declares.
@@ -37,7 +37,7 @@
 #' y <- matrix(rbinom(120, 1, plogis(c(warmth, -warmth))), nrow = 60,
 #'             dimnames = list(units, c("sp1", "sp2")))
 #' x <- grain_matrix(d, plot, t, temp, grain = c("week", "month"))
-#' lad <- grain_ladder(x, y, elasticnet_learner(), folds = fold_map(y, v = 3), verbose = FALSE)
+#' lad <- grain_ladder(x, y, elasticnet(), folds = fold_map(y, v = 3), verbose = FALSE)
 #' summary(lad)
 #'
 #' @export
@@ -65,30 +65,16 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
       if (verbose) {
         message("fitting ", ln, " at the ", w, " grain")
       }
-      p <- matrix(NA_real_, nrow = length(units), ncol = ncol(y),
-                  dimnames = list(units, colnames(y)))
-      for (k in levels) {
-        started <- Sys.time()
-        train <- which(f != k)
-        test <- which(f == k)
-        fit <- fit_learner(learners[[ln]], .subset_units(set[[w]], train),
-                           y[train, , drop = FALSE], response = response)
-        held_out <- stats::predict(fit, .subset_units(set[[w]], test))
-        if (verbose) {
-          # A grid over the real record runs for hours, and an arm that reports only when it is
-          # finished is indistinguishable from one that has hung.
-          message(sprintf("  fold %s of %d, %.0f s", k, length(levels),
-                          as.numeric(difftime(Sys.time(), started, units = "secs"))))
-        }
-        # Keyed on both axes rather than positional: a learner returning its variables in another
-        # order would otherwise scramble which prediction belongs to which one, silently.
-        p[rownames(held_out), colnames(held_out)] <- held_out
-        if (keep_fits) {
-          fits[[paste(arm, k, sep = "|")]] <- fit
-        }
+      # One fold loop for the package: a learner declaring one model per response is fitted that
+      # way whichever door it came in by, and the ladder and a whole run cannot drift apart on
+      # what a declared field means.
+      run <- .fit_candidate(learners[[ln]], set[[w]], y, f, levels, response, control = NULL,
+                            keep_fits = keep_fits, verbose = verbose)
+      preds[[arm]] <- run$oof
+      for (k in names(run$fits)) {
+        fits[[paste(arm, k, sep = "|")]] <- run$fits[[k]]
       }
-      preds[[arm]] <- p
-      rows[[arm]] <- .score_arm(w, ln, y, p, f, levels, cells, score)
+      rows[[arm]] <- .as_grain_rows(.score_arm(w, ln, y, run$oof, f, levels, cells, score))
     }
   }
   out <- do.call(rbind, rows)
@@ -99,7 +85,9 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
             metric = metric %||% spec$metric, response = response)
 }
 
-.score_arm <- function(grain, learner, y, p, f, levels, cells, score) {
+# One arm's cells, scored. The label is a representation, which a calendar grain is one kind of,
+# so the column is named for the general case and a grain ladder relabels it below.
+.score_arm <- function(representation, learner, y, p, f, levels, cells, score) {
   grid <- expand.grid(variable = colnames(y), fold = levels,
                       KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   key <- paste(grid$variable, grid$fold)
@@ -110,19 +98,39 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
     rows <- f == grid$fold[i]
     value[i] <- score(y[rows, grid$variable[i]], p[rows, grid$variable[i]])
   }
-  data.frame(grain = grain, learner = learner, variable = grid$variable, fold = grid$fold,
-             score = value, scorable = ok, stringsAsFactors = FALSE)
+  data.frame(representation = representation, learner = learner, variable = grid$variable,
+             fold = grid$fold, score = value, scorable = ok, stringsAsFactors = FALSE)
 }
 
+# A ladder's levels are calendar grains, and `grain` is the column paired_contrast(),
+# grain_contrasts() and occlusion() read by name. One relabelling, here, for the two entry
+# points that return a ladder.
+.as_grain_rows <- function(rows) {
+  names(rows)[names(rows) == "representation"] <- "grain"
+  rows
+}
+
+# The per-variable mean of one arm's cells. A ladder groups by its own label as well because it
+# holds several arms; one arm's rows have only the variable to group on.
+.arm_means <- function(rows) {
+  keep <- rows[!is.na(rows$score), c("variable", "score"), drop = FALSE]
+  if (!nrow(keep)) {
+    return(keep)
+  }
+  stats::aggregate(list(score = keep$score), keep["variable"], mean)
+}
+
+# Every attribute the array carries is carried through, rather than a list of the ones a calendar
+# grain happens to have: a lookback array carries its span and its lag too, and a fold handed an
+# array that has forgotten them is an array nothing downstream can place.
 .subset_units <- function(x, idx) {
   out <- x[idx, , , drop = FALSE]
-  attr(out, "grain") <- attr(x, "grain")
-  attr(out, "stats") <- attr(x, "stats")
-  attr(out, "year_start") <- attr(x, "year_start")
-  attr(out, "bin_start") <- attr(x, "bin_start")
-  attr(out, "bin_end") <- attr(x, "bin_end")
-  attr(out, "bin_n") <- attr(x, "bin_n")[idx, , drop = FALSE]
-  attr(out, "bin_partial") <- attr(x, "bin_partial")
+  for (a in setdiff(names(attributes(x)), c("dim", "dimnames", "class"))) {
+    attr(out, a) <- attr(x, a)
+  }
+  if (!is.null(attr(x, "bin_n"))) {
+    attr(out, "bin_n") <- attr(x, "bin_n")[idx, , drop = FALSE]
+  }
   class(out) <- c("timesift_matrix", "array")
   out
 }
@@ -132,7 +140,7 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
     learners <- list(learners)
   }
   learners <- lapply(learners, .as_learner)
-  names(learners) <- .fill_names(learners)
+  names(learners) <- .fill_names(learners, "name")
   if (anyDuplicated(names(learners))) {
     stop("two learners are reported under the same name: ",
          paste(unique(names(learners)[duplicated(names(learners))]), collapse = ", "),
@@ -141,11 +149,12 @@ grain_ladder <- function(x, y, learners, folds = NULL, response = "presence_abse
   learners
 }
 
-# A learner names itself where the caller did not. In a ladder those names are reported columns, so
-# a clash there is an error; inside an ensemble they are only labels, so a clash is made unique.
-.fill_names <- function(learners) {
-  given <- names(learners)
-  auto <- vapply(learners, function(l) l$name, character(1L))
+# A learner names itself where the caller did not, and so does a representation; the field each
+# names itself by is the only difference between the two cases. Those names are the columns an arm
+# is reported under, so a clash between two of them is an error rather than quietly made unique.
+.fill_names <- function(x, field) {
+  given <- names(x)
+  auto <- vapply(x, function(e) e[[field]], character(1L))
   if (is.null(given)) auto else ifelse(nzchar(given), given, auto)
 }
 

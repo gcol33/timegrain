@@ -1,8 +1,11 @@
-"""timesift: temporal climate resolution for ecological prediction.
+"""timesift: learn predictive representations of time-varying data.
 
-The representation answers to ``inst/spec/representation.md``, the same document the R package answers
-to, and the test suite asserts the digests in ``inst/spec/fixtures/``. Where this implementation and
-that document disagree, the document is right.
+A target row, a series belonging to it, a representation of that series and a learner is the whole
+contract; species distribution modelling from microclimate loggers is one application of it.
+
+The representation answers to ``inst/spec/representation.md``, the same document the R package
+answers to, and the test suite asserts the digests in ``inst/spec/fixtures/``. Where this
+implementation and that document disagree, the document is right.
 
 That document's last section says what each language carries, so a difference between the two is a
 decision recorded there rather than something to be discovered at the call site.
@@ -10,21 +13,32 @@ decision recorded there rather than something to be discovered at the call site.
 
 from .artifacts import (read_cells, read_folds, read_response, write_cells,
                         write_folds, write_response)
+from .control import TrainControl, train_control
 from .digest import digest_array
-from .ladder import (Ladder, implied_skill, paired_contrast, tss_inflation,
-                     grain_ladder)
-from .learners import (Fit, Learner, cnn_learner, elasticnet_learner, fit_learner, flatten,
-                       mlp_learner, rescnn_learner, stepwise_learner)
+from .fit import CandidateFit, Timesift, timesift
+from .ladder import (Ladder, grain_ladder, implied_skill, paired_contrast,
+                     tss_inflation)
+from .learners import (Fit, Learner, cnn, elasticnet, fit_learner, flatten, mlp,
+                       rescnn, rf, stepwise)
 from .metrics import (cohen_kappa, decision_threshold, kappa_score, model_agreement,
                       roc_auc, tss)
-from .occlusion import bin_occlusion, ensemble_learner, feature_matrix
+from .occlusion import feature_matrix
 from .registry import (get_learner, learners, metrics, register_learner, register_metric,
                        register_response, responses)
-from .representation import (DAY_LEVEL_STATS, STATS, GRAINS, TimesiftSet, GrainMatrix,
-                             bind_channels, calendar_channels, timesift_set, grain_matrix)
+from .report import (candidate_table, ensemble_row, ensemble_weights, occlusion,
+                     summary)
+from .representation import (DAY_LEVEL_STATS, GRAINS, STATS, TimesiftMatrix, TimesiftSet,
+                             bind_channels, calendar_channels, grain_matrix, lookback_matrix,
+                             timesift_set)
 from .response import (PRESENCE_ABSENCE, Cells, Folds, Response, align_folds, as_response,
                        fold_map, scorable_cells)
+from .select import column_names, select_columns
 from .selection import Selection, select_grain
+from .specs import (Representation, Resampling, Sift, TimesiftSpec, as_resampling, as_sift,
+                    auto_grains, build_representation, cv, expand_sift, grain, grains,
+                    grouped_cv, lookback, lookbacks, multigrain, n_targets, native,
+                    resolve_folds, target_labels)
+from .stack import EnsembleSpec, Stack, ensemble, ensemble_combine, ensemble_fit
 
 __version__ = "0.1.0"
 
@@ -38,22 +52,27 @@ register_metric("kappa_youden", lambda y, p: kappa_score(y, p, "youden"))
 
 register_response("presence_absence", PRESENCE_ABSENCE)
 
-register_learner("elasticnet", elasticnet_learner)
-register_learner("stepwise", stepwise_learner)
-register_learner("mlp", mlp_learner)
-register_learner("cnn", cnn_learner)
-register_learner("rescnn", rescnn_learner)
-register_learner("ensemble", lambda: ensemble_learner([cnn_learner(), rescnn_learner()]))
+register_learner("elasticnet", elasticnet)
+register_learner("stepwise", stepwise)
+register_learner("rf", rf)
+register_learner("mlp", mlp)
+register_learner("cnn", cnn)
+register_learner("rescnn", rescnn)
 
 __all__ = [
-    "Cells", "DAY_LEVEL_STATS", "Fit", "Folds", "Ladder", "Learner", "PRESENCE_ABSENCE",
-    "Response", "STATS", "Selection", "TimesiftSet", "GRAINS", "GrainMatrix", "align_folds",
-    "as_response", "bin_occlusion", "bind_channels", "calendar_channels", "cnn_learner",
-    "cohen_kappa", "decision_threshold", "digest_array", "elasticnet_learner", "ensemble_learner",
-    "feature_matrix", "fit_learner", "flatten", "fold_map", "get_learner", "implied_skill",
-    "kappa_score", "learners", "metrics", "mlp_learner", "model_agreement", "paired_contrast",
-    "read_cells", "read_folds", "read_response", "register_learner", "register_metric",
-    "register_response", "rescnn_learner", "responses", "roc_auc", "scorable_cells",
-    "select_grain", "stepwise_learner", "timesift_set", "tss", "tss_inflation", "grain_ladder",
-    "grain_matrix", "write_cells", "write_folds", "write_response",
+    "CandidateFit", "Cells", "DAY_LEVEL_STATS", "EnsembleSpec", "Fit", "Folds", "GRAINS",
+    "Ladder", "Learner", "PRESENCE_ABSENCE", "Representation", "Resampling", "Response", "STATS",
+    "Selection", "Sift", "Stack", "Timesift", "TimesiftMatrix", "TimesiftSet", "TimesiftSpec",
+    "TrainControl", "align_folds", "as_resampling", "as_response", "as_sift", "auto_grains",
+    "bind_channels", "build_representation", "calendar_channels", "candidate_table", "cnn",
+    "cohen_kappa", "column_names", "cv", "decision_threshold", "digest_array", "elasticnet",
+    "ensemble", "ensemble_combine", "ensemble_fit", "ensemble_row", "ensemble_weights",
+    "expand_sift", "feature_matrix", "fit_learner", "flatten", "fold_map", "get_learner", "grain",
+    "grain_ladder", "grain_matrix", "grains", "grouped_cv", "implied_skill", "kappa_score",
+    "learners", "lookback", "lookback_matrix", "lookbacks", "metrics", "mlp", "model_agreement",
+    "multigrain", "n_targets", "native", "occlusion", "paired_contrast", "read_cells",
+    "read_folds", "read_response", "register_learner", "register_metric", "register_response",
+    "rescnn", "resolve_folds", "responses", "rf", "roc_auc", "scorable_cells", "select_columns",
+    "select_grain", "stepwise", "summary", "target_labels", "timesift", "timesift_set", "tss",
+    "tss_inflation", "write_cells", "write_folds", "write_response",
 ]

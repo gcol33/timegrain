@@ -20,6 +20,10 @@
 #' @param seed Random seed, fixed so the map is reproducible.
 #' @param strata Number of strata, or `1` for no stratification.
 #' @param by A numeric vector of length `nrow(y)` to stratify on instead of richness.
+#' @param group A vector of length `nrow(y)`. Rows sharing a value land in one fold, which is what
+#'   repeated targets on one unit through time need: a unit split across folds would put the same
+#'   unit on both sides of a split and the held-out score would be read on rows the model had
+#'   already seen a near-copy of. `NULL`, the default, is every row on its own.
 #'
 #' @return An integer vector of fold numbers named by unit, of class `timesift_folds`. Any named
 #'   integer vector of the same shape is accepted wherever this is.
@@ -31,32 +35,132 @@
 #' table(f)
 #'
 #' @export
-fold_map <- function(y, v = 10L, seed = 1L, strata = 5L, by = NULL) {
+fold_map <- function(y, v = 10L, seed = 1L, strata = 5L, by = NULL, group = NULL) {
   y <- .as_response(y)
   n <- nrow(y)
-  if (v < 2L || v > n) {
-    stop("`v` must be between 2 and the ", n, " units, got ", v, ".", call. = FALSE)
-  }
   value <- if (is.null(by)) rowSums(y) else as.numeric(by)
   if (length(value) != n) {
     stop("`by` must have one value per unit, got ", length(value), " for ", n, ".", call. = FALSE)
   }
-  stratum <- if (strata <= 1L) rep(1L, n) else .quantile_strata(value, strata)
+  # A row on its own is a group of one, so grouping is the general case and there is one dealing
+  # path rather than one per setting. A group's stratifying value is the mean of its rows'.
+  if (!is.null(group) && length(group) != n) {
+    stop("`group` must have one value per unit, got ", length(group), " for ", n, ".",
+         call. = FALSE)
+  }
+  key <- if (is.null(group)) seq_len(n) else match(as.character(group),
+                                                   unique(as.character(group)))
+  n_group <- max(key)
+  if (v < 2L || v > n_group) {
+    stop("`v` must be between 2 and the ", n_group, if (is.null(group)) " units" else " groups",
+         ", got ", v, ".", call. = FALSE)
+  }
+  group_value <- as.numeric(tapply(value, key, mean))
+  stratum <- if (strata <= 1L) rep(1L, n_group) else .quantile_strata(group_value, strata)
 
   old <- .seed_state()
   on.exit(.restore_seed(old), add = TRUE)
   set.seed(seed)
 
-  fold <- integer(n)
+  dealt <- integer(n_group)
   for (s in unique(stratum)) {
     idx <- which(stratum == s)
     # Permute by position, never by value: sample() on a length-one vector samples 1:x instead of
-    # returning x, so a stratum holding a single unit would scatter one fold over every position
-    # below that unit's index and leave the map degenerate with nothing raised.
-    fold[idx[sample.int(length(idx))]] <- rep_len(sample.int(v), length(idx))
+    # returning x, so a stratum holding a single group would scatter one fold over every position
+    # below that group's index and leave the map degenerate with nothing raised.
+    dealt[idx[sample.int(length(idx))]] <- rep_len(sample.int(v), length(idx))
   }
-  structure(stats::setNames(fold, rownames(y)), v = as.integer(v), seed = seed,
-            strata = as.integer(strata), class = "timesift_folds")
+  structure(stats::setNames(dealt[key], rownames(y)), v = as.integer(v), seed = seed,
+            strata = as.integer(strata), grouped = !is.null(group), class = "timesift_folds")
+}
+
+#' How the folds are drawn
+#'
+#' The resampling [timesift()] scores on. `cv()` deals units into folds balanced on the
+#' stratifying value; `grouped_cv()` deals whole groups, keeping every target sharing a group
+#' value on one side of each split.
+#'
+#' `resampling` also accepts a fold vector or a [fold_map()] result directly, which is how a split
+#' the package has no constructor for -- a spatial block, a season held out whole -- reaches the
+#' same fitting path.
+#'
+#' @param v Number of folds.
+#' @param seed Random seed, fixed so the map is reproducible.
+#' @param strata Number of strata, or `1` for no stratification.
+#' @param group The grouping: the name of a column of `targets`, or a vector with one value per
+#'   target.
+#'
+#' @return A `timesift_resampling`.
+#'
+#' @examples
+#' cv(v = 5L)
+#' grouped_cv("site")
+#'
+#' @export
+cv <- function(v = 10L, seed = 1L, strata = 5L) {
+  .resampling("cv", v = v, seed = seed, strata = strata, group = NULL)
+}
+
+#' @rdname cv
+#' @export
+grouped_cv <- function(group, v = 10L, seed = 1L) {
+  if (missing(group) || is.null(group)) {
+    stop("`grouped_cv()` needs the grouping: a column of `targets`, or one value per target.",
+         call. = FALSE)
+  }
+  .resampling("grouped_cv", v = v, seed = seed, strata = 1L, group = group)
+}
+
+.resampling <- function(method, v, seed, strata, group) {
+  if (!is.numeric(v) || length(v) != 1L || v < 2L) {
+    stop("`v` must be a fold count of 2 or more, got ", .describe(v), ".", call. = FALSE)
+  }
+  structure(list(method = method, v = as.integer(v), seed = seed, strata = as.integer(strata),
+                 group = group),
+            class = "timesift_resampling")
+}
+
+#' @export
+print.timesift_resampling <- function(x, ...) {
+  cat("<timesift resampling>", x$method, "in", .plural(x$v, "fold"), "\n")
+  if (identical(x$method, "grouped_cv")) {
+    cat("grouped by:", if (is.character(x$group) && length(x$group) == 1L) x$group else
+      paste(.plural(length(unique(x$group)), "group"), "given as a vector"), "\n")
+  } else {
+    cat("strata    :", x$strata, "\n")
+  }
+  invisible(x)
+}
+
+# One fold map, however it was asked for: a resampling spec drawn against the response, or a split
+# the caller brought, which reaches the same named integer vector everything downstream reads.
+.as_fold_map <- function(resampling, y, targets, tf) {
+  if (inherits(resampling, "timesift_resampling")) {
+    return(fold_map(y, v = resampling$v, seed = resampling$seed, strata = resampling$strata,
+                    group = .resampling_group(resampling, targets, tf)))
+  }
+  f <- .as_folds(resampling, tf$label)
+  structure(stats::setNames(f, tf$label), v = length(unique(f)), seed = NA,
+            strata = NA_integer_, grouped = FALSE, class = "timesift_folds")
+}
+
+# The grouping is a column of the targets or a vector the caller wrote against them, and the
+# targets have since been put in the order every array and the response carry.
+.resampling_group <- function(resampling, targets, tf) {
+  group <- resampling$group
+  if (is.null(group)) {
+    return(NULL)
+  }
+  if (is.character(group) && length(group) == 1L && group %in% names(targets)) {
+    return(as.character(targets[[group]]))
+  }
+  if (length(group) != nrow(targets)) {
+    stop("`grouped_cv()` was given ", length(group), " grouping value",
+         if (length(group) > 1L) "s" else "", " for ", nrow(targets),
+         " targets, and no column of `targets` is called \"",
+         if (is.character(group)) group[1L] else class(group)[1L], "\".", call. = FALSE)
+  }
+  as.character(group)[tf$order]
 }
 
 #' @export

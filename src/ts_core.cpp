@@ -399,16 +399,16 @@ Result reduce(const Request& req) {
   return out;
 }
 
-WindowResult reduce_windows(const WindowRequest& req) {
+LookbackResult reduce_lookbacks(const LookbackRequest& req) {
   const std::size_t n = req.n;
   const std::size_t n_target = req.n_target;
   if (n == 0) throw Error("no readings to reduce.");
   if (n_target == 0) throw Error("no targets to reduce to.");
   if (req.n_unit == 0) throw Error("no units to reduce.");
   if (req.stats.empty()) throw Error("no statistic to compute.");
-  if (req.span <= 0) throw Error("a window spans a positive number of seconds.");
-  if (req.lag < 0) throw Error("a window's lag cannot be negative.");
-  if (req.n_bin < 1) throw Error("a window holds at least one bin.");
+  if (req.span <= 0) throw Error("a lookback spans a positive number of seconds.");
+  if (req.lag < 0) throw Error("a lookback's lag cannot be negative.");
+  if (req.n_bin < 1) throw Error("a lookback holds at least one bin.");
   if (req.span % req.n_bin != 0) {
     throw Error("a span of " + std::to_string(req.span) + " seconds does not divide into " +
                 std::to_string(req.n_bin) + " bins.");
@@ -430,8 +430,8 @@ WindowResult reduce_windows(const WindowRequest& req) {
   }
 
   // A day-level statistic is a state a calendar day was in, so it is defined only where each day
-  // lies whole inside one bin. The window's bins are a fixed length from a fixed instant rather
-  // than a calendar, so that is two conditions: the step is a whole number of days, and the window
+  // lies whole inside one bin. The lookback's bins are a fixed length from a fixed instant rather
+  // than a calendar, so that is two conditions: the step is a whole number of days, and the lookback
   // opens on a day boundary. The first holds for every target or for none.
   const DayNeed need = day_need(req.stats);
   if (need.any() && floor_mod(step, kDay) != 0) {
@@ -461,7 +461,7 @@ WindowResult reduce_windows(const WindowRequest& req) {
   }
   for (std::size_t u = 0; u < req.n_unit; ++u) start[u + 1] += start[u];
 
-  // The calendar days of the whole record, reduced once, whatever windows read them afterwards.
+  // The calendar days of the whole record, reduced once, whatever lookbacks read them afterwards.
   std::int64_t day_lo = 0;
   std::vector<std::int32_t> day_ix;
   DayTable table(0, need);
@@ -508,7 +508,7 @@ WindowResult reduce_windows(const WindowRequest& req) {
     const seconds open = req.target_at[i] - req.lag - req.span;
     if (need.any() && floor_mod(open, kDay) != 0) {
       throw Error(day_level_named(req.stats) + " bins that open on a day boundary: target " +
-                  label_of(req.target_name, i) + "'s window opens at " + iso8601(open) +
+                  label_of(req.target_name, i) + "'s lookback opens at " + iso8601(open) +
                   " and a calendar day falls in two of its bins.");
     }
     const auto first = when.begin() + static_cast<std::ptrdiff_t>(start[u]);
@@ -541,7 +541,7 @@ WindowResult reduce_windows(const WindowRequest& req) {
     }
   }
 
-  // A window reaching past the record is a target the record cannot answer for, and padding it
+  // A lookback reaching past the record is a target the record cannot answer for, and padding it
   // would put an invented value in front of a model.
   std::size_t empty = 0;
   std::size_t missing = 0;
@@ -557,10 +557,10 @@ WindowResult reduce_windows(const WindowRequest& req) {
                          static_cast<seconds>(missing / n_target) * step;
     throw Error(plural(empty, "(target, bin) cell") + " hold no readings, first: target " +
                 label_of(req.target_name, i) + " over [" + iso8601(from) + ", " +
-                iso8601(from + step) + "). A window reaching past the record is not padded.");
+                iso8601(from + step) + "). A lookback reaching past the record is not padded.");
   }
 
-  WindowResult out;
+  LookbackResult out;
   out.values.assign(n_cell * req.stats.size(), 0.0);
   for (std::size_t k = 0; k < req.stats.size(); ++k) {
     write_channel(req.stats[k], out.values.data() + k * n_cell, n_cell, count, sum, low, high, day);

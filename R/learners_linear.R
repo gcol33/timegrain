@@ -9,6 +9,8 @@
 #' fair opponent for a network: a per-fold discrete selector pays selection variance a network
 #' never pays, so beating that one is not a matched result.
 #'
+#' @param data A representation the learner is pinned to, or `NULL` to run across every
+#'   representation of the run.
 #' @param alpha Elastic-net mixing, `1` lasso and `0` ridge.
 #' @param n_inner Folds of the inner cross-validation that chooses the penalty.
 #' @param squares Add the square of every column, giving the same quadratic capacity a
@@ -22,13 +24,14 @@
 #' @return A [learner()].
 #'
 #' @examples
-#' elasticnet_learner(alpha = 0.5)
+#' elasticnet(alpha = 0.5)
 #'
 #' @export
-elasticnet_learner <- function(alpha = 0.5, n_inner = 5L, squares = TRUE, s = "lambda.min",
-                               weight_positives = TRUE, seed = 1L) {
+elasticnet <- function(data = NULL, alpha = 0.5, n_inner = 5L, squares = TRUE, s = "lambda.min",
+                       weight_positives = TRUE, seed = 1L) {
   learner(
     name = "elasticnet",
+    data = data, reads = "tabular", multi = "separate",
     needs = "glmnet",
     params = list(alpha = alpha, n_inner = n_inner, squares = squares, s = s,
                   weight_positives = weight_positives, seed = seed),
@@ -77,18 +80,20 @@ elasticnet_learner <- function(alpha = 0.5, n_inner = 5L, squares = TRUE, s = "l
 #' penalised fit it also prices discrete selection: choosing a handful of columns out of hundreds
 #' is high variance, and that variance is a cost of the selector rather than of the features.
 #'
+#' @inheritParams elasticnet
 #' @param max_terms Predictors admitted before selection stops.
 #' @param degree Polynomial degree each admitted column enters at.
 #'
 #' @return A [learner()].
 #'
 #' @examples
-#' stepwise_learner(max_terms = 3)
+#' stepwise(max_terms = 3)
 #'
 #' @export
-stepwise_learner <- function(max_terms = 3L, degree = 2L) {
+stepwise <- function(data = NULL, max_terms = 3L, degree = 2L) {
   learner(
     name = "stepwise",
+    data = data, reads = "tabular", multi = "separate",
     params = list(max_terms = max_terms, degree = degree),
     fit = function(x, y, max_terms, degree, ...) {
       m <- .flatten(x)

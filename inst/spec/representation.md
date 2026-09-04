@@ -217,7 +217,7 @@ No standardisation, centring or scaling happens here. Scaling is a property of a
 to the fold it is computed on, never to the representation, because computing it over all ids
 would leak the held-out units into the training input.
 
-## The lookback window
+## The lookback
 
 The second reduction, and the one no calendar expresses. Its input is a table of **targets** beside
 the readings: one row per thing to predict, carrying the unit whose record it reads and the instant
@@ -235,15 +235,15 @@ unit cannot name a row, and the output is in the table's own row order rather th
 
 ### The bin arithmetic
 
-Three numbers describe a window: `span`, its length; `lag`, the gap between the anchor and the end
-of the window; and `bins`, how many sub-bins it is cut into, oldest first. With `a` the target's
+Three numbers describe a lookback: `span`, its length; `lag`, the gap between the anchor and the end
+of the lookback; and `bins`, how many sub-bins it is cut into, oldest first. With `a` the target's
 anchor and `step = span / bins`, bin `b`, counted from zero, covers naive local
 
     [a - lag - span + b * step,  a - lag - span + (b + 1) * step)
 
 closed at the left and open at the right, so a reading on a boundary belongs to the later bin.
 `span` must divide by `bins` exactly; one that does not is an error rather than a rounded step.
-Only the readings whose unit is the target's are read: a window is a stretch of one unit's record.
+Only the readings whose unit is the target's are read: a lookback is a stretch of one unit's record.
 
 Nothing else changes. The statistics are the seven **Statistics** defines, computed over the
 readings of a cell exactly as they are over the readings of a grain's cell, and the day-level pair
@@ -251,12 +251,12 @@ reduces the days of a bin oldest first.
 
 ### The two guards
 
-- Every `(target, bin)` cell holds at least one reading. A window reaching past either end of the
+- Every `(target, bin)` cell holds at least one reading. A lookback reaching past either end of the
   record is an error naming the target and the interval, never a padded row, for the reason a
   grain's empty cell is one: an invented value in front of a model is worse than a target the
   record cannot answer for.
 - The four day-level statistics reduce each calendar day first, so they are defined only where
-  every calendar day lies whole inside one bin. A calendar settles that by itself; a window has to
+  every calendar day lies whole inside one bin. A calendar settles that by itself; a lookback has to
   be asked, and the answer is two conditions rather than one. `step` must be a whole number of
   days, which holds for every target or for none, and `a - lag - span` must fall on a day boundary,
   which is a property of the anchor: a table of anchors on the hour rules the four statistics out
@@ -284,7 +284,7 @@ A string is a count, optional space, and one of those names, upper or lower case
 `"12 hours"`, `"1 year"`. A string of digits alone is seconds, and so is a number. Nothing else
 parses, and a duration that does not parse is an error naming the argument.
 
-### The output of a window
+### The output of a lookback
 
 A numeric array of shape `[n_target, n_bin, n_channel]`, traversed and digested exactly as a
 grain's is, target fastest.
@@ -302,9 +302,9 @@ Attributes carried on the array:
 
 | attribute | content |
 |---|---|
-| `grain` | `"window"` |
+| `grain` | `"lookback"` |
 | `span`, `lag` | the durations, resolved to seconds |
-| `bins` | how many bins the window was cut into |
+| `bins` | how many bins the lookback was cut into |
 | `stats` | the statistic names, in channel order |
 | `bin_n` | a `[target, bin]` matrix of how many readings fell in each cell |
 
@@ -408,17 +408,17 @@ inside that record, and the short series read as an `America/Sao_Paulo` clock, w
 midnight inside it, including a `year_start` landing on the night it moves. Each row carries `n_unit`, `n_bin`, the first and last bin start, how many bins are
 partial, and the digest.
 
-The lookback window reads the same three series and three files of its own. `window_targets.csv`
+The lookback reads the same three series and three files of its own. `lookback_targets.csv`
 holds the anchors, in named sets rather than one set per series, because an anchor that is a local
 midnight in one zone is not one in another and an anchor on the hour rules out the day-level
 statistics that a midnight allows: `aligned` and `offset` sit on day boundaries in UTC, `hourly`
-sits on the hour, and `zoned` sits on local midnights in `America/Sao_Paulo`. `window_digests.csv`
+sits on the hour, and `zoned` sits on local midnights in `America/Sao_Paulo`. `lookback_digests.csv`
 holds one row per target set, zone, span, lag, bin count and statistic, covering every statistic
 and each of the three-channel schemes, lags of none and of a day and of half a day, one and three
 and four and seven bins, a step that is a whole number of days and one that is not, a span written
 as a bare count of seconds, and the zoned set read both as UTC and as the clock that moves inside
 it. Each row carries `n_target`, `n_bin`, the first and last bin's offset, the unit of the first
-and last target, and the digest. `window_guards.csv` holds one case per guard -- a window reaching
+and last target, and the digest. `lookback_guards.csv` holds one case per guard -- a lookback reaching
 past the record, a day-level statistic over bins shorter than a day, and one over bins that do not
 open on a day boundary -- with the substring of the message the two implementations must both
 raise.
